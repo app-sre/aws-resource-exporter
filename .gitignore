@@ -1,0 +1,7 @@
+/aws-resources-exporter
+/config.yml
+/.build
+/.release
+/.tarballs
+.deps
+*tar.gz

@@ -1,0 +1,13 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    prometheus: k8s
+  name: aws-resources-exporter
+spec:
+  endpoints:
+    - port: http
+  interval: 30s
+  selector:
+    matchLabels:
+      app: aws-resources-exporter
