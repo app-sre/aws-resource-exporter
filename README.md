@@ -4,6 +4,15 @@ Prometheus exporter for AWS resources
 
 This was made as a complement to [CloudWatch Exporter](https://github.com/prometheus/cloudwatch_exporter) to get resource information that are useful to keep around as metrics in Prometheus but are out of scope for CloudWatch Exporter.
 
+## Included metadata & metrics
+
+| Service | Metric           | Description                           |
+|---------|------------------|---------------------------------------|
+| RDS     | allocatedstorage | The amount of allocated storage in GB |
+| RDS     | dbinstanceclass  | The DB instance class (type)          |
+| RDS     | dbinstancestatus | The instance status                   |
+| RDS     | engineversion    | The DB engine type and version        |
+
 ## Running this software
 
 ### From binaries
