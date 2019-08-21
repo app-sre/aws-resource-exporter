@@ -62,7 +62,7 @@ func (e *RDSExporter) Collect(ch chan<- prometheus.Metric) {
 		exporterMetrics.IncrementRequests()
 		result, err := svc.DescribeDBInstances(input)
 		if err != nil {
-			log.Errorf("[RDS] Call to DescribeDBInstances failed in region %s: %s", e.sess.Config.Region, err)
+			log.Errorf("[RDS] Call to DescribeDBInstances failed in region %s: %s", *e.sess.Config.Region, err)
 			exporterMetrics.IncrementErrors()
 			return
 		}
@@ -91,7 +91,7 @@ func (e *RDSExporter) Collect(ch chan<- prometheus.Metric) {
 					exporterMetrics.IncrementRequests()
 					result, err := svc.DescribeDBParameters(input)
 					if err != nil {
-						log.Errorf("[RDS] Call to DescribeDBInstances failed in region %s: %s", e.sess.Config.Region, err)
+						log.Errorf("[RDS] Call to DescribeDBInstances failed in region %s: %s", *e.sess.Config.Region, err)
 						exporterMetrics.IncrementErrors()
 						return
 					}
