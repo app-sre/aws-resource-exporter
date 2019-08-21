@@ -7,6 +7,12 @@ PKGS				:= $(shell go list ./... | grep -v -E '/vendor/|/test')
 FIRST_GOPATH		:= $(firstword $(subst :, ,$(shell go env GOPATH)))
 GOLANGCI_LINT_BIN	:= $(FIRST_GOPATH)/bin/golangci-lint
 
+ifneq (,$(wildcard $(CURDIR)/.docker))
+	DOCKER_CONF := $(CURDIR)/.docker
+else
+	DOCKER_CONF := $(HOME)/.docker
+endif
+
 .PHONY: all
 all: build
 
