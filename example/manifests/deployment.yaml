@@ -1,22 +1,22 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: aws-resources-exporter
+  name: aws-resource-exporter
   labels:
-    app: aws-resources-exporter
+    app: aws-resource-exporter
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: aws-resources-exporter
+      app: aws-resource-exporter
   template:
     metadata:
       labels:
-        app: aws-resources-exporter
+        app: aws-resource-exporter
     spec:
       containers:
-      - name: aws-resources-exporter
-        image: quay.io/app-sre/aws-resources-exporter:latest
+      - name: aws-resource-exporter
+        image: quay.io/app-sre/aws-resource-exporter:latest
         ports:
         - containerPort: 9115
           name: http
@@ -25,15 +25,15 @@ spec:
         - name: AWS_ACCESS_KEY_ID
           valueFrom:
             secretKeyRef:
-              name: aws-resources-exporter
+              name: aws-resource-exporter
               key: AWS_ACCESS_KEY_ID
         - name: AWS_SECRET_ACCESS_KEY
           valueFrom:
             secretKeyRef:
-              name: aws-resources-exporter
+              name: aws-resource-exporter
               key: AWS_SECRET_ACCESS_KEY
         - name: REGION
           valueFrom:
             secretKeyRef:
-              name: aws-resources-exporter
+              name: aws-resource-exporter
               key: REGION

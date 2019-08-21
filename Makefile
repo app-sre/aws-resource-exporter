@@ -1,5 +1,5 @@
 .PHONY: all build image check vendor dependencies
-NAME				:= aws-resources-exporter
+NAME				:= aws-resource-exporter
 REPO				:= quay.io/app-sre/$(NAME)
 TAG					:= $(shell git rev-parse --short HEAD)
 

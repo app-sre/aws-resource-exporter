@@ -3,11 +3,11 @@ kind: ServiceMonitor
 metadata:
   labels:
     prometheus: k8s
-  name: aws-resources-exporter
+  name: aws-resource-exporter
 spec:
   endpoints:
     - port: http
   interval: 30s
   selector:
     matchLabels:
-      app: aws-resources-exporter
+      app: aws-resource-exporter
