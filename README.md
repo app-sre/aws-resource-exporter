@@ -1,4 +1,4 @@
-# aws-resources-exporter
+# aws-resource-exporter
 
 Prometheus exporter for AWS resources
 
@@ -17,20 +17,20 @@ This was made as a complement to [CloudWatch Exporter](https://github.com/promet
 
 ### From binaries
 
-Download the most suitable binary from [the releases tab](https://github.com/app-sre/aws-resources-exporter/releases)
+Download the most suitable binary from [the releases tab](https://github.com/app-sre/aws-resource-exporter/releases)
 
 Then:
 
-    ./aws-resources-exporter <flags>
+    ./aws-resource-exporter <flags>
 
 ### Using the container image
 
     docker run --rm -d -p 9115:9115 \
-        --name aws-resources-exporter \
+        --name aws-resource-exporter \
         --env AWS_ACCESS_KEY_ID=AAA \
         --env AWS_SECRET_ACCESS_KEY=AAA \
         --env REGION=AAA \
-        quay.io/app-sre/aws-resources-exporter:latest
+        quay.io/app-sre/aws-resource-exporter:latest
 
 ## Building the software
 
@@ -46,7 +46,7 @@ Then:
 
 AWS credentials can be passed as environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`. AWS region must be passed via `REGION`.
 
-To view all available command-line flags, run `./aws-resources-exporter -h`.
+To view all available command-line flags, run `./aws-resource-exporter -h`.
 
 ## License
 

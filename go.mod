@@ -1,4 +1,4 @@
-module github.com/app-sre/aws-resources-exporter
+module github.com/app-sre/aws-resource-exporter
 
 go 1.12
 

@@ -1,12 +1,12 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: aws-resources-exporter
+  name: aws-resource-exporter
   labels:
-    app: aws-resources-exporter
+    app: aws-resource-exporter
 spec:
   selector:
-    app: aws-resources-exporter
+    app: aws-resource-exporter
   ports:
   - name: http
     protocol: TCP
