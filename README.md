@@ -29,7 +29,7 @@ Then:
         --name aws-resource-exporter \
         --env AWS_ACCESS_KEY_ID=AAA \
         --env AWS_SECRET_ACCESS_KEY=AAA \
-        --env REGION=AAA \
+        --env AWS_REGION=AAA \
         quay.io/app-sre/aws-resource-exporter:latest
 
 ## Building the software
@@ -44,7 +44,7 @@ Then:
 
 ## Configuration
 
-AWS credentials can be passed as environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`. AWS region must be passed via `REGION`.
+AWS credentials can be passed as environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`. AWS region must be passed via `AWS_REGION`.
 
 To view all available command-line flags, run `./aws-resource-exporter -h`.
 
