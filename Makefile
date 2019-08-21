@@ -31,7 +31,9 @@ image: build
 	docker build -t $(REPO):$(TAG) .
 
 image-push:
-	docker push $(REPO):$(TAG)
+	docker tag $(REPO):$(TAG) $(REPO):latest
+	docker --config=$(DOCKER_CONF) push $(REPO):$(TAG)
+	docker --config=$(DOCKER_CONF) push $(REPO):latest
 
 ##############
 # Formatting #
