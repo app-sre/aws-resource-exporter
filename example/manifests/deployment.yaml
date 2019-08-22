@@ -32,8 +32,8 @@ spec:
             secretKeyRef:
               name: aws-resource-exporter
               key: AWS_SECRET_ACCESS_KEY
-        - name: REGION
+        - name: AWS_REGION
           valueFrom:
             secretKeyRef:
               name: aws-resource-exporter
-              key: REGION
+              key: AWS_REGION

@@ -26,6 +26,11 @@ var (
 )
 
 func main() {
+	aws_region := os.Getenv("AWS_REGION")
+	if aws_region == "" {
+		log.Fatalln("AWS_REGION has to be defined")
+	}
+
 	log.AddFlags(kingpin.CommandLine)
 	kingpin.Version(version.Print(namespace))
 	kingpin.HelpFlag.Short('h')
@@ -39,7 +44,7 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	config := aws.NewConfig().WithCredentials(creds).WithRegion(os.Getenv("REGION"))
+	config := aws.NewConfig().WithCredentials(creds).WithRegion(aws_region)
 	sess := session.Must(session.NewSession(config))
 
 	exporterMetrics = NewExporterMetrics(sess)
