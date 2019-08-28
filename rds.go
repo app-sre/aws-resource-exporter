@@ -20,7 +20,7 @@ func NewRDSExporter(sess *session.Session) *RDSExporter {
 		sess: sess,
 		AllocatedStorage: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, "", "allocatedstorage"),
-			"The amount of allocated storage in GB.",
+			"The amount of allocated storage in bytes.",
 			[]string{"aws_region", "dbinstance_identifier"},
 			nil,
 		),
@@ -105,7 +105,7 @@ func (e *RDSExporter) Collect(ch chan<- prometheus.Metric) {
 			}
 		}
 
-		ch <- prometheus.MustNewConstMetric(e.AllocatedStorage, prometheus.GaugeValue, float64(*instance.AllocatedStorage), *e.sess.Config.Region, *instance.DBInstanceIdentifier)
+		ch <- prometheus.MustNewConstMetric(e.AllocatedStorage, prometheus.GaugeValue, float64(*instance.AllocatedStorage*1024*1024*1024), *e.sess.Config.Region, *instance.DBInstanceIdentifier)
 		ch <- prometheus.MustNewConstMetric(e.DBInstanceStatus, prometheus.GaugeValue, 1, *e.sess.Config.Region, *instance.DBInstanceIdentifier, *instance.DBInstanceStatus)
 		ch <- prometheus.MustNewConstMetric(e.EngineVersion, prometheus.GaugeValue, 1, *e.sess.Config.Region, *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion)
 		ch <- prometheus.MustNewConstMetric(e.DBInstanceClass, prometheus.GaugeValue, 1, *e.sess.Config.Region, *instance.DBInstanceIdentifier, *instance.DBInstanceClass)
