@@ -51,4 +51,3 @@ To view all available command-line flags, run `./aws-resource-exporter -h`.
 ## License
 
 Apache License 2.0, see [LICENSE](LICENSE).
-
