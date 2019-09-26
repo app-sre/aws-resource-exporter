@@ -1,18 +1,17 @@
-project_name: aws-resource-exporter
 builds:
 - env:
   - CGO_ENABLED=0
-  goarch:
-  - amd64
-  ignore:
-  - goos: darwin
 archives:
-  - name_template: "{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}"
+- replacements:
+    darwin: Darwin
+    linux: Linux
+    windows: Windows
+    386: i386
+    amd64: x86_64
 checksum:
-  name_template: 'aws-resource-exporter-linux-amd64.sha256'
-  algorithm: sha256
-release:
-  name_template: "Release {{.Tag}}"
+  name_template: 'checksums.txt'
+snapshot:
+  name_template: "{{ .Tag }}-next"
 changelog:
   sort: asc
   filters:
