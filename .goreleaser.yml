@@ -3,8 +3,6 @@ builds:
 - main: main.go
   binary: aws-resource-exporter
   goos:
-  - windows
-  - darwin
   - linux
   goarch:
   - amd64
@@ -16,8 +14,3 @@ archive:
   name_template: "{{ .ProjectName }}-{{ .Version }}-{{ .Os }}"
   format: tar.gz
   wrap_in_directory: true
-  format_overrides:
-  - goos: windows
-    format: zip
-  replacements:
-    darwin: macos
