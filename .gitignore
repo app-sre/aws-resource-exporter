@@ -5,3 +5,4 @@
 /.tarballs
 .deps
 *tar.gz
+dist/
