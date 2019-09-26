@@ -1,16 +1,21 @@
-# .goreleaser.yml
+project_name: aws-resource-exporter
 builds:
-- main: main.go
-  binary: aws-resource-exporter
-  goos:
-  - linux
+- env:
+  - CGO_ENABLED=0
   goarch:
   - amd64
-  env:
-  - CGO_ENABLED=0
-  ldflags:
-  - -s -w -X main.GitTag={{.Tag}} -X main.GitCommit={{.ShortCommit}}
-archive:
-  name_template: "{{ .ProjectName }}-{{ .Version }}-{{ .Os }}"
-  format: tar.gz
-  wrap_in_directory: true
+  ignore:
+  - goos: darwin
+archives:
+  - name_template: "{{ .ProjectName }}-{{ .Os }}-{{ .Arch }}"
+checksum:
+  name_template: 'aws-resource-exporter-linux-amd64.sha256'
+  algorithm: sha256
+release:
+  name_template: "Release {{.Tag}}"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+    - '^docs:'
+    - '^test:'
