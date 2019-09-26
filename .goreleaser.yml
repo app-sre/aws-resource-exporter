@@ -1,23 +1,20 @@
-# .goreleaser.yml
 builds:
-- main: main.go
-  binary: aws-resource-exporter
-  goos:
-  - windows
-  - darwin
-  - linux
-  goarch:
-  - amd64
-  env:
+- env:
   - CGO_ENABLED=0
-  ldflags:
-  - -s -w -X main.GitTag={{.Tag}} -X main.GitCommit={{.ShortCommit}}
-archive:
-  name_template: "{{ .ProjectName }}-{{ .Version }}-{{ .Os }}"
-  format: tar.gz
-  wrap_in_directory: true
-  format_overrides:
-  - goos: windows
-    format: zip
-  replacements:
-    darwin: macos
+archives:
+- replacements:
+    darwin: Darwin
+    linux: Linux
+    windows: Windows
+    386: i386
+    amd64: x86_64
+checksum:
+  name_template: 'checksums.txt'
+snapshot:
+  name_template: "{{ .Tag }}-next"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+    - '^docs:'
+    - '^test:'
