@@ -1,6 +1,6 @@
 # .goreleaser.yml
 builds:
-- main: orca.go
+- main: main.go
   binary: aws-resource-exporter
   goos:
   - windows
