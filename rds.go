@@ -16,28 +16,29 @@ type RDSExporter struct {
 }
 
 func NewRDSExporter(sess *session.Session) *RDSExporter {
+	log.Info("[RDS] Initializing RDS exporter")
 	return &RDSExporter{
 		sess: sess,
 		AllocatedStorage: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, "", "allocatedstorage"),
+			prometheus.BuildFQName(namespace, "", "rds_allocatedstorage"),
 			"The amount of allocated storage in bytes.",
 			[]string{"aws_region", "dbinstance_identifier"},
 			nil,
 		),
 		DBInstanceClass: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, "", "dbinstanceclass"),
+			prometheus.BuildFQName(namespace, "", "rds_dbinstanceclass"),
 			"The DB instance class (type).",
 			[]string{"aws_region", "dbinstance_identifier", "instance_class"},
 			nil,
 		),
 		DBInstanceStatus: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, "", "dbinstancestatus"),
+			prometheus.BuildFQName(namespace, "", "rds_dbinstancestatus"),
 			"The instance status.",
 			[]string{"aws_region", "dbinstance_identifier", "instance_status"},
 			nil,
 		),
 		EngineVersion: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, "", "engineversion"),
+			prometheus.BuildFQName(namespace, "", "rds_engineversion"),
 			"The DB engine type and version.",
 			[]string{"aws_region", "dbinstance_identifier", "engine", "engine_version"},
 			nil,
