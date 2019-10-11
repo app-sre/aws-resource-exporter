@@ -1,24 +1,45 @@
 package main
 
 import (
+	"sync"
+
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/log"
 )
 
+var DBMaxConnections = map[string]map[string]int64{
+	"db.t2.small": map[string]int64{
+		"default.mysql5.7": 150,
+	},
+	"db.m5.2xlarge": map[string]int64{
+		"default.postgres10": 3429,
+	},
+	"db.m5.large": map[string]int64{
+		"default.postgres10": 823,
+	},
+}
+
 type RDSExporter struct {
-	sess             *session.Session
-	AllocatedStorage *prometheus.Desc
-	DBInstanceClass  *prometheus.Desc
-	DBInstanceStatus *prometheus.Desc
-	EngineVersion    *prometheus.Desc
+	sess                        *session.Session
+	AllocatedStorage            *prometheus.Desc
+	DBInstanceClass             *prometheus.Desc
+	DBInstanceStatus            *prometheus.Desc
+	EngineVersion               *prometheus.Desc
+	MaxConnections              *prometheus.Desc
+	MaxConnectionsMappingErrors *prometheus.Desc
+
+	MaxConnectionsMappingErrorsValue float64
+
+	mutex *sync.Mutex
 }
 
 func NewRDSExporter(sess *session.Session) *RDSExporter {
 	log.Info("[RDS] Initializing RDS exporter")
 	return &RDSExporter{
-		sess: sess,
+		sess:  sess,
+		mutex: &sync.Mutex{},
 		AllocatedStorage: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, "", "rds_allocatedstorage"),
 			"The amount of allocated storage in bytes.",
@@ -41,6 +62,18 @@ func NewRDSExporter(sess *session.Session) *RDSExporter {
 			prometheus.BuildFQName(namespace, "", "rds_engineversion"),
 			"The DB engine type and version.",
 			[]string{"aws_region", "dbinstance_identifier", "engine", "engine_version"},
+			nil,
+		),
+		MaxConnections: prometheus.NewDesc(
+			prometheus.BuildFQName(namespace, "", "rds_maxconnections"),
+			"The DB's max_connections value",
+			[]string{"aws_region", "dbinstance_identifier"},
+			nil,
+		),
+		MaxConnectionsMappingErrors: prometheus.NewDesc(
+			prometheus.BuildFQName(namespace, "", "rds_maxconnections_errors"),
+			"Indicates no mapping found for instance/parameter group.",
+			[]string{},
 			nil,
 		),
 	}
@@ -74,41 +107,35 @@ func (e *RDSExporter) Collect(ch chan<- prometheus.Metric) {
 		}
 	}
 
-	parameterGroups := make(map[string][]*rds.Parameter)
 	for _, instance := range instances {
-		for _, dbpg := range instance.DBParameterGroups {
-			if *dbpg.ParameterApplyStatus == "in-sync" {
-				if _, ok := parameterGroups[*dbpg.DBParameterGroupName]; ok {
-					log.Debugln("ParameterGroup", *dbpg.DBParameterGroupName, "exists in cache.")
-					continue
-				}
-
-				log.Debugln("Fetching parameters for group", *dbpg.DBParameterGroupName)
-				input := &rds.DescribeDBParametersInput{
-					DBParameterGroupName: dbpg.DBParameterGroupName,
-				}
-				var parameters []*rds.Parameter
-				for {
-					exporterMetrics.IncrementRequests()
-					result, err := svc.DescribeDBParameters(input)
-					if err != nil {
-						log.Errorf("[RDS] Call to DescribeDBInstances failed in region %s: %s", *e.sess.Config.Region, err)
-						exporterMetrics.IncrementErrors()
-						return
-					}
-					parameters = append(parameters, result.Parameters...)
-					input.Marker = result.Marker
-					if result.Marker == nil {
-						break
-					}
-				}
-				parameterGroups[*dbpg.DBParameterGroupName] = parameters
+		var maxConnections int64
+		if val, ok := DBMaxConnections[*instance.DBInstanceClass]; ok {
+			if val, ok := val[*instance.DBParameterGroups[0].DBParameterGroupName]; ok {
+				log.Debugf("[RDS] Found mapping for instance type %s group %s value %d",
+					*instance.DBInstanceClass,
+					*instance.DBParameterGroups[0].DBParameterGroupName,
+					val)
+				maxConnections = val
+			} else {
+				log.Errorf("[RDS] No DB max_connections mapping exists for instance type %s parameter group %s",
+					*instance.DBInstanceClass,
+					*instance.DBParameterGroups[0].DBParameterGroupName)
+				e.mutex.Lock()
+				e.MaxConnectionsMappingErrorsValue++
+				e.mutex.Unlock()
 			}
+		} else {
+			log.Errorf("[RDS] No DB max_connections mapping exists for instance type %s",
+				*instance.DBInstanceClass)
+			e.mutex.Lock()
+			e.MaxConnectionsMappingErrorsValue++
+			e.mutex.Unlock()
 		}
-
+		ch <- prometheus.MustNewConstMetric(e.MaxConnections, prometheus.GaugeValue, float64(maxConnections), *e.sess.Config.Region, *instance.DBInstanceIdentifier)
 		ch <- prometheus.MustNewConstMetric(e.AllocatedStorage, prometheus.GaugeValue, float64(*instance.AllocatedStorage*1024*1024*1024), *e.sess.Config.Region, *instance.DBInstanceIdentifier)
 		ch <- prometheus.MustNewConstMetric(e.DBInstanceStatus, prometheus.GaugeValue, 1, *e.sess.Config.Region, *instance.DBInstanceIdentifier, *instance.DBInstanceStatus)
 		ch <- prometheus.MustNewConstMetric(e.EngineVersion, prometheus.GaugeValue, 1, *e.sess.Config.Region, *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion)
 		ch <- prometheus.MustNewConstMetric(e.DBInstanceClass, prometheus.GaugeValue, 1, *e.sess.Config.Region, *instance.DBInstanceIdentifier, *instance.DBInstanceClass)
 	}
+	ch <- prometheus.MustNewConstMetric(e.MaxConnectionsMappingErrors, prometheus.CounterValue, e.MaxConnectionsMappingErrorsValue)
 }
