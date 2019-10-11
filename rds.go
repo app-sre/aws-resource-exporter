@@ -9,6 +9,10 @@ import (
 	"github.com/prometheus/common/log"
 )
 
+// DBMaxConnections is a hardcoded map of instance types and DB Parameter Group names
+// This is a dump workaround created because by default the DB Parameter Group `max_connections` is a function
+// that is hard to parse and process in code and it contains a variable whose value is unknown to us (DBInstanceClassMemory)
+// AWS has no means to return the actual `max_connections` value.
 var DBMaxConnections = map[string]map[string]int64{
 	"db.t2.small": map[string]int64{
 		"default.mysql5.7": 150,
@@ -21,6 +25,7 @@ var DBMaxConnections = map[string]map[string]int64{
 	},
 }
 
+// RDSExporter defines an instance of the RDS Exporter
 type RDSExporter struct {
 	sess                        *session.Session
 	AllocatedStorage            *prometheus.Desc
@@ -35,6 +40,7 @@ type RDSExporter struct {
 	mutex *sync.Mutex
 }
 
+// NewRDSExporter creates a new RDSExporter instance
 func NewRDSExporter(sess *session.Session) *RDSExporter {
 	log.Info("[RDS] Initializing RDS exporter")
 	return &RDSExporter{
@@ -79,12 +85,14 @@ func NewRDSExporter(sess *session.Session) *RDSExporter {
 	}
 }
 
+// Describe is used by the Prometheus client to return a description of the metrics
 func (e *RDSExporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- e.AllocatedStorage
 	ch <- e.DBInstanceStatus
 	ch <- e.EngineVersion
 }
 
+// Collect is used by the Prometheus client to collect and return the metrics values
 func (e *RDSExporter) Collect(ch chan<- prometheus.Metric) {
 	svc := rds.New(e.sess)
 	input := &rds.DescribeDBInstancesInput{}
