@@ -39,6 +39,13 @@ objects:
                 key: aws_secret_access_key
           - name: AWS_REGION
             value: ${AWS_REGION}
+          resources:
+            limits:
+              cpu: 100m
+              memory: 150Mi
+            requests:
+              cpu: 10m
+              memory: 50Mi
 - apiVersion: v1
   kind: Service
   metadata:
