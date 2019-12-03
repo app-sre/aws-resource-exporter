@@ -26,8 +26,8 @@ var (
 )
 
 func main() {
-	aws_region := os.Getenv("AWS_REGION")
-	if aws_region == "" {
+	awsRegion := os.Getenv("AWS_REGION")
+	if awsRegion == "" {
 		log.Fatalln("AWS_REGION has to be defined")
 	}
 
@@ -44,7 +44,7 @@ func main() {
 		log.Fatalln(err)
 	}
 
-	config := aws.NewConfig().WithCredentials(creds).WithRegion(aws_region)
+	config := aws.NewConfig().WithCredentials(creds).WithRegion(awsRegion)
 	sess := session.Must(session.NewSession(config))
 
 	exporterMetrics = NewExporterMetrics(sess)
