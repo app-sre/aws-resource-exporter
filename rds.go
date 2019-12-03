@@ -86,8 +86,11 @@ func NewRDSExporter(sess *session.Session) *RDSExporter {
 // Describe is used by the Prometheus client to return a description of the metrics
 func (e *RDSExporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- e.AllocatedStorage
+	ch <- e.DBInstanceClass
 	ch <- e.DBInstanceStatus
 	ch <- e.EngineVersion
+	ch <- e.MaxConnections
+	ch <- e.MaxConnectionsMappingError
 }
 
 // Collect is used by the Prometheus client to collect and return the metrics values
