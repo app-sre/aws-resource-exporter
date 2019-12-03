@@ -32,6 +32,7 @@ type RDSExporter struct {
 	DBInstanceClass            *prometheus.Desc
 	DBInstanceStatus           *prometheus.Desc
 	EngineVersion              *prometheus.Desc
+	LatestRestorableTime       *prometheus.Desc
 	MaxConnections             *prometheus.Desc
 	MaxConnectionsMappingError *prometheus.Desc
 
@@ -68,6 +69,12 @@ func NewRDSExporter(sess *session.Session) *RDSExporter {
 			[]string{"aws_region", "dbinstance_identifier", "engine", "engine_version"},
 			nil,
 		),
+		LatestRestorableTime: prometheus.NewDesc(
+			prometheus.BuildFQName(namespace, "", "rds_latestrestorabletime"),
+			"Latest restorable time (UTC date timestamp).",
+			[]string{"aws_region", "dbinstance_identifier"},
+			nil,
+		),
 		MaxConnections: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, "", "rds_maxconnections"),
 			"The DB's max_connections value",
@@ -89,6 +96,7 @@ func (e *RDSExporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- e.DBInstanceClass
 	ch <- e.DBInstanceStatus
 	ch <- e.EngineVersion
+	ch <- e.LatestRestorableTime
 	ch <- e.MaxConnections
 	ch <- e.MaxConnectionsMappingError
 }
@@ -141,5 +149,6 @@ func (e *RDSExporter) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(e.DBInstanceStatus, prometheus.GaugeValue, 1, *e.sess.Config.Region, *instance.DBInstanceIdentifier, *instance.DBInstanceStatus)
 		ch <- prometheus.MustNewConstMetric(e.EngineVersion, prometheus.GaugeValue, 1, *e.sess.Config.Region, *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion)
 		ch <- prometheus.MustNewConstMetric(e.DBInstanceClass, prometheus.GaugeValue, 1, *e.sess.Config.Region, *instance.DBInstanceIdentifier, *instance.DBInstanceClass)
+		ch <- prometheus.MustNewConstMetric(e.LatestRestorableTime, prometheus.CounterValue, float64(instance.LatestRestorableTime.Unix()), *e.sess.Config.Region, *instance.DBInstanceIdentifier)
 	}
 }
