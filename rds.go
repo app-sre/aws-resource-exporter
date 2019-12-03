@@ -113,6 +113,7 @@ func (e *RDSExporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- e.LatestRestorableTime
 	ch <- e.MaxConnections
 	ch <- e.MaxConnectionsMappingError
+	ch <- e.PubliclyAccessible
 	ch <- e.StorageEncrypted
 }
 
