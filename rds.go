@@ -35,6 +35,7 @@ type RDSExporter struct {
 	LatestRestorableTime       *prometheus.Desc
 	MaxConnections             *prometheus.Desc
 	MaxConnectionsMappingError *prometheus.Desc
+	PubliclyAccessible         *prometheus.Desc
 
 	mutex *sync.Mutex
 }
@@ -85,6 +86,12 @@ func NewRDSExporter(sess *session.Session) *RDSExporter {
 			prometheus.BuildFQName(namespace, "", "rds_maxconnections_error"),
 			"Indicates no mapping found for instance/parameter group.",
 			[]string{"aws_region", "dbinstance_identifier", "instance_class"},
+			nil,
+		),
+		PubliclyAccessible: prometheus.NewDesc(
+			prometheus.BuildFQName(namespace, "", "rds_publiclyaccessible"),
+			"Indicates if the DB is publicly accessible",
+			[]string{"aws_region", "dbinstance_identifier"},
 			nil,
 		),
 	}
@@ -144,6 +151,15 @@ func (e *RDSExporter) Collect(ch chan<- prometheus.Metric) {
 				*instance.DBInstanceClass)
 			ch <- prometheus.MustNewConstMetric(e.MaxConnectionsMappingError, prometheus.GaugeValue, 1, *e.sess.Config.Region, *instance.DBInstanceIdentifier, *instance.DBInstanceClass)
 		}
+
+		if *instance.PubliclyAccessible {
+			ch <- prometheus.MustNewConstMetric(e.PubliclyAccessible, prometheus.GaugeValue, 1, *e.sess.Config.Region, *instance.DBInstanceIdentifier)
+
+		} else {
+			ch <- prometheus.MustNewConstMetric(e.PubliclyAccessible, prometheus.GaugeValue, 0, *e.sess.Config.Region, *instance.DBInstanceIdentifier)
+
+		}
+
 		ch <- prometheus.MustNewConstMetric(e.MaxConnections, prometheus.GaugeValue, float64(maxConnections), *e.sess.Config.Region, *instance.DBInstanceIdentifier)
 		ch <- prometheus.MustNewConstMetric(e.AllocatedStorage, prometheus.GaugeValue, float64(*instance.AllocatedStorage*1024*1024*1024), *e.sess.Config.Region, *instance.DBInstanceIdentifier)
 		ch <- prometheus.MustNewConstMetric(e.DBInstanceStatus, prometheus.GaugeValue, 1, *e.sess.Config.Region, *instance.DBInstanceIdentifier, *instance.DBInstanceStatus)
