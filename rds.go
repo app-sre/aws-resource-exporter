@@ -36,6 +36,7 @@ type RDSExporter struct {
 	MaxConnections             *prometheus.Desc
 	MaxConnectionsMappingError *prometheus.Desc
 	PubliclyAccessible         *prometheus.Desc
+	StorageEncrypted           *prometheus.Desc
 
 	mutex *sync.Mutex
 }
@@ -94,6 +95,12 @@ func NewRDSExporter(sess *session.Session) *RDSExporter {
 			[]string{"aws_region", "dbinstance_identifier"},
 			nil,
 		),
+		StorageEncrypted: prometheus.NewDesc(
+			prometheus.BuildFQName(namespace, "", "rds_storageencrypted"),
+			"Indicates if the DB storage is encrypted",
+			[]string{"aws_region", "dbinstance_identifier"},
+			nil,
+		),
 	}
 }
 
@@ -106,6 +113,7 @@ func (e *RDSExporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- e.LatestRestorableTime
 	ch <- e.MaxConnections
 	ch <- e.MaxConnectionsMappingError
+	ch <- e.StorageEncrypted
 }
 
 // Collect is used by the Prometheus client to collect and return the metrics values
@@ -157,6 +165,14 @@ func (e *RDSExporter) Collect(ch chan<- prometheus.Metric) {
 
 		} else {
 			ch <- prometheus.MustNewConstMetric(e.PubliclyAccessible, prometheus.GaugeValue, 0, *e.sess.Config.Region, *instance.DBInstanceIdentifier)
+
+		}
+
+		if *instance.StorageEncrypted {
+			ch <- prometheus.MustNewConstMetric(e.StorageEncrypted, prometheus.GaugeValue, 1, *e.sess.Config.Region, *instance.DBInstanceIdentifier)
+
+		} else {
+			ch <- prometheus.MustNewConstMetric(e.StorageEncrypted, prometheus.GaugeValue, 0, *e.sess.Config.Region, *instance.DBInstanceIdentifier)
 
 		}
 
