@@ -19,6 +19,7 @@ var DBMaxConnections = map[string]map[string]int64{
 	},
 	"db.m5.2xlarge": map[string]int64{
 		"default.postgres10": 3429,
+		"default.postgres11": 3429,
 	},
 	"db.m5.large": map[string]int64{
 		"default.postgres10": 823,
@@ -149,12 +150,13 @@ func (e *RDSExporter) Collect(ch chan<- prometheus.Metric) {
 					*instance.DBParameterGroups[0].DBParameterGroupName,
 					val)
 				maxConnections = val
+				ch <- prometheus.MustNewConstMetric(e.MaxConnectionsMappingError, prometheus.GaugeValue, 0, *e.sess.Config.Region, *instance.DBInstanceIdentifier, *instance.DBInstanceClass)
 			} else {
 				log.Errorf("[RDS] No DB max_connections mapping exists for instance type %s parameter group %s",
 					*instance.DBInstanceClass,
 					*instance.DBParameterGroups[0].DBParameterGroupName)
+				ch <- prometheus.MustNewConstMetric(e.MaxConnectionsMappingError, prometheus.GaugeValue, 1, *e.sess.Config.Region, *instance.DBInstanceIdentifier, *instance.DBInstanceClass)
 			}
-			ch <- prometheus.MustNewConstMetric(e.MaxConnectionsMappingError, prometheus.GaugeValue, 0, *e.sess.Config.Region, *instance.DBInstanceIdentifier, *instance.DBInstanceClass)
 		} else {
 			log.Errorf("[RDS] No DB max_connections mapping exists for instance type %s",
 				*instance.DBInstanceClass)
