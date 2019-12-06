@@ -19,6 +19,7 @@ var DBMaxConnections = map[string]map[string]int64{
 	},
 	"db.m5.2xlarge": map[string]int64{
 		"default.postgres10": 3429,
+		"default.postgres11": 3429,
 	},
 	"db.m5.large": map[string]int64{
 		"default.postgres10": 823,
