@@ -15,13 +15,16 @@ import (
 // AWS has no means to return the actual `max_connections` value.
 var DBMaxConnections = map[string]map[string]int64{
 	"db.t2.small": map[string]int64{
+		"default":          150,
 		"default.mysql5.7": 150,
 	},
 	"db.m5.2xlarge": map[string]int64{
+		"default":            3429,
 		"default.postgres10": 3429,
 		"default.postgres11": 3429,
 	},
 	"db.m5.large": map[string]int64{
+		"default":            823,
 		"default.postgres10": 823,
 		"default.postgres11": 823,
 	},
@@ -144,13 +147,22 @@ func (e *RDSExporter) Collect(ch chan<- prometheus.Metric) {
 
 	for _, instance := range instances {
 		var maxConnections int64
-		if val, ok := DBMaxConnections[*instance.DBInstanceClass]; ok {
-			if val, ok := val[*instance.DBParameterGroups[0].DBParameterGroupName]; ok {
+		if valmap, ok := DBMaxConnections[*instance.DBInstanceClass]; ok {
+			var maxconn int64
+			var found bool
+			if val, ok := valmap[*instance.DBParameterGroups[0].DBParameterGroupName]; ok {
+				maxconn = val
+				found = true
+			} else if val, ok := valmap["default"]; ok {
+				maxconn = val
+				found = true
+			}
+			if found {
 				log.Debugf("[RDS] Found mapping for instance type %s group %s value %d",
 					*instance.DBInstanceClass,
 					*instance.DBParameterGroups[0].DBParameterGroupName,
-					val)
-				maxConnections = val
+					maxconn)
+				maxConnections = maxconn
 				ch <- prometheus.MustNewConstMetric(e.MaxConnectionsMappingError, prometheus.GaugeValue, 0, *e.sess.Config.Region, *instance.DBInstanceIdentifier, *instance.DBInstanceClass)
 			} else {
 				log.Errorf("[RDS] No DB max_connections mapping exists for instance type %s parameter group %s",
