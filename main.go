@@ -10,6 +10,7 @@ import (
 	"github.com/prometheus/common/log"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/version"
 	"gopkg.in/alecthomas/kingpin.v2"
 )
@@ -53,7 +54,7 @@ func main() {
 		NewRDSExporter(sess),
 	)
 
-	http.Handle(*metricsPath, prometheus.Handler())
+	http.Handle(*metricsPath, promhttp.Handler())
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`<html>
              <head><title>AWS Resources Exporter</title></head>
