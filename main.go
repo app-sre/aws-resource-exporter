@@ -3,6 +3,8 @@ package main
 import (
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -27,6 +29,10 @@ var (
 )
 
 func main() {
+	os.Exit(run())
+}
+
+func run() int {
 	awsRegion := os.Getenv("AWS_REGION")
 	if awsRegion == "" {
 		log.Fatalln("AWS_REGION has to be defined")
@@ -64,6 +70,27 @@ func main() {
              </body>
              </html>`))
 	})
-	log.Infoln("Starting HTTP server on", *listenAddress)
-	log.Fatal(http.ListenAndServe(*listenAddress, nil))
+
+	srv := http.Server{Addr: *listenAddress}
+	srvc := make(chan struct{})
+	term := make(chan os.Signal, 1)
+	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		log.Infoln("Starting HTTP server on", *listenAddress)
+		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+			log.Errorf("Error starting HTTP server: %v", err)
+			close(srvc)
+		}
+	}()
+
+	for {
+		select {
+		case <-term:
+			log.Infoln("Received SIGTERM, exiting gracefully...")
+			return 0
+		case <-srvc:
+			return 1
+		}
+	}
 }
