@@ -5,8 +5,9 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/rds"
+	"github.com/go-kit/kit/log"
+	"github.com/go-kit/kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/common/log"
 )
 
 // DBMaxConnections is a hardcoded map of instance types and DB Parameter Group names
@@ -43,12 +44,13 @@ type RDSExporter struct {
 	PubliclyAccessible         *prometheus.Desc
 	StorageEncrypted           *prometheus.Desc
 
-	mutex *sync.Mutex
+	logger log.Logger
+	mutex  *sync.Mutex
 }
 
 // NewRDSExporter creates a new RDSExporter instance
-func NewRDSExporter(sess *session.Session) *RDSExporter {
-	log.Info("[RDS] Initializing RDS exporter")
+func NewRDSExporter(sess *session.Session, logger log.Logger) *RDSExporter {
+	level.Info(logger).Log("msg", "Initializing RDS exporter")
 	return &RDSExporter{
 		sess:  sess,
 		mutex: &sync.Mutex{},
@@ -106,6 +108,7 @@ func NewRDSExporter(sess *session.Session) *RDSExporter {
 			[]string{"aws_region", "dbinstance_identifier"},
 			nil,
 		),
+		logger: logger,
 	}
 }
 
@@ -134,7 +137,7 @@ func (e *RDSExporter) Collect(ch chan<- prometheus.Metric) {
 		exporterMetrics.IncrementRequests()
 		result, err := svc.DescribeDBInstances(input)
 		if err != nil {
-			log.Errorf("[RDS] Call to DescribeDBInstances failed in region %s: %s", *e.sess.Config.Region, err)
+			level.Error(e.logger).Log("msg", "Call to DescribeDBInstances failed", "region", *e.sess.Config.Region, "err", err)
 			exporterMetrics.IncrementErrors()
 			return
 		}
@@ -158,21 +161,21 @@ func (e *RDSExporter) Collect(ch chan<- prometheus.Metric) {
 				found = true
 			}
 			if found {
-				log.Debugf("[RDS] Found mapping for instance type %s group %s value %d",
-					*instance.DBInstanceClass,
-					*instance.DBParameterGroups[0].DBParameterGroupName,
-					maxconn)
+				level.Debug(e.logger).Log("msg", "Found mapping for instance",
+					"type", *instance.DBInstanceClass,
+					"group", *instance.DBParameterGroups[0].DBParameterGroupName,
+					"value", maxconn)
 				maxConnections = maxconn
 				ch <- prometheus.MustNewConstMetric(e.MaxConnectionsMappingError, prometheus.GaugeValue, 0, *e.sess.Config.Region, *instance.DBInstanceIdentifier, *instance.DBInstanceClass)
 			} else {
-				log.Errorf("[RDS] No DB max_connections mapping exists for instance type %s parameter group %s",
-					*instance.DBInstanceClass,
-					*instance.DBParameterGroups[0].DBParameterGroupName)
+				level.Error(e.logger).Log("msg", "No DB max_connections mapping exists for instance",
+					"type", *instance.DBInstanceClass,
+					"group", *instance.DBParameterGroups[0].DBParameterGroupName)
 				ch <- prometheus.MustNewConstMetric(e.MaxConnectionsMappingError, prometheus.GaugeValue, 1, *e.sess.Config.Region, *instance.DBInstanceIdentifier, *instance.DBInstanceClass)
 			}
 		} else {
-			log.Errorf("[RDS] No DB max_connections mapping exists for instance type %s",
-				*instance.DBInstanceClass)
+			level.Error(e.logger).Log("msg", "No DB max_connections mapping exists for instance",
+				"type", *instance.DBInstanceClass)
 			ch <- prometheus.MustNewConstMetric(e.MaxConnectionsMappingError, prometheus.GaugeValue, 1, *e.sess.Config.Region, *instance.DBInstanceIdentifier, *instance.DBInstanceClass)
 		}
 
