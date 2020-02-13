@@ -9,7 +9,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/prometheus/common/log"
+	"github.com/go-kit/kit/log/level"
+	"github.com/prometheus/common/promlog"
+	"github.com/prometheus/common/promlog/flag"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -33,22 +35,26 @@ func main() {
 }
 
 func run() int {
-	awsRegion := os.Getenv("AWS_REGION")
-	if awsRegion == "" {
-		log.Fatalln("AWS_REGION has to be defined")
-	}
-
-	log.AddFlags(kingpin.CommandLine)
+	promlogConfig := &promlog.Config{}
+	flag.AddFlags(kingpin.CommandLine, promlogConfig)
 	kingpin.Version(version.Print(namespace))
 	kingpin.HelpFlag.Short('h')
 	kingpin.Parse()
+	logger := promlog.New(promlogConfig)
 
-	log.Infoln("Starting", namespace, version.Info())
-	log.Infoln("Build context", version.BuildContext())
+	level.Info(logger).Log("msg", "Starting"+namespace, "version", version.Info())
+	level.Info(logger).Log("msg", "Build context", version.BuildContext())
+
+	awsRegion := os.Getenv("AWS_REGION")
+	if awsRegion == "" {
+		level.Error(logger).Log("msg", "AWS_REGION has to be defined")
+		return 1
+	}
 
 	creds := credentials.NewEnvCredentials()
 	if _, err := creds.Get(); err != nil {
-		log.Fatalln(err)
+		level.Error(logger).Log("msg", "Could not get AWS credentials from env variables", "err", err)
+		return 1
 	}
 
 	config := aws.NewConfig().WithCredentials(creds).WithRegion(awsRegion)
@@ -57,7 +63,7 @@ func run() int {
 	exporterMetrics = NewExporterMetrics(sess)
 	prometheus.MustRegister(
 		exporterMetrics,
-		NewRDSExporter(sess),
+		NewRDSExporter(sess, logger),
 	)
 
 	http.Handle(*metricsPath, promhttp.Handler())
@@ -77,9 +83,9 @@ func run() int {
 	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
 
 	go func() {
-		log.Infoln("Starting HTTP server on", *listenAddress)
+		level.Info(logger).Log("msg", "Starting HTTP server", "address", *listenAddress)
 		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
-			log.Errorf("Error starting HTTP server: %v", err)
+			level.Error(logger).Log("msg", "Error starting HTTP server", "err", err)
 			close(srvc)
 		}
 	}()
@@ -87,7 +93,7 @@ func run() int {
 	for {
 		select {
 		case <-term:
-			log.Infoln("Received SIGTERM, exiting gracefully...")
+			level.Info(logger).Log("msg", "Received SIGTERM, exiting gracefully...")
 			return 0
 		case <-srvc:
 			return 1

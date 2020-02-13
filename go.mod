@@ -4,6 +4,7 @@ go 1.12
 
 require (
 	github.com/aws/aws-sdk-go v1.29.2
+	github.com/go-kit/kit v0.9.0
 	github.com/golang/protobuf v1.3.3 // indirect
 	github.com/prometheus/client_golang v1.4.1
 	github.com/prometheus/common v0.9.1
