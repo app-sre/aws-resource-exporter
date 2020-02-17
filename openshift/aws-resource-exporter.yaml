@@ -7,17 +7,17 @@ objects:
   kind: Deployment
   metadata:
     labels:
-      app: aws-resource-exporter
-    name: aws-resource-exporter
+      app: ${NAME}
+    name: ${NAME}
   spec:
     replicas: ${{REPLICAS}}
     selector:
       matchLabels:
-        app: aws-resource-exporter
+        app: ${NAME}
     template:
       metadata:
         labels:
-          app: aws-resource-exporter
+          app: ${NAME}
       spec:
         containers:
         - name: aws-resource-exporter
@@ -50,11 +50,11 @@ objects:
   kind: Service
   metadata:
     labels:
-      app: aws-resource-exporter
-    name: aws-resource-exporter
+      app: ${NAME}
+    name: ${NAME}
   spec:
     selector:
-      app: aws-resource-exporter
+      app: ${NAME}
     ports:
     - name: http
       protocol: TCP
@@ -62,6 +62,8 @@ objects:
       targetPort: 9115
     type: ClusterIP
 parameters:
+- name: NAME
+  value: aws-resource-exporter
 - name: IMAGE
   value: quay.io/app-sre/aws-resource-exporter
 - name: IMAGE_TAG
