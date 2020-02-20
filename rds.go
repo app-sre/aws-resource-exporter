@@ -15,9 +15,18 @@ import (
 // that is hard to parse and process in code and it contains a variable whose value is unknown to us (DBInstanceClassMemory)
 // AWS has no means to return the actual `max_connections` value.
 var DBMaxConnections = map[string]map[string]int64{
+	"db.t2.micro": map[string]int64{
+		"default": 87,
+	},
 	"db.t2.small": map[string]int64{
 		"default":          150,
 		"default.mysql5.7": 150,
+	},
+	"db.m3.medium": map[string]int64{
+		"default": 392,
+	},
+	"db.m3.large": map[string]int64{
+		"default": 801,
 	},
 	"db.m5.2xlarge": map[string]int64{
 		"default":            3429,
