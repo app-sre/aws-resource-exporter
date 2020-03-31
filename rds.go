@@ -22,6 +22,11 @@ var DBMaxConnections = map[string]map[string]int64{
 		"default":          150,
 		"default.mysql5.7": 150,
 	},
+	"db.t3.micro": map[string]int64{
+		"default":            112,
+		"default.postgres10": 112,
+		"default.postgres11": 112,
+	},
 	"db.m3.medium": map[string]int64{
 		"default": 392,
 	},
