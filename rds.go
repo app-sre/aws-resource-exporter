@@ -43,6 +43,12 @@ var DBMaxConnections = map[string]map[string]int64{
 		"default.postgres10": 823,
 		"default.postgres11": 823,
 	},
+	"db.r5.large": map[string]int64{
+		"default":            1802,
+		"default.postgres10": 1802,
+		"default.postgres11": 1802,
+		"default.postgres12": 1802,
+	},
 }
 
 // RDSExporter defines an instance of the RDS Exporter
