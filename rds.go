@@ -27,6 +27,12 @@ var DBMaxConnections = map[string]map[string]int64{
 		"default.postgres10": 112,
 		"default.postgres11": 112,
 	},
+	"db.t3.small": map[string]int64{
+		"default":            225,
+		"default.postgres10": 225,
+		"default.postgres11": 225,
+		"default.postgres12": 225,
+	},
 	"db.m3.medium": map[string]int64{
 		"default": 392,
 	},
