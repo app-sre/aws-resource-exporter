@@ -14,6 +14,7 @@ import (
 // This is a dump workaround created because by default the DB Parameter Group `max_connections` is a function
 // that is hard to parse and process in code and it contains a variable whose value is unknown to us (DBInstanceClassMemory)
 // AWS has no means to return the actual `max_connections` value.
+// For Aurora see: https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/AuroraMySQL.Managing.Performance.html
 var DBMaxConnections = map[string]map[string]int64{
 	"db.t2.micro": map[string]int64{
 		"default": 87,
@@ -26,12 +27,17 @@ var DBMaxConnections = map[string]map[string]int64{
 		"default":            112,
 		"default.postgres10": 112,
 		"default.postgres11": 112,
+		"default.postgres12": 112,
+		"default.postgres13": 112,
+		"default.postgres14": 112,
 	},
 	"db.t3.small": map[string]int64{
 		"default":            225,
 		"default.postgres10": 225,
 		"default.postgres11": 225,
 		"default.postgres12": 225,
+		"default.postgres13": 225,
+		"default.postgres14": 225,
 	},
 	"db.m3.medium": map[string]int64{
 		"default": 392,
@@ -39,31 +45,114 @@ var DBMaxConnections = map[string]map[string]int64{
 	"db.m3.large": map[string]int64{
 		"default": 801,
 	},
-	"db.m5.2xlarge": map[string]int64{
-		"default":            3429,
-		"default.postgres10": 3429,
-		"default.postgres11": 3429,
+	"db.m3.2xlarge": map[string]int64{
+		"default": 3379,
+	},
+	"db.m4.large": map[string]int64{
+		"default":            823,
+		"default.postgres10": 823,
+		"default.postgres11": 823,
+		"default.postgres12": 823,
+		"default.postgres13": 823,
+		"default.postgres14": 823,
 	},
 	"db.m5.large": map[string]int64{
 		"default":            823,
 		"default.postgres10": 823,
 		"default.postgres11": 823,
+		"default.postgres12": 823,
+		"default.postgres13": 823,
+		"default.postgres14": 823,
+	},
+	"db.m5.xlarge": map[string]int64{
+		"default":            1646,
+		"default.postgres10": 1646,
+		"default.postgres11": 1646,
+		"default.postgres12": 1646,
+		"default.postgres13": 1646,
+		"default.postgres14": 1646,
+	},
+	"db.m5.2xlarge": map[string]int64{
+		"default":            3429,
+		"default.postgres10": 3429,
+		"default.postgres11": 3429,
+		"default.postgres12": 3429,
+		"default.postgres13": 3429,
+		"default.postgres14": 3429,
+	},
+	"db.m5.4xlarge": map[string]int64{
+		"default":            5000,
+		"default.postgres10": 5000,
+		"default.postgres11": 5000,
+		"default.postgres12": 5000,
+		"default.postgres13": 5000,
+		"default.postgres14": 5000,
+	},
+	"db.r4.4xlarge": map[string]int64{
+		"default.mysql5.7": 10410,
 	},
 	"db.r5.large": map[string]int64{
 		"default":            1802,
 		"default.postgres10": 1802,
 		"default.postgres11": 1802,
 		"default.postgres12": 1802,
+		"default.postgres13": 1802,
+		"default.postgres14": 1802,
+	},
+	"db.r5.xlarge": map[string]int64{
+		"default.mysql5.7":   2730,
+		"default.postgres10": 3604,
+		"default.postgres11": 3604,
+		"default.postgres12": 3604,
+		"default.postgres13": 3604,
+		"default.postgres14": 3604,
+	},
+	"db.r5.2xlarge": map[string]int64{
+		"default.aurora-mysql5.7": 3000,
+	},
+	"db.r5.8xlarge": map[string]int64{
+		"default.mysql5.7": 21845,
+	},
+	"db.r5.16xlarge": map[string]int64{
+		"default.mysql5.7": 43690,
 	},
 	"db.m6g.large": map[string]int64{
 		"default":            901,
 		"default.postgres12": 901,
+		"default.postgres13": 901,
+		"default.postgres14": 901,
 	},
 	"db.m6g.xlarge": map[string]int64{
 		"default":            1705,
 		"default.postgres10": 1705,
 		"default.postgres11": 1705,
 		"default.postgres12": 1705,
+		"default.postgres13": 1705,
+		"default.postgres14": 1705,
+	},
+	"db.m6g.2xlarge": map[string]int64{
+		"default":            3410,
+		"default.postgres10": 3410,
+		"default.postgres11": 3410,
+		"default.postgres12": 3410,
+		"default.postgres13": 3410,
+		"default.postgres14": 3410,
+	},
+	"db.m6g.4xlarge": map[string]int64{
+		"default":            5000,
+		"default.postgres10": 5000,
+		"default.postgres11": 5000,
+		"default.postgres12": 5000,
+		"default.postgres13": 5000,
+		"default.postgres14": 5000,
+	},
+	"db.m6g.8xlarge": map[string]int64{
+		"default":            5000,
+		"default.postgres10": 5000,
+		"default.postgres11": 5000,
+		"default.postgres12": 5000,
+		"default.postgres13": 5000,
+		"default.postgres14": 5000,
 	},
 }
 
