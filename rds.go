@@ -97,9 +97,11 @@ var DBMaxConnections = map[string]map[string]int64{
 		"default.postgres14": 5000,
 	},
 	"db.r4.large": map[string]int64{
+		"default":          1301,
 		"default.mysql5.7": 1301,
 	},
 	"db.r4.4xlarge": map[string]int64{
+		"default":          10410,
 		"default.mysql5.7": 10410,
 	},
 	"db.r5.large": map[string]int64{
@@ -111,6 +113,7 @@ var DBMaxConnections = map[string]map[string]int64{
 		"default.postgres14": 1802,
 	},
 	"db.r5.xlarge": map[string]int64{
+		"default":            2730,
 		"default.mysql5.7":   2730,
 		"default.postgres10": 3604,
 		"default.postgres11": 3604,
@@ -119,12 +122,15 @@ var DBMaxConnections = map[string]map[string]int64{
 		"default.postgres14": 3604,
 	},
 	"db.r5.2xlarge": map[string]int64{
+		"default":                 3000,
 		"default.aurora-mysql5.7": 3000,
 	},
 	"db.r5.8xlarge": map[string]int64{
+		"default":          21845,
 		"default.mysql5.7": 21845,
 	},
 	"db.r5.16xlarge": map[string]int64{
+		"default":          43690,
 		"default.mysql5.7": 43690,
 	},
 	"db.m6g.large": map[string]int64{
