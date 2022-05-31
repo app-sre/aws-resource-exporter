@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"sync"
 
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -191,6 +192,7 @@ type RDSExporter struct {
 	LatestRestorableTime       *prometheus.Desc
 	MaxConnections             *prometheus.Desc
 	MaxConnectionsMappingError *prometheus.Desc
+	PendingMaintenanceActions  *prometheus.Desc
 	PubliclyAccessible         *prometheus.Desc
 	StorageEncrypted           *prometheus.Desc
 
@@ -246,6 +248,12 @@ func NewRDSExporter(sess *session.Session, logger log.Logger) *RDSExporter {
 			[]string{"aws_region", "dbinstance_identifier", "instance_class"},
 			nil,
 		),
+		PendingMaintenanceActions: prometheus.NewDesc(
+			prometheus.BuildFQName(namespace, "", "rds_pendingmaintenanceactions"),
+			"Pending maintenance actions for a RDS instance. 0 indicates no available maintenance and a separate metric with a value of 1 will be published for every separate action.",
+			[]string{"aws_region", "dbinstance_identifier", "action", "auto_apply_after", "current_apply_date", "description"},
+			nil,
+		),
 		PubliclyAccessible: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, "", "rds_publiclyaccessible"),
 			"Indicates if the DB is publicly accessible",
@@ -271,6 +279,7 @@ func (e *RDSExporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- e.LatestRestorableTime
 	ch <- e.MaxConnections
 	ch <- e.MaxConnectionsMappingError
+	ch <- e.PendingMaintenanceActions
 	ch <- e.PubliclyAccessible
 	ch <- e.StorageEncrypted
 }
@@ -356,5 +365,44 @@ func (e *RDSExporter) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(e.DBInstanceStatus, prometheus.GaugeValue, 1, *e.sess.Config.Region, *instance.DBInstanceIdentifier, *instance.DBInstanceStatus)
 		ch <- prometheus.MustNewConstMetric(e.EngineVersion, prometheus.GaugeValue, 1, *e.sess.Config.Region, *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion)
 		ch <- prometheus.MustNewConstMetric(e.DBInstanceClass, prometheus.GaugeValue, 1, *e.sess.Config.Region, *instance.DBInstanceIdentifier, *instance.DBInstanceClass)
+	}
+
+	// Get pending maintenance data because this isn't provided in DescribeDBInstances
+	var instancesPendMaintActionsData []*rds.ResourcePendingMaintenanceActions
+	describePendingMaintInput := &rds.DescribePendingMaintenanceActionsInput{}
+	instancesWithPendingMaint := make(map[string]bool)
+
+	for {
+		exporterMetrics.IncrementRequests()
+		result, err := svc.DescribePendingMaintenanceActions(describePendingMaintInput)
+		if err != nil {
+			level.Error(e.logger).Log("msg", "Call to DescribePendingMaintenanceActions failed", "region", *e.sess.Config.Region, "err", err)
+			exporterMetrics.IncrementErrors()
+			return
+		}
+		instancesPendMaintActionsData = append(instancesPendMaintActionsData, result.PendingMaintenanceActions...)
+		describePendingMaintInput.Marker = result.Marker
+		if result.Marker == nil {
+			break
+		}
+	}
+
+	// Create the metrics for all instances that have pending maintenance actions
+	for _, instance := range instancesPendMaintActionsData {
+		for _, action := range instance.PendingMaintenanceActionDetails {
+			// DescribePendingMaintenanceActions only returns ARNs, so this gets the identifier.
+			dbIdentifier := strings.Split(*instance.ResourceIdentifier, ":")[6]
+			instancesWithPendingMaint[dbIdentifier] = true
+			ch <- prometheus.MustNewConstMetric(e.PendingMaintenanceActions, prometheus.GaugeValue, 1, *e.sess.Config.Region, dbIdentifier, *action.Action, action.AutoAppliedAfterDate.String(), action.CurrentApplyDate.String(), *action.Description)
+		}
+	}
+
+	// DescribePendingMaintenanceActions only returns data about database with pending maintenance, so for any of the
+	// other databases returned from DescribeDBInstances, publish a value of "0" indicating that maintenance isn't
+	// available.
+	for _, instance := range instances {
+		if !instancesWithPendingMaint[*instance.DBInstanceIdentifier] {
+			ch <- prometheus.MustNewConstMetric(e.PendingMaintenanceActions, prometheus.GaugeValue, 0, *e.sess.Config.Region, *instance.DBInstanceIdentifier, "", "", "", "")
+		}
 	}
 }
