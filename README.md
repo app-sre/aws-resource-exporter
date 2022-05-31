@@ -6,13 +6,13 @@ This was made as a complement to [CloudWatch Exporter](https://github.com/promet
 
 ## Included metadata & metrics
 
-| Service | Metric                    | Description                                               |
-|---------|---------------------------|-----------------------------------------------------------|
-| RDS     | allocatedstorage          | The amount of allocated storage in GB                     |
-| RDS     | dbinstanceclass           | The DB instance class (type)                              |
-| RDS     | dbinstancestatus          | The instance status                                       |
-| RDS     | engineversion             | The DB engine type and version                            |
-| RDS     | pendingmaintenanceactions | The number of pending maintenance actions for an instance |
+| Service | Metric                    | Description                                        |
+|---------|---------------------------|----------------------------------------------------|
+| RDS     | allocatedstorage          | The amount of allocated storage in GB              |
+| RDS     | dbinstanceclass           | The DB instance class (type)                       |
+| RDS     | dbinstancestatus          | The instance status                                |
+| RDS     | engineversion             | The DB engine type and version                     |
+| RDS     | pendingmaintenanceactions | The pending maintenance actions for a RDS instance |
 
 
 ## Running this software
