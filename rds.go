@@ -393,7 +393,22 @@ func (e *RDSExporter) Collect(ch chan<- prometheus.Metric) {
 			// DescribePendingMaintenanceActions only returns ARNs, so this gets the identifier.
 			dbIdentifier := strings.Split(*instance.ResourceIdentifier, ":")[6]
 			instancesWithPendingMaint[dbIdentifier] = true
-			ch <- prometheus.MustNewConstMetric(e.PendingMaintenanceActions, prometheus.GaugeValue, 1, *e.sess.Config.Region, dbIdentifier, *action.Action, action.AutoAppliedAfterDate.String(), action.CurrentApplyDate.String(), *action.Description)
+
+			var autoApplyDate string
+			if action.AutoAppliedAfterDate == nil {
+				autoApplyDate = ""
+			} else {
+				autoApplyDate = action.AutoAppliedAfterDate.String()
+			}
+
+			var currentApplyDate string
+			if action.CurrentApplyDate == nil {
+				currentApplyDate = ""
+			} else {
+				currentApplyDate = action.CurrentApplyDate.String()
+			}
+
+			ch <- prometheus.MustNewConstMetric(e.PendingMaintenanceActions, prometheus.GaugeValue, 1, *e.sess.Config.Region, dbIdentifier, *action.Action, autoApplyDate, currentApplyDate, *action.Description)
 		}
 	}
 
