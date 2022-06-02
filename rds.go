@@ -395,16 +395,12 @@ func (e *RDSExporter) Collect(ch chan<- prometheus.Metric) {
 			instancesWithPendingMaint[dbIdentifier] = true
 
 			var autoApplyDate string
-			if action.AutoAppliedAfterDate == nil {
-				autoApplyDate = ""
-			} else {
+			if action.AutoAppliedAfterDate != nil {
 				autoApplyDate = action.AutoAppliedAfterDate.String()
 			}
 
 			var currentApplyDate string
-			if action.CurrentApplyDate == nil {
-				currentApplyDate = ""
-			} else {
+			if action.CurrentApplyDate != nil {
 				currentApplyDate = action.CurrentApplyDate.String()
 			}
 
