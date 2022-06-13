@@ -3,6 +3,7 @@ package main
 import (
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/rds"
@@ -10,6 +11,18 @@ import (
 	"github.com/go-kit/kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 )
+
+// Struct to store RDS Instances log files data
+// This struct is used to store the data in the MetricsProxy
+type RDSLogsMetrics struct {
+	logs         int
+	totalLogSize int64
+}
+
+// MetricsProxy
+var metricsProxy = NewMetricProxy()
+
+var wg sync.WaitGroup
 
 // DBMaxConnections is a hardcoded map of instance types and DB Parameter Group names
 // This is a dump workaround created because by default the DB Parameter Group `max_connections` is a function
@@ -195,9 +208,40 @@ type RDSExporter struct {
 	PendingMaintenanceActions  *prometheus.Desc
 	PubliclyAccessible         *prometheus.Desc
 	StorageEncrypted           *prometheus.Desc
+	LogsStorage                *prometheus.Desc
+	Logs                       *prometheus.Desc
 
 	logger log.Logger
 	mutex  *sync.Mutex
+}
+
+func getLogfilesMetrics(svc *rds.RDS, instance *rds.DBInstance, e *RDSExporter) *RDSLogsMetrics {
+	var logMetrics = &RDSLogsMetrics{
+		logs:         0,
+		totalLogSize: 0,
+	}
+	var input = &rds.DescribeDBLogFilesInput{
+		DBInstanceIdentifier: instance.DBInstanceIdentifier,
+	}
+
+	for {
+		//exporterMetrics.IncrementRequests()
+		result, err := svc.DescribeDBLogFiles(input)
+		if err != nil {
+			level.Error(e.logger).Log("msg", "Call to DescribeDBLogFiles failed", "region", *e.sess.Config.Region, "instance", *instance.DBInstanceIdentifier, "err", err)
+			exporterMetrics.IncrementErrors()
+			continue
+		}
+		for _, log := range result.DescribeDBLogFiles {
+			logMetrics.logs++
+			logMetrics.totalLogSize += *log.Size
+		}
+		input.Marker = result.Marker
+		if result.Marker == nil {
+			break
+		}
+	}
+	return logMetrics
 }
 
 // NewRDSExporter creates a new RDSExporter instance
@@ -263,6 +307,18 @@ func NewRDSExporter(sess *session.Session, logger log.Logger) *RDSExporter {
 		StorageEncrypted: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, "", "rds_storageencrypted"),
 			"Indicates if the DB storage is encrypted",
+			[]string{"aws_region", "dbinstance_identifier"},
+			nil,
+		),
+		LogsStorage: prometheus.NewDesc(
+			prometheus.BuildFQName(namespace, "", "rds_logsstorage"),
+			"The amount of storage consumed by log files (in bytes)",
+			[]string{"aws_region", "dbinstance_identifier"},
+			nil,
+		),
+		Logs: prometheus.NewDesc(
+			prometheus.BuildFQName(namespace, "", "rds_logs"),
+			"The amount of existent log files",
 			[]string{"aws_region", "dbinstance_identifier"},
 			nil,
 		),
@@ -360,6 +416,32 @@ func (e *RDSExporter) Collect(ch chan<- prometheus.Metric) {
 			ch <- prometheus.MustNewConstMetric(e.LatestRestorableTime, prometheus.CounterValue, float64(0), *e.sess.Config.Region, *instance.DBInstanceIdentifier)
 		}
 
+		wg.Add(1)
+		instanceId := *instance.DBInstanceIdentifier
+		go func() {
+			defer wg.Done()
+			instaceLogFilesId := instanceId + "-" + "logfiles"
+			var v *RDSLogsMetrics
+			m, err := metricsProxy.GetMetricById(instaceLogFilesId)
+			if err != nil {
+				level.Debug(e.logger).Log("msg", "Log files metrics can not be fetched from the metrics proxy --> Api Call",
+					"instance", instanceId,
+					"err", err,
+				)
+				exporterMetrics.IncrementRequests()
+				v = getLogfilesMetrics(svc, instance, e)
+				metricsProxy.StoreMetricById(instaceLogFilesId, v, 300)
+			} else {
+				level.Debug(e.logger).Log("msg", "Log files metrics fetched from the metrics proxy",
+					"instance", instanceId,
+					"ttl", float64(m.ttl)-time.Since(m.creationTime).Seconds(),
+				)
+				v = m.value.(*RDSLogsMetrics)
+			}
+			ch <- prometheus.MustNewConstMetric(e.Logs, prometheus.GaugeValue, float64(v.logs), *e.sess.Config.Region, instanceId)
+			ch <- prometheus.MustNewConstMetric(e.LogsStorage, prometheus.GaugeValue, float64(v.totalLogSize), *e.sess.Config.Region, instanceId)
+		}()
+
 		ch <- prometheus.MustNewConstMetric(e.MaxConnections, prometheus.GaugeValue, float64(maxConnections), *e.sess.Config.Region, *instance.DBInstanceIdentifier)
 		ch <- prometheus.MustNewConstMetric(e.AllocatedStorage, prometheus.GaugeValue, float64(*instance.AllocatedStorage*1024*1024*1024), *e.sess.Config.Region, *instance.DBInstanceIdentifier)
 		ch <- prometheus.MustNewConstMetric(e.DBInstanceStatus, prometheus.GaugeValue, 1, *e.sess.Config.Region, *instance.DBInstanceIdentifier, *instance.DBInstanceStatus)
@@ -416,4 +498,5 @@ func (e *RDSExporter) Collect(ch chan<- prometheus.Metric) {
 			ch <- prometheus.MustNewConstMetric(e.PendingMaintenanceActions, prometheus.GaugeValue, 0, *e.sess.Config.Region, *instance.DBInstanceIdentifier, "", "", "", "")
 		}
 	}
+	wg.Wait()
 }
