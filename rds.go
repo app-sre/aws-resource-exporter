@@ -225,7 +225,7 @@ func getLogfilesMetrics(svc *rds.RDS, instanceId string, e *RDSExporter) *RDSLog
 	}
 
 	for {
-		//exporterMetrics.IncrementRequests()
+		exporterMetrics.IncrementRequests()
 		result, err := svc.DescribeDBLogFiles(input)
 		if err != nil {
 			level.Error(e.logger).Log("msg", "Call to DescribeDBLogFiles failed", "region", *e.sess.Config.Region, "instance", &instanceId, "err", err)
@@ -428,7 +428,6 @@ func (e *RDSExporter) Collect(ch chan<- prometheus.Metric) {
 					"instance", instanceId,
 					"err", err,
 				)
-				exporterMetrics.IncrementRequests()
 				v = getLogfilesMetrics(svc, instanceId, e)
 				metricsProxy.StoreMetricById(instaceLogFilesId, v, 300)
 			} else {
