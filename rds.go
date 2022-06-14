@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"strings"
 	"sync"
 	"time"
@@ -215,7 +216,7 @@ type RDSExporter struct {
 	mutex  *sync.Mutex
 }
 
-func getLogfilesMetrics(svc *rds.RDS, instanceId string, e *RDSExporter) *RDSLogsMetrics {
+func getLogfilesMetrics(svc *rds.RDS, instanceId string, e *RDSExporter) (*RDSLogsMetrics, error) {
 	var logMetrics = &RDSLogsMetrics{
 		logs:         0,
 		totalLogSize: 0,
@@ -230,7 +231,7 @@ func getLogfilesMetrics(svc *rds.RDS, instanceId string, e *RDSExporter) *RDSLog
 		if err != nil {
 			level.Error(e.logger).Log("msg", "Call to DescribeDBLogFiles failed", "region", *e.sess.Config.Region, "instance", &instanceId, "err", err)
 			exporterMetrics.IncrementErrors()
-			continue
+			return nil, err
 		}
 		for _, log := range result.DescribeDBLogFiles {
 			logMetrics.logs++
@@ -241,7 +242,7 @@ func getLogfilesMetrics(svc *rds.RDS, instanceId string, e *RDSExporter) *RDSLog
 			break
 		}
 	}
-	return logMetrics
+	return logMetrics, nil
 }
 
 // NewRDSExporter creates a new RDSExporter instance
@@ -363,6 +364,57 @@ func (e *RDSExporter) Collect(ch chan<- prometheus.Metric) {
 		}
 	}
 
+	workers := 10
+	queue := make(chan string)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel() // Make sure it's called to release resources even if no errors
+
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func(queue <-chan string, wg *sync.WaitGroup) {
+			defer wg.Done()
+			for {
+				select {
+				case <-ctx.Done():
+					level.Debug(e.logger).Log("msg", "Worker cancelled")
+					return
+				case instanceId, ok := <-queue:
+					if !ok {
+						level.Debug(e.logger).Log("msg", "Work queue is closed. finishing worker")
+						return
+					}
+					instaceLogFilesId := instanceId + "-" + "logfiles"
+					var v *RDSLogsMetrics
+					m, err := metricsProxy.GetMetricById(instaceLogFilesId)
+					if err != nil {
+						level.Debug(e.logger).Log("msg", "Log files metrics can not be fetched from the metrics proxy --> Api Call",
+							"instance", instanceId,
+							"err", err,
+						)
+
+						v, err = getLogfilesMetrics(svc, instanceId, e)
+						if err != nil {
+							level.Debug(e.logger).Log("msg", "Cancelling context and exiting worker due to an getLogfilesMetrics error")
+							cancel()
+							return
+						}
+						metricsProxy.StoreMetricById(instaceLogFilesId, v, 300)
+
+					} else {
+						level.Info(e.logger).Log("msg", "Log files metrics fetched from the metrics proxy",
+							"instance", instanceId,
+							"ttl", float64(m.ttl)-time.Since(m.creationTime).Seconds(),
+						)
+						v = m.value.(*RDSLogsMetrics)
+					}
+					ch <- prometheus.MustNewConstMetric(e.Logs, prometheus.GaugeValue, float64(v.logs), *e.sess.Config.Region, instanceId)
+					ch <- prometheus.MustNewConstMetric(e.LogsStorage, prometheus.GaugeValue, float64(v.totalLogSize), *e.sess.Config.Region, instanceId)
+				}
+			}
+		}(queue, &wg)
+	}
+
 	for _, instance := range instances {
 		var maxConnections int64
 		if valmap, ok := DBMaxConnections[*instance.DBInstanceClass]; ok {
@@ -416,37 +468,22 @@ func (e *RDSExporter) Collect(ch chan<- prometheus.Metric) {
 			ch <- prometheus.MustNewConstMetric(e.LatestRestorableTime, prometheus.CounterValue, float64(0), *e.sess.Config.Region, *instance.DBInstanceIdentifier)
 		}
 
-		wg.Add(1)
-		instanceId := *instance.DBInstanceIdentifier
-		go func() {
-			defer wg.Done()
-			instaceLogFilesId := instanceId + "-" + "logfiles"
-			var v *RDSLogsMetrics
-			m, err := metricsProxy.GetMetricById(instaceLogFilesId)
-			if err != nil {
-				level.Debug(e.logger).Log("msg", "Log files metrics can not be fetched from the metrics proxy --> Api Call",
-					"instance", instanceId,
-					"err", err,
-				)
-				v = getLogfilesMetrics(svc, instanceId, e)
-				metricsProxy.StoreMetricById(instaceLogFilesId, v, 300)
-			} else {
-				level.Debug(e.logger).Log("msg", "Log files metrics fetched from the metrics proxy",
-					"instance", instanceId,
-					"ttl", float64(m.ttl)-time.Since(m.creationTime).Seconds(),
-				)
-				v = m.value.(*RDSLogsMetrics)
-			}
-			ch <- prometheus.MustNewConstMetric(e.Logs, prometheus.GaugeValue, float64(v.logs), *e.sess.Config.Region, instanceId)
-			ch <- prometheus.MustNewConstMetric(e.LogsStorage, prometheus.GaugeValue, float64(v.totalLogSize), *e.sess.Config.Region, instanceId)
-		}()
-
 		ch <- prometheus.MustNewConstMetric(e.MaxConnections, prometheus.GaugeValue, float64(maxConnections), *e.sess.Config.Region, *instance.DBInstanceIdentifier)
 		ch <- prometheus.MustNewConstMetric(e.AllocatedStorage, prometheus.GaugeValue, float64(*instance.AllocatedStorage*1024*1024*1024), *e.sess.Config.Region, *instance.DBInstanceIdentifier)
 		ch <- prometheus.MustNewConstMetric(e.DBInstanceStatus, prometheus.GaugeValue, 1, *e.sess.Config.Region, *instance.DBInstanceIdentifier, *instance.DBInstanceStatus)
 		ch <- prometheus.MustNewConstMetric(e.EngineVersion, prometheus.GaugeValue, 1, *e.sess.Config.Region, *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion)
 		ch <- prometheus.MustNewConstMetric(e.DBInstanceClass, prometheus.GaugeValue, 1, *e.sess.Config.Region, *instance.DBInstanceIdentifier, *instance.DBInstanceClass)
+
+		select {
+		case <-ctx.Done():
+			continue
+		default:
+			instanceId := *instance.DBInstanceIdentifier
+			queue <- instanceId
+		}
+
 	}
+	close(queue)
 
 	// Get pending maintenance data because this isn't provided in DescribeDBInstances
 	var instancesPendMaintActionsData []*rds.ResourcePendingMaintenanceActions
