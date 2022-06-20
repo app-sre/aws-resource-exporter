@@ -18,12 +18,12 @@ import (
 // To get the log metrics an api call for each instance is needed
 // Since this cause rate limit problems to the AWS api, these metrics
 // are cached for this amount of time before requesting them again
-var RDS_LOGS_METRICS_TTL = "RDS_LOGS_METRICS_TTL"
+var RDS_LOGS_METRICS_TTL = "LOGS_METRICS_TTL"
 var RDS_LOGS_METRICS_TTL_DEFAULT = 300
 
 // RDS log metrics are requested in parallel with a workerPool.
 // this variable sets the number of workers
-var RDS_LOGS_METRICS_WORKERS = "RDS_LOGS_METRICS_WORKERS"
+var RDS_LOGS_METRICS_WORKERS = "LOGS_METRICS_WORKERS"
 var RDS_LOGS_METRICS_WORKERS_DEFAULT = 10
 
 // Struct to store RDS Instances log files data
@@ -241,7 +241,7 @@ func NewRDSExporter(sess *session.Session, logger log.Logger) *RDSExporter {
 		workers = &RDS_LOGS_METRICS_WORKERS_DEFAULT
 		level.Info(logger).Log("msg", fmt.Sprintf("Using default value for number Workers: %d", RDS_LOGS_METRICS_WORKERS_DEFAULT))
 	} else {
-		level.Info(logger).Log("msg", fmt.Sprintf("Using Env value for number of Workers: %d", workers))
+		level.Info(logger).Log("msg", fmt.Sprintf("Using Env value for number of Workers: %d", *workers))
 	}
 
 	logMetricsTTL, _ := GetEnvIntValue(RDS_LOGS_METRICS_TTL)
@@ -249,7 +249,7 @@ func NewRDSExporter(sess *session.Session, logger log.Logger) *RDSExporter {
 		logMetricsTTL = &RDS_LOGS_METRICS_TTL_DEFAULT
 		level.Info(logger).Log("msg", fmt.Sprintf("Using default value for logs metrics TTL: %d", RDS_LOGS_METRICS_TTL_DEFAULT))
 	} else {
-		level.Info(logger).Log("msg", fmt.Sprintf("Using Env value for logs metrics TTL: %d", logMetricsTTL))
+		level.Info(logger).Log("msg", fmt.Sprintf("Using Env value for logs metrics TTL: %d", *logMetricsTTL))
 	}
 
 	return &RDSExporter{
