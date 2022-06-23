@@ -1,8 +1,11 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/rds"
@@ -10,6 +13,29 @@ import (
 	"github.com/go-kit/kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 )
+
+// Default TTL value for RDS logs related metrics
+// To get the log metrics an api call for each instance is needed
+// Since this cause rate limit problems to the AWS api, these metrics
+// are cached for this amount of time before requesting them again
+var RDS_LOGS_METRICS_TTL = "LOGS_METRICS_TTL"
+var RDS_LOGS_METRICS_TTL_DEFAULT = 300
+
+// RDS log metrics are requested in parallel with a workerPool.
+// this variable sets the number of workers
+var RDS_LOGS_METRICS_WORKERS = "LOGS_METRICS_WORKERS"
+var RDS_LOGS_METRICS_WORKERS_DEFAULT = 10
+
+// Struct to store RDS Instances log files data
+// This struct is used to store the data in the MetricsProxy
+type RDSLogsMetrics struct {
+	logs         int
+	totalLogSize int64
+}
+
+// MetricsProxy
+var metricsProxy = NewMetricProxy()
+var wg sync.WaitGroup
 
 // DBMaxConnections is a hardcoded map of instance types and DB Parameter Group names
 // This is a dump workaround created because by default the DB Parameter Group `max_connections` is a function
@@ -185,6 +211,7 @@ var DBMaxConnections = map[string]map[string]int64{
 // RDSExporter defines an instance of the RDS Exporter
 type RDSExporter struct {
 	sess                       *session.Session
+	svc                        *rds.RDS
 	AllocatedStorage           *prometheus.Desc
 	DBInstanceClass            *prometheus.Desc
 	DBInstanceStatus           *prometheus.Desc
@@ -195,6 +222,11 @@ type RDSExporter struct {
 	PendingMaintenanceActions  *prometheus.Desc
 	PubliclyAccessible         *prometheus.Desc
 	StorageEncrypted           *prometheus.Desc
+	LogsStorageSize            *prometheus.Desc
+	LogsAmount                 *prometheus.Desc
+
+	workers        int
+	logsMetricsTTL int
 
 	logger log.Logger
 	mutex  *sync.Mutex
@@ -203,9 +235,29 @@ type RDSExporter struct {
 // NewRDSExporter creates a new RDSExporter instance
 func NewRDSExporter(sess *session.Session, logger log.Logger) *RDSExporter {
 	level.Info(logger).Log("msg", "Initializing RDS exporter")
+
+	workers, _ := GetEnvIntValue(RDS_LOGS_METRICS_WORKERS)
+	if workers == nil {
+		workers = &RDS_LOGS_METRICS_WORKERS_DEFAULT
+		level.Info(logger).Log("msg", fmt.Sprintf("Using default value for number Workers: %d", RDS_LOGS_METRICS_WORKERS_DEFAULT))
+	} else {
+		level.Info(logger).Log("msg", fmt.Sprintf("Using Env value for number of Workers: %d", *workers))
+	}
+
+	logMetricsTTL, _ := GetEnvIntValue(RDS_LOGS_METRICS_TTL)
+	if logMetricsTTL == nil {
+		logMetricsTTL = &RDS_LOGS_METRICS_TTL_DEFAULT
+		level.Info(logger).Log("msg", fmt.Sprintf("Using default value for logs metrics TTL: %d", RDS_LOGS_METRICS_TTL_DEFAULT))
+	} else {
+		level.Info(logger).Log("msg", fmt.Sprintf("Using Env value for logs metrics TTL: %d", *logMetricsTTL))
+	}
+
 	return &RDSExporter{
-		sess:  sess,
-		mutex: &sync.Mutex{},
+		sess:           sess,
+		svc:            rds.New(sess),
+		mutex:          &sync.Mutex{},
+		workers:        *workers,
+		logsMetricsTTL: *logMetricsTTL,
 		AllocatedStorage: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, "", "rds_allocatedstorage"),
 			"The amount of allocated storage in bytes.",
@@ -266,8 +318,104 @@ func NewRDSExporter(sess *session.Session, logger log.Logger) *RDSExporter {
 			[]string{"aws_region", "dbinstance_identifier"},
 			nil,
 		),
+		LogsStorageSize: prometheus.NewDesc(
+			prometheus.BuildFQName(namespace, "", "rds_logsstorage_size_bytes"),
+			"The amount of storage consumed by log files (in bytes)",
+			[]string{"aws_region", "dbinstance_identifier"},
+			nil,
+		),
+		LogsAmount: prometheus.NewDesc(
+			prometheus.BuildFQName(namespace, "", "rds_logs_amount"),
+			"The amount of existent log files",
+			[]string{"aws_region", "dbinstance_identifier"},
+			nil,
+		),
 		logger: logger,
 	}
+}
+
+func (e *RDSExporter) requestRDSLogMetrics(instanceId string) (*RDSLogsMetrics, error) {
+	var logMetrics = &RDSLogsMetrics{
+		logs:         0,
+		totalLogSize: 0,
+	}
+	var input = &rds.DescribeDBLogFilesInput{
+		DBInstanceIdentifier: &instanceId,
+	}
+
+	for {
+		exporterMetrics.IncrementRequests()
+		result, err := e.svc.DescribeDBLogFiles(input)
+		if err != nil {
+			level.Error(e.logger).Log("msg", "Call to DescribeDBLogFiles failed", "region", *e.sess.Config.Region, "instance", &instanceId, "err", err)
+			exporterMetrics.IncrementErrors()
+			return nil, err
+		}
+		for _, log := range result.DescribeDBLogFiles {
+			logMetrics.logs++
+			logMetrics.totalLogSize += *log.Size
+		}
+		input.Marker = result.Marker
+		if result.Marker == nil {
+			break
+		}
+	}
+	return logMetrics, nil
+}
+
+func (e *RDSExporter) getRDSLogMetrics(instanceId string, ch chan<- prometheus.Metric) error {
+	instaceLogFilesId := instanceId + "-" + "logfiles"
+	var logMetrics *RDSLogsMetrics
+	cachedItem, err := metricsProxy.GetMetricById(instaceLogFilesId)
+	if err != nil {
+		level.Debug(e.logger).Log("msg", "Log files metrics can not be fetched from the metrics proxy --> Api Call",
+			"instance", instanceId,
+			"err", err,
+		)
+		logMetrics, err = e.requestRDSLogMetrics(instanceId)
+		if err != nil {
+			level.Debug(e.logger).Log("msg", "Cancelling context and exiting worker due to an getLogfilesMetrics error")
+			return err
+		}
+		metricsProxy.StoreMetricById(instaceLogFilesId, logMetrics, e.logsMetricsTTL)
+	} else {
+		level.Debug(e.logger).Log("msg", "Log files metrics fetched from the metrics proxy",
+			"instance", instanceId,
+			"ttl", float64(cachedItem.ttl)-time.Since(cachedItem.creationTime).Seconds(),
+		)
+		logMetrics = cachedItem.value.(*RDSLogsMetrics)
+	}
+	ch <- prometheus.MustNewConstMetric(e.LogsAmount, prometheus.GaugeValue, float64(logMetrics.logs), *e.sess.Config.Region, instanceId)
+	ch <- prometheus.MustNewConstMetric(e.LogsStorageSize, prometheus.GaugeValue, float64(logMetrics.totalLogSize), *e.sess.Config.Region, instanceId)
+	return nil
+}
+
+func (e *RDSExporter) createWorkerPool(instancesQueue <-chan string, ch chan<- prometheus.Metric) (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(context.Background())
+	for i := 0; i < e.workers; i++ {
+		wg.Add(1)
+		go func(queue <-chan string, wg *sync.WaitGroup) {
+			defer wg.Done()
+			for {
+				select {
+				case <-ctx.Done():
+					level.Info(e.logger).Log("msg", "Context cancelled. Finishing Worker")
+					return
+				case instanceId, ok := <-queue:
+					if !ok {
+						level.Debug(e.logger).Log("msg", "Work queue is closed. Finishing worker")
+						return
+					}
+					err := e.getRDSLogMetrics(instanceId, ch)
+					if err != nil {
+						cancel()
+						return
+					}
+				}
+			}
+		}(instancesQueue, &wg)
+	}
+	return ctx, cancel
 }
 
 // Describe is used by the Prometheus client to return a description of the metrics
@@ -286,7 +434,6 @@ func (e *RDSExporter) Describe(ch chan<- *prometheus.Desc) {
 
 // Collect is used by the Prometheus client to collect and return the metrics values
 func (e *RDSExporter) Collect(ch chan<- prometheus.Metric) {
-	svc := rds.New(e.sess)
 	input := &rds.DescribeDBInstancesInput{}
 
 	// Get all DB instances.
@@ -294,7 +441,7 @@ func (e *RDSExporter) Collect(ch chan<- prometheus.Metric) {
 	var instances []*rds.DBInstance
 	for {
 		exporterMetrics.IncrementRequests()
-		result, err := svc.DescribeDBInstances(input)
+		result, err := e.svc.DescribeDBInstances(input)
 		if err != nil {
 			level.Error(e.logger).Log("msg", "Call to DescribeDBInstances failed", "region", *e.sess.Config.Region, "err", err)
 			exporterMetrics.IncrementErrors()
@@ -306,6 +453,12 @@ func (e *RDSExporter) Collect(ch chan<- prometheus.Metric) {
 			break
 		}
 	}
+
+	// Create a workerPool and a workQueue to get log metrics
+	// for each instance concurrently
+	instancesQueue := make(chan string)
+	ctx, cancel := e.createWorkerPool(instancesQueue, ch)
+	defer cancel()
 
 	for _, instance := range instances {
 		var maxConnections int64
@@ -365,7 +518,17 @@ func (e *RDSExporter) Collect(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(e.DBInstanceStatus, prometheus.GaugeValue, 1, *e.sess.Config.Region, *instance.DBInstanceIdentifier, *instance.DBInstanceStatus)
 		ch <- prometheus.MustNewConstMetric(e.EngineVersion, prometheus.GaugeValue, 1, *e.sess.Config.Region, *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion)
 		ch <- prometheus.MustNewConstMetric(e.DBInstanceClass, prometheus.GaugeValue, 1, *e.sess.Config.Region, *instance.DBInstanceIdentifier, *instance.DBInstanceClass)
+
+		select {
+		case <-ctx.Done():
+			continue
+		default:
+			instanceId := *instance.DBInstanceIdentifier
+			instancesQueue <- instanceId
+		}
+
 	}
+	close(instancesQueue)
 
 	// Get pending maintenance data because this isn't provided in DescribeDBInstances
 	var instancesPendMaintActionsData []*rds.ResourcePendingMaintenanceActions
@@ -374,7 +537,7 @@ func (e *RDSExporter) Collect(ch chan<- prometheus.Metric) {
 
 	for {
 		exporterMetrics.IncrementRequests()
-		result, err := svc.DescribePendingMaintenanceActions(describePendingMaintInput)
+		result, err := e.svc.DescribePendingMaintenanceActions(describePendingMaintInput)
 		if err != nil {
 			level.Error(e.logger).Log("msg", "Call to DescribePendingMaintenanceActions failed", "region", *e.sess.Config.Region, "err", err)
 			exporterMetrics.IncrementErrors()
@@ -416,4 +579,7 @@ func (e *RDSExporter) Collect(ch chan<- prometheus.Metric) {
 			ch <- prometheus.MustNewConstMetric(e.PendingMaintenanceActions, prometheus.GaugeValue, 0, *e.sess.Config.Region, *instance.DBInstanceIdentifier, "", "", "", "")
 		}
 	}
+
+	// wait for the log metrics routines.
+	wg.Wait()
 }

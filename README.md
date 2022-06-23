@@ -6,13 +6,15 @@ This was made as a complement to [CloudWatch Exporter](https://github.com/promet
 
 ## Included metadata & metrics
 
-| Service | Metric                    | Description                                        |
-|---------|---------------------------|----------------------------------------------------|
-| RDS     | allocatedstorage          | The amount of allocated storage in GB              |
-| RDS     | dbinstanceclass           | The DB instance class (type)                       |
-| RDS     | dbinstancestatus          | The instance status                                |
-| RDS     | engineversion             | The DB engine type and version                     |
-| RDS     | pendingmaintenanceactions | The pending maintenance actions for a RDS instance |
+| Service | Metric                    | Description                                         |
+|---------|---------------------------|-----------------------------------------------------|
+| RDS     | allocatedstorage          | The amount of allocated storage in GB               |
+| RDS     | dbinstanceclass           | The DB instance class (type)                        |
+| RDS     | dbinstancestatus          | The instance status                                 |
+| RDS     | engineversion             | The DB engine type and version                      |
+| RDS     | pendingmaintenanceactions | The pending maintenance actions for a RDS instance  |
+| RDS     | logs_amount               | The amount of log files present in the RDS Instance |
+| RDS     | logsstorage_size_bytes    | The amount of storage used by the log files nstance |
 
 
 ## Running this software
@@ -47,6 +49,12 @@ Then:
 ## Configuration
 
 AWS credentials can be passed as environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`. AWS region must be passed via `AWS_REGION`.
+
+RDS Logs metrics are requested in parallel to improve the scrappping time. Also, metrics are cached to prevent AWS api rate limits. Parameters to
+tweak this behavior.
+
+- `LOGS_METRICS_WORKERS`: Number of workers to request log metrics in parallel (default=10)
+- `LOGS_METRICS_TTL`: Cache TTL for rds logs related metrics (default=300)
 
 To view all available command-line flags, run `./aws-resource-exporter -h`.
 
