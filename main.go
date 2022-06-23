@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
@@ -20,7 +21,8 @@ import (
 )
 
 const (
-	namespace = "aws_resources_exporter"
+	namespace                     = "aws_resources_exporter"
+	DEFAULT_TIMEOUT time.Duration = 10 * time.Second
 )
 
 var (
@@ -50,6 +52,19 @@ func run() int {
 		level.Error(logger).Log("msg", "AWS_REGION has to be defined")
 		return 1
 	}
+	var timeout time.Duration
+	envTimeout := os.Getenv("AWS_RESOURCE_EXPORTER_TIMEOUT")
+	if envTimeout != "" {
+		parsedTimeout, err := time.ParseDuration(envTimeout)
+		if err != nil {
+			level.Error(logger).Log("msg", "Could not parse timeout duration passed via 'AWS_RESOURCE_EXPORTER_TIMEOUT'", "err", err)
+			timeout = DEFAULT_TIMEOUT
+		} else {
+			timeout = parsedTimeout
+		}
+	} else {
+		timeout = DEFAULT_TIMEOUT
+	}
 
 	creds := credentials.NewEnvCredentials()
 	if _, err := creds.Get(); err != nil {
@@ -64,6 +79,7 @@ func run() int {
 	prometheus.MustRegister(
 		exporterMetrics,
 		NewRDSExporter(sess, logger),
+		NewVPCExporter(sess, logger, timeout),
 	)
 
 	http.Handle(*metricsPath, promhttp.Handler())
