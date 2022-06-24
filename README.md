@@ -6,15 +6,21 @@ This was made as a complement to [CloudWatch Exporter](https://github.com/promet
 
 ## Included metadata & metrics
 
-| Service | Metric                    | Description                                         |
-|---------|---------------------------|-----------------------------------------------------|
-| RDS     | allocatedstorage          | The amount of allocated storage in GB               |
-| RDS     | dbinstanceclass           | The DB instance class (type)                        |
-| RDS     | dbinstancestatus          | The instance status                                 |
-| RDS     | engineversion             | The DB engine type and version                      |
-| RDS     | pendingmaintenanceactions | The pending maintenance actions for a RDS instance  |
-| RDS     | logs_amount               | The amount of log files present in the RDS Instance |
-| RDS     | logsstorage_size_bytes    | The amount of storage used by the log files nstance |
+| Service | Metric                      | Description                                         |
+|---------|-----------------------------|-----------------------------------------------------|
+| RDS     | allocatedstorage            | The amount of allocated storage in GB               |
+| RDS     | dbinstanceclass             | The DB instance class (type)                        |
+| RDS     | dbinstancestatus            | The instance status                                 |
+| RDS     | engineversion               | The DB engine type and version                      |
+| RDS     | pendingmaintenanceactions   | The pending maintenance actions for a RDS instance  |
+| RDS     | logs_amount                 | The amount of log files present in the RDS Instance |
+| RDS     | logsstorage_size_bytes      | The amount of storage used by the log files nstance |
+| VPC     | vpcsperregion               | Quota and usage of the VPCs per region              |
+| VPC     | subnetspervpc               | Quota and usage of subnets per VPC                  |
+| VPC     | interfacevpcendpointspervpc | Quota and usage of interface endpoints per VPC      |
+| VPC     | routetablespervpc           | Quota and usage of routetables per VPC              |
+| VPC     | routesperroutetable         | Quota and usage of the routes per routetable        |
+| VPC     | ipv4blockspervpc            | Quota and usage of ipv4 blocks per VPC              |
 
 
 ## Running this software
