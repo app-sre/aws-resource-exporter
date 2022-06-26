@@ -3,6 +3,10 @@ kind: Template
 metadata:
   name: aws-resource-exporter
 objects:
+- apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: ${NAME}
 - apiVersion: apps/v1
   kind: Deployment
   metadata:
@@ -19,6 +23,7 @@ objects:
         labels:
           app: ${NAME}
       spec:
+        serviceAccountName: ${NAME}
         containers:
         - name: aws-resource-exporter
           image: ${IMAGE}:${IMAGE_TAG}
