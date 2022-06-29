@@ -10,10 +10,10 @@ objects:
 - apiVersion: apps/v1
   kind: Deployment
   metadata:
-    labels:
-      app: ${NAME}
     annotations:
       ignore-check.kube-linter.io/minimum-three-replicas: "multiple replicas is multiple cost"
+    labels:
+      app: ${NAME}
     name: ${NAME}
   spec:
     replicas: ${{REPLICAS}}
