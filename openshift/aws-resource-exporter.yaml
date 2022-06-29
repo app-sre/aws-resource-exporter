@@ -12,6 +12,8 @@ objects:
   metadata:
     labels:
       app: ${NAME}
+    annotations:
+      ignore-check.kube-linter.io/minimum-three-replicas: "multiple replicas is multiple cost"
     name: ${NAME}
   spec:
     replicas: ${{REPLICAS}}
