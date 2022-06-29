@@ -53,6 +53,26 @@ objects:
             requests:
               cpu: 10m
               memory: 50Mi
+          readinessProbe:
+            failureThreshold: 3
+            periodSeconds: 10
+            successThreshold: 1
+            httpGet:
+              path: /
+              port: http
+              scheme: HTTP
+            timeoutSeconds: 1
+            initialDelaySeconds: 10
+          livenessProbe:
+            failureThreshold: 3
+            periodSeconds: 10
+            successThreshold: 1
+            httpGet:
+              path: /
+              port: http
+              scheme: HTTP
+            timeoutSeconds: 1
+            initialDelaySeconds: 10
 - apiVersion: v1
   kind: Service
   metadata:
