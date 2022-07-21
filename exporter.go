@@ -21,9 +21,8 @@ type ExporterMetrics struct {
 }
 
 // NewExporterMetrics creates a new exporter metrics instance
-func NewExporterMetrics(sess *session.Session) *ExporterMetrics {
+func NewExporterMetrics() *ExporterMetrics {
 	return &ExporterMetrics{
-		sess: sess,
 		APIRequests: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, "", "apirequests"),
 			"API requests made by the exporter.",
