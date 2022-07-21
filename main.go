@@ -80,6 +80,7 @@ func run() int {
 		exporterMetrics,
 		NewRDSExporter(sess, logger),
 		NewVPCExporter(sess, logger, timeout),
+		NewRoute53Exporter(sess, logger, timeout),
 	)
 
 	http.Handle(*metricsPath, promhttp.Handler())
