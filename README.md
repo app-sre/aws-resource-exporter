@@ -21,6 +21,7 @@ This was made as a complement to [CloudWatch Exporter](https://github.com/promet
 | VPC     | routetablespervpc           | Quota and usage of routetables per VPC              |
 | VPC     | routesperroutetable         | Quota and usage of the routes per routetable        |
 | VPC     | ipv4blockspervpc            | Quota and usage of ipv4 blocks per VPC              |
+| Route53 | recordsperhostedzone        | Quota and usage of resource records per Hosted Zone |
 
 
 ## Running this software
