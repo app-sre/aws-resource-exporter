@@ -128,7 +128,7 @@ func run() int {
 		level.Info(logger).Log("msg", "Initializing RDS and VPC exporter for region", "region", regions[0])
 		config := aws.NewConfig().WithCredentials(creds).WithRegion(regions[0])
 		sess := session.Must(session.NewSession(config))
-		prometheus.MustRegister(exporterMetrics, NewRDSExporter(sess, logger), NewVPCExporter([]*session.Session{sess}, logger, timeout))
+		prometheus.MustRegister(exporterMetrics, NewRDSExporter(sess, logger), NewVPCExporter([]*session.Session{sess}, logger, timeout), NewRoute53Exporter(sess, logger, timeout))
 	default:
 		level.Info(logger).Log("msg", "Initializing VPC exporter for multiple regions")
 		var sessions []*session.Session
@@ -139,7 +139,8 @@ func run() int {
 			sessions = append(sessions, sess)
 		}
 		var collectors []prometheus.Collector
-		collectors = append(collectors, exporterMetrics, NewVPCExporter(sessions, logger, timeout))
+		// Route53 is global so we just use the first region.
+		collectors = append(collectors, exporterMetrics, NewVPCExporter(sessions, logger, timeout), NewRoute53Exporter(sessions[0], logger, timeout))
 		prometheus.MustRegister(
 			collectors...,
 		)
