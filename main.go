@@ -123,28 +123,20 @@ func run() int {
 	}
 
 	exporterMetrics = NewExporterMetrics()
-	switch len(regions) {
-	case 1:
-		level.Info(logger).Log("msg", "Initializing RDS and VPC exporter for region", "region", regions[0])
-		config := aws.NewConfig().WithCredentials(creds).WithRegion(regions[0])
+	level.Info(logger).Log("msg", "Initializing VPC exporter for multiple regions")
+	var sessions []*session.Session
+	for _, awsRegion := range regions {
+		level.Info(logger).Log("msg", "Initializing session for region:", "region", awsRegion)
+		config := aws.NewConfig().WithCredentials(creds).WithRegion(awsRegion)
 		sess := session.Must(session.NewSession(config))
-		prometheus.MustRegister(exporterMetrics, NewRDSExporter(sess, logger), NewVPCExporter([]*session.Session{sess}, logger, timeout), NewRoute53Exporter(sess, logger, timeout))
-	default:
-		level.Info(logger).Log("msg", "Initializing VPC exporter for multiple regions")
-		var sessions []*session.Session
-		for _, awsRegion := range regions {
-			level.Info(logger).Log("msg", "Initializing session for region:", "region", awsRegion)
-			config := aws.NewConfig().WithCredentials(creds).WithRegion(awsRegion)
-			sess := session.Must(session.NewSession(config))
-			sessions = append(sessions, sess)
-		}
-		var collectors []prometheus.Collector
-		// Route53 is global so we just use the first region.
-		collectors = append(collectors, exporterMetrics, NewVPCExporter(sessions, logger, timeout), NewRoute53Exporter(sessions[0], logger, timeout))
-		prometheus.MustRegister(
-			collectors...,
-		)
+		sessions = append(sessions, sess)
 	}
+	var collectors []prometheus.Collector
+	// Route53 is global so we just use the first region.
+	collectors = append(collectors, exporterMetrics, NewRDSExporter(sessions, logger), NewVPCExporter(sessions, logger, timeout), NewRoute53Exporter(sessions[0], logger, timeout))
+	prometheus.MustRegister(
+		collectors...,
+	)
 
 	http.Handle(*metricsPath, promhttp.Handler())
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
