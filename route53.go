@@ -27,8 +27,8 @@ func NewRoute53Exporter(sess *session.Session, logger log.Logger, timeout time.D
 
 	return &Route53Exporter{
 		sess:                      sess,
-		RecordsPerHostedZoneQuota: prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "route53_recordsperhostedzone_quota"), "Quota for maximum number of records in a Route53 hosted zone", []string{"hostedzoneid"}, nil),
-		RecordsPerHostedZoneUsage: prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "route53_recordsperhostedzone_total"), "Number of Resource records", []string{"hostedzoneid"}, nil),
+		RecordsPerHostedZoneQuota: prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "route53_recordsperhostedzone_quota"), "Quota for maximum number of records in a Route53 hosted zone", []string{"hostedzoneid", "hostedzonename"}, nil),
+		RecordsPerHostedZoneUsage: prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "route53_recordsperhostedzone_total"), "Number of Resource records", []string{"hostedzoneid", "hostedzonename"}, nil),
 		logger:                    logger,
 		timeout:                   timeout,
 	}
@@ -52,13 +52,13 @@ func (e *Route53Exporter) Collect(ch chan<- prometheus.Metric) {
 		})
 
 		if err != nil {
-			level.Error(e.logger).Log("msg", "Could not get Quota for hosted zone", "hostedZoneId", hostedZone.Id, "error", err.Error())
+			level.Error(e.logger).Log("msg", "Could not get Quota for hosted zone", "hostedZoneId", hostedZone.Id, "hostedZoneName", hostedZone.Name, "error", err.Error())
 			exporterMetrics.IncrementErrors()
 			continue
 		}
 
-		ch <- prometheus.MustNewConstMetric(e.RecordsPerHostedZoneQuota, prometheus.GaugeValue, float64(*hostedZoneLimitOut.Limit.Value), *hostedZone.Id)
-		ch <- prometheus.MustNewConstMetric(e.RecordsPerHostedZoneUsage, prometheus.GaugeValue, float64(*hostedZoneLimitOut.Count), *hostedZone.Id)
+		ch <- prometheus.MustNewConstMetric(e.RecordsPerHostedZoneQuota, prometheus.GaugeValue, float64(*hostedZoneLimitOut.Limit.Value), *hostedZone.Id, *hostedZone.Name)
+		ch <- prometheus.MustNewConstMetric(e.RecordsPerHostedZoneUsage, prometheus.GaugeValue, float64(*hostedZoneLimitOut.Count), *hostedZone.Id, *hostedZone.Name)
 	}
 }
 
