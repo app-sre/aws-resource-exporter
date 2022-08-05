@@ -1,0 +1,9 @@
+default:
+  regions: "us-east-1"
+  timeout: 10s
+rds: {}
+vpc:
+  regions: "all"
+  timeout: 30s
+route53:
+  timeout: 60s

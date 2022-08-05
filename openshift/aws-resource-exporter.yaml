@@ -88,6 +88,24 @@ objects:
       port: 9115
       targetPort: 9115
     type: ClusterIP
+- apiVersion: v1
+  kind: ConfigMap
+  metadata:
+    labels:
+      app: ${NAME}
+    name: ${NAME}
+  data:
+    aws-resource-exporter-config.yaml: |
+      default:
+        regions: "us-east-1"
+        timeout: 10s
+      rds: {}
+      vpc:
+        regions: ""
+        timeout: 30s
+      route53:
+        regions: ""
+        timeout: 60s
 parameters:
 - name: NAME
   value: aws-resource-exporter

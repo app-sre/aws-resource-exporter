@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"os/signal"
@@ -22,12 +23,14 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/version"
 	"gopkg.in/alecthomas/kingpin.v2"
+	"gopkg.in/yaml.v2"
 )
 
 const (
-	namespace                     = "aws_resources_exporter"
-	DEFAULT_TIMEOUT time.Duration = 10 * time.Second
-	FALLBACK_REGION               = "us-east-1"
+	namespace                      = "aws_resources_exporter"
+	DEFAULT_TIMEOUT  time.Duration = 30 * time.Second
+	FALLBACK_REGION                = "us-east-1"
+	CONFIG_FILE_PATH               = "./aws-resource-exporter-config.yaml"
 )
 
 var (
@@ -35,54 +38,102 @@ var (
 	metricsPath   = kingpin.Flag("web.telemetry-path", "Path under which to expose metrics.").Default("/metrics").String()
 
 	exporterMetrics *ExporterMetrics
+	allRegions      []string
+	AllRegions      func() ([]string, error)
 )
 
 func main() {
 	os.Exit(run())
 }
 
-// GetRegions can retrieve 1, N or all regions.
-// 1 region can be passed using AWS_REGIONS or AWS_REGION
-// N regions can be passed using AWS_REGIONS
-// ALL regions can be passed using AWS_REGIONS (via 'all')
-// If both AWS_REGIONS and AWS_REGION is set the older variable (AWS_REGION) will take precendence to not break old use cases.
-func getRegions(logger log.Logger, creds *credentials.Credentials) ([]string, error) {
-	// Handle the case if multiple regions are supposed to be used.
-	var useRegions []string
-	// The normal usage of a single region being monitored
-	awsRegion := os.Getenv("AWS_REGION")
-	if awsRegion == "" {
-		level.Info(logger).Log("msg", "AWS_REGION undefined.")
-	} else {
-		return []string{awsRegion}, nil
-	}
+type DefaultConfig struct {
+	Regions string        `yaml:"regions"`
+	Timeout time.Duration `yaml:"timeout"`
+}
 
-	awsRegions := os.Getenv("AWS_REGIONS")
-	switch strings.ToLower(awsRegions) {
+type Config struct {
+	DefaultConfig DefaultConfig `yaml:"default"`
+	RdsConfig     DefaultConfig `yaml:"rds"`
+	VpcConfig     DefaultConfig `yaml:"vpc"`
+	Route53Config DefaultConfig `yaml:"route53"`
+}
+
+func (c *DefaultConfig) TimeoutWithFallBack(config *Config) time.Duration {
+	if c.Timeout == 0*time.Second {
+		return config.DefaultConfig.Timeout
+	}
+	return c.Timeout
+}
+
+func (c *DefaultConfig) RegionsWithFallback(config *Config) []string {
+	regions, err := c.ParseRegions()
+	if len(regions) == 0 || err != nil {
+		if regions, err = config.DefaultConfig.ParseRegions(); err != nil {
+			return []string{os.Getenv("AWS_REGION")}
+		} else {
+			return regions
+		}
+	}
+	return regions
+}
+
+func (c *DefaultConfig) ParseRegions() ([]string, error) {
+	switch strings.ToLower(c.Regions) {
 	case "":
-		level.Info(logger).Log("msg", "AWS_REGIONS undefined, won't run for multiple regions")
+		return []string{}, nil
 	case "all":
-		config := aws.NewConfig().WithCredentials(creds).WithRegion(FALLBACK_REGION)
-		sess := session.Must(session.NewSession(config))
-		ec2svc := ec2.New(sess)
-		allRegions, err := ec2svc.DescribeRegions(&ec2.DescribeRegionsInput{})
-		if err != nil {
-			level.Error(logger).Log("msg", "Could not retrieve all regions from account", "err", err)
-			return nil, err
-		}
-		for _, region := range allRegions.Regions {
-			useRegions = append(useRegions, *region.RegionName)
-		}
+		return AllRegions()
 	default:
-		useRegions = strings.Split(awsRegions, ",")
+		return strings.Split(c.Regions, ","), nil
 	}
+}
 
-	if awsRegion == "" && awsRegions == "" {
-		level.Error(logger).Log("msg", "AWS_REGION or AWS_REGIONS has to be defined")
-		return nil, errors.New("AWS_REGION or AWS_REGIONS must be defined")
+func loadExporterConfiguration(logger log.Logger) (*Config, error) {
+	var config Config
+	file, err := ioutil.ReadFile(CONFIG_FILE_PATH)
+	if err != nil {
+		level.Error(logger).Log("Could not load configuration file")
+		return nil, errors.New("Could not load configuration file: " + CONFIG_FILE_PATH)
 	}
+	yaml.Unmarshal(file, &config)
+	return &config, nil
+}
 
-	return useRegions, nil
+func setupCollectors(logger log.Logger, configfile string, creds *credentials.Credentials) ([]prometheus.Collector, error) {
+	var collectors []prometheus.Collector
+	config, err := loadExporterConfiguration(logger)
+	if err != nil {
+		return nil, err
+	}
+	vpcRegions := config.VpcConfig.RegionsWithFallback(config)
+	level.Info(logger).Log("msg", "Configuring vpc with regions", "regions", strings.Join(vpcRegions, ","))
+	rdsRegions := config.RdsConfig.RegionsWithFallback(config)
+	level.Info(logger).Log("msg", "Configuring rds with regions", "regions", strings.Join(rdsRegions, ","))
+	route53Regions := config.Route53Config.RegionsWithFallback(config)
+	level.Info(logger).Log("msg", "Configuring route53 with regions", "regions", strings.Join(route53Regions, ","))
+	var vpcSessions []*session.Session
+	for _, region := range vpcRegions {
+		config := aws.NewConfig().WithCredentials(creds).WithRegion(region)
+		sess := session.Must(session.NewSession(config))
+		vpcSessions = append(vpcSessions, sess)
+	}
+	var rdsSessions []*session.Session
+	for _, region := range rdsRegions {
+		config := aws.NewConfig().WithCredentials(creds).WithRegion(region)
+		sess := session.Must(session.NewSession(config))
+		rdsSessions = append(rdsSessions, sess)
+	}
+	var route53Sessions []*session.Session
+	for _, region := range route53Regions {
+		config := aws.NewConfig().WithCredentials(creds).WithRegion(region)
+		sess := session.Must(session.NewSession(config))
+		route53Sessions = append(route53Sessions, sess)
+	}
+	collectors = append(collectors, NewVPCExporter(vpcSessions, logger, config.VpcConfig.TimeoutWithFallBack(config)))
+	collectors = append(collectors, NewRDSExporter(rdsSessions, logger))
+	collectors = append(collectors, NewRoute53Exporter(route53Sessions[0], logger, config.Route53Config.TimeoutWithFallBack(config)))
+
+	return collectors, nil
 }
 
 func run() int {
@@ -96,44 +147,44 @@ func run() int {
 	level.Info(logger).Log("msg", "Starting"+namespace, "version", version.Info())
 	level.Info(logger).Log("msg", "Build context", version.BuildContext())
 
-	var timeout time.Duration
-	envTimeout := os.Getenv("AWS_RESOURCE_EXPORTER_TIMEOUT")
-	if envTimeout != "" {
-		parsedTimeout, err := time.ParseDuration(envTimeout)
-		if err != nil {
-			level.Error(logger).Log("msg", "Could not parse timeout duration passed via 'AWS_RESOURCE_EXPORTER_TIMEOUT'", "err", err)
-			timeout = DEFAULT_TIMEOUT
-		} else {
-			timeout = parsedTimeout
-		}
-	} else {
-		timeout = DEFAULT_TIMEOUT
-	}
-
 	creds := credentials.NewEnvCredentials()
 	if _, err := creds.Get(); err != nil {
 		level.Error(logger).Log("msg", "Could not get AWS credentials from env variables", "err", err)
 		return 1
 	}
 
-	regions, err := getRegions(logger, creds)
-	if err != nil {
-		level.Error(logger).Log("msg", "Region configuration invalid", "err", err)
-		return 1
+	// Create a global function the config loader can call later on to reduce redundant calls to AWS.
+	AllRegions = func() ([]string, error) {
+		if len(allRegions) != 0 {
+			return allRegions, nil
+		}
+		config := aws.NewConfig().WithCredentials(creds).WithRegion(FALLBACK_REGION)
+		sess := session.Must(session.NewSession(config))
+		ec2svc := ec2.New(sess)
+		awsRegions, err := ec2svc.DescribeRegions(&ec2.DescribeRegionsInput{})
+		if err != nil {
+			level.Error(logger).Log("msg", "Could not retrieve all regions from account", "err", err)
+			return nil, err
+		}
+		for _, region := range awsRegions.Regions {
+			allRegions = append(allRegions, *region.RegionName)
+		}
+		return allRegions, nil
 	}
 
 	exporterMetrics = NewExporterMetrics()
-	level.Info(logger).Log("msg", "Initializing VPC exporter for multiple regions")
-	var sessions []*session.Session
-	for _, awsRegion := range regions {
-		level.Info(logger).Log("msg", "Initializing session for region:", "region", awsRegion)
-		config := aws.NewConfig().WithCredentials(creds).WithRegion(awsRegion)
-		sess := session.Must(session.NewSession(config))
-		sessions = append(sessions, sess)
+	var configFile string
+	if path := os.Getenv("AWS_RESOURCE_EXPORTER_CONFIG_FILE"); path != "" {
+		configFile = path
+	} else {
+		configFile = CONFIG_FILE_PATH
 	}
-	var collectors []prometheus.Collector
-	// Route53 is global so we just use the first region.
-	collectors = append(collectors, exporterMetrics, NewRDSExporter(sessions, logger), NewVPCExporter(sessions, logger, timeout), NewRoute53Exporter(sessions[0], logger, timeout))
+	cs, err := setupCollectors(logger, configFile, creds)
+	if err != nil {
+		level.Error(logger).Log("msg", "Could not load configuration file", "path", configFile)
+		return 1
+	}
+	collectors := append(cs, exporterMetrics)
 	prometheus.MustRegister(
 		collectors...,
 	)
