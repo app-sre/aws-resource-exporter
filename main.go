@@ -88,20 +88,20 @@ func (c *DefaultConfig) ParseRegions() ([]string, error) {
 	}
 }
 
-func loadExporterConfiguration(logger log.Logger) (*Config, error) {
+func loadExporterConfiguration(logger log.Logger, configFile string) (*Config, error) {
 	var config Config
-	file, err := ioutil.ReadFile(CONFIG_FILE_PATH)
+	file, err := ioutil.ReadFile(configFile)
 	if err != nil {
 		level.Error(logger).Log("Could not load configuration file")
-		return nil, errors.New("Could not load configuration file: " + CONFIG_FILE_PATH)
+		return nil, errors.New("Could not load configuration file: " + configFile)
 	}
 	yaml.Unmarshal(file, &config)
 	return &config, nil
 }
 
-func setupCollectors(logger log.Logger, configfile string, creds *credentials.Credentials) ([]prometheus.Collector, error) {
+func setupCollectors(logger log.Logger, configFile string, creds *credentials.Credentials) ([]prometheus.Collector, error) {
 	var collectors []prometheus.Collector
-	config, err := loadExporterConfiguration(logger)
+	config, err := loadExporterConfiguration(logger, configFile)
 	if err != nil {
 		return nil, err
 	}
@@ -181,7 +181,7 @@ func run() int {
 	}
 	cs, err := setupCollectors(logger, configFile, creds)
 	if err != nil {
-		level.Error(logger).Log("msg", "Could not load configuration file", "path", configFile)
+		level.Error(logger).Log("msg", "Could not load configuration file", "err", err)
 		return 1
 	}
 	collectors := append(cs, exporterMetrics)

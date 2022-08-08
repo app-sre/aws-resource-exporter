@@ -26,6 +26,10 @@ objects:
           app: ${NAME}
       spec:
         serviceAccountName: ${NAME}
+        volumes:
+          - name: exporter-configuration
+            configMap:
+              name: ${NAME}
         containers:
         - name: aws-resource-exporter
           image: ${IMAGE}:${IMAGE_TAG}
@@ -46,6 +50,11 @@ objects:
                 key: aws_secret_access_key
           - name: AWS_REGION
             value: ${AWS_REGION}
+          - name: AWS_RESOURE_EXPORTER_CONFIG_FILE
+            value: /etc/aws-resource-exporter/aws-resource-exporter-config.yaml
+          volumeMounts:
+            - name: exporter-configuration
+              mountPath: /etc/aws-resource-exporter/
           resources:
             limits:
               cpu: 100m
@@ -91,21 +100,13 @@ objects:
 - apiVersion: v1
   kind: ConfigMap
   metadata:
+    annotations:
+      qontract.recycle: "true"
     labels:
       app: ${NAME}
     name: ${NAME}
   data:
-    aws-resource-exporter-config.yaml: |
-      default:
-        regions: "us-east-1"
-        timeout: 10s
-      rds: {}
-      vpc:
-        regions: ""
-        timeout: 30s
-      route53:
-        regions: ""
-        timeout: 60s
+    aws-resource-exporter-config.yaml: ${AWS_RESOURE_EXPORTER_CONFIGURATION}
 parameters:
 - name: NAME
   value: aws-resource-exporter
@@ -119,3 +120,15 @@ parameters:
   value: aws-resource-exporter
 - name: AWS_REGION
   value: us-east-1
+- name: AWS_RESOURCE_EXPORTER_CONFIGURATION
+  value: |
+    default:
+      regions: "us-east-1"
+      timeout: 10s
+    rds: {}
+    vpc:
+      regions: ""
+      timeout: 30s
+    route53:
+      regions: ""
+      timeout: 60s
