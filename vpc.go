@@ -207,12 +207,12 @@ func (c *VPCCollector) collectRoutesPerRouteTableUsage(ch chan<- prometheus.Metr
 	descRouteTableOutput, err := c.ec2.DescribeRouteTablesWithContext(ctx, &ec2.DescribeRouteTablesInput{
 		RouteTableIds: []*string{rtb.RouteTableId},
 	})
-	if err != nil {
+	if err != nil || len(descRouteTableOutput.RouteTables) != 1 {
 		level.Error(c.e.logger).Log("msg", "Call to DescribeRouteTables failed", "region", c.region, "err", err)
 		exporterMetrics.IncrementErrors()
 		return
 	}
-	quota := len(descRouteTableOutput.RouteTables)
+	quota := len(descRouteTableOutput.RouteTables[0].Routes)
 	ch <- prometheus.MustNewConstMetric(c.e.RoutesPerRouteTableUsage, prometheus.GaugeValue, float64(quota), *c.region, *rtb.VpcId, *rtb.RouteTableId)
 }
 
@@ -229,19 +229,33 @@ func (c *VPCCollector) collectInterfaceVpcEndpointsPerVpcQuota(ch chan<- prometh
 func (c *VPCCollector) collectInterfaceVpcEndpointsPerVpcUsage(ch chan<- prometheus.Metric, vpc *ec2.Vpc) {
 	ctx, cancelFunc := context.WithTimeout(context.Background(), c.e.timeout)
 	defer cancelFunc()
-	descVpcEndpoints, err := c.ec2.DescribeVpcEndpointsWithContext(ctx, &ec2.DescribeVpcEndpointsInput{
-		Filters: []*ec2.Filter{{
-			Name:   aws.String("vpc-id"),
-			Values: []*string{vpc.VpcId},
-		}},
-	})
+
+	numEndpoints := 0
+	descEndpointsInput := &ec2.DescribeVpcEndpointsInput{
+		Filters:    []*ec2.Filter{{Name: aws.String("vpc-id"), Values: []*string{vpc.VpcId}}},
+		MaxResults: aws.Int64(1000),
+	}
+
+	descEndpointsOutput, err := c.ec2.DescribeVpcEndpointsWithContext(ctx, descEndpointsInput)
 	if err != nil {
 		level.Error(c.e.logger).Log("msg", "Call to DescribeVpcEndpoints failed", "region", c.region, "err", err)
 		exporterMetrics.IncrementErrors()
 		return
 	}
-	quota := len(descVpcEndpoints.VpcEndpoints)
-	ch <- prometheus.MustNewConstMetric(c.e.InterfaceVpcEndpointsPerVpcUsage, prometheus.GaugeValue, float64(quota), *c.region, *vpc.VpcId)
+	numEndpoints += len(descEndpointsOutput.VpcEndpoints)
+
+	for descEndpointsOutput.NextToken != nil {
+		descEndpointsInput.SetNextToken(*descEndpointsOutput.NextToken)
+		descEndpointsOutput, err = c.ec2.DescribeVpcEndpointsWithContext(ctx, descEndpointsInput)
+		if err != nil {
+			level.Error(c.e.logger).Log("msg", "Call to DescribeVpcEndpoints failed", "region", *c.region, "err", err)
+			exporterMetrics.IncrementErrors()
+			return
+		}
+		numEndpoints += len(descEndpointsOutput.VpcEndpoints)
+	}
+
+	ch <- prometheus.MustNewConstMetric(c.e.InterfaceVpcEndpointsPerVpcUsage, prometheus.GaugeValue, float64(numEndpoints), *c.region, *vpc.VpcId)
 }
 
 func (c *VPCCollector) collectRoutesTablesPerVpcQuota(ch chan<- prometheus.Metric) {
