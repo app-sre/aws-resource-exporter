@@ -3,7 +3,7 @@ default:
   timeout: 10s
 rds: {}
 vpc:
-  regions: "all"
+  regions: "us-east-1,eu-central-1"
   timeout: 30s
 route53:
   timeout: 60s

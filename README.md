@@ -55,7 +55,29 @@ Then:
 
 ## Configuration
 
-AWS credentials can be passed as environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`. AWS region must be passed via `AWS_REGION`.
+AWS credentials can be passed as environment variables `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`.
+
+Additional configuration can be supplied in a configuration file and might differ between collectors.
+
+An example file can look like this:
+
+```yaml
+rds:
+  enabled: true
+  regions: "us-east-1"
+vpc:
+  enabled: true
+  regions: "us-east-1,eu-central-1"
+  timeout: 30s
+route53:
+  enabled: true
+  regions: "us-east1"
+  timeout: 60s
+```
+
+Some exporters might expose different configuration values, see the example files for possible keys.
+
+The config file location can be specified using the environment variable `AWS_RESOURCE_EXPORTER_CONFIG_FILE`.
 
 RDS Logs metrics are requested in parallel to improve the scrappping time. Also, metrics are cached to prevent AWS api rate limits. Parameters to
 tweak this behavior.
