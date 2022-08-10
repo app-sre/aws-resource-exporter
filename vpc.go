@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -24,7 +25,7 @@ const (
 )
 
 type VPCExporter struct {
-	sess                             *session.Session
+	sessions                         []*session.Session
 	VpcsPerRegionQuota               *prometheus.Desc
 	VpcsPerRegionUsage               *prometheus.Desc
 	SubnetsPerVpcQuota               *prometheus.Desc
@@ -42,10 +43,18 @@ type VPCExporter struct {
 	timeout time.Duration
 }
 
-func NewVPCExporter(sess *session.Session, logger log.Logger, timeout time.Duration) *VPCExporter {
+type VPCCollector struct {
+	e             *VPCExporter
+	ec2           *ec2.EC2
+	serviceQuotas *servicequotas.ServiceQuotas
+	region        *string
+	wg            *sync.WaitGroup
+}
+
+func NewVPCExporter(sess []*session.Session, logger log.Logger, timeout time.Duration) *VPCExporter {
 	level.Info(logger).Log("msg", "Initializing VPC exporter")
 	return &VPCExporter{
-		sess:                             sess,
+		sessions:                         sess,
 		VpcsPerRegionQuota:               prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_vpcsperregion_quota"), "The quota of VPCs per region", []string{"aws_region"}, nil),
 		VpcsPerRegionUsage:               prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_vpcsperregion_usage"), "The usage of VPCs per region", []string{"aws_region"}, nil),
 		SubnetsPerVpcQuota:               prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_subnetspervpc_quota"), "The quota of subnets per VPC", []string{"aws_region"}, nil),
@@ -63,44 +72,61 @@ func NewVPCExporter(sess *session.Session, logger log.Logger, timeout time.Durat
 	}
 }
 
-func (e *VPCExporter) Collect(ch chan<- prometheus.Metric) {
-	ec2Svc := ec2.New(e.sess)
-	serviceQuotaSvc := servicequotas.New(e.sess)
+func (c *VPCCollector) Collect(ch chan<- prometheus.Metric) {
+	defer c.wg.Done()
 
-	e.collectVpcsPerRegionQuota(ec2Svc, serviceQuotaSvc, ch)
-	e.collectVpcsPerRegionUsage(ec2Svc, ch)
-	e.collectRoutesTablesPerVpcQuota(ec2Svc, serviceQuotaSvc, ch)
-	e.collectInterfaceVpcEndpointsPerVpcQuota(ec2Svc, serviceQuotaSvc, ch)
-	e.collectSubnetsPerVpcQuota(ec2Svc, serviceQuotaSvc, ch)
-	e.collectIPv4BlocksPerVpcQuota(ec2Svc, serviceQuotaSvc, ch)
-	vpcCtx, vpcCancel := context.WithTimeout(context.Background(), e.timeout)
+	c.collectVpcsPerRegionQuota(ch)
+	c.collectVpcsPerRegionUsage(ch)
+	c.collectRoutesTablesPerVpcQuota(ch)
+	c.collectInterfaceVpcEndpointsPerVpcQuota(ch)
+	c.collectSubnetsPerVpcQuota(ch)
+	c.collectIPv4BlocksPerVpcQuota(ch)
+	vpcCtx, vpcCancel := context.WithTimeout(context.Background(), c.e.timeout)
 	defer vpcCancel()
-	allVpcs, err := ec2Svc.DescribeVpcsWithContext(vpcCtx, &ec2.DescribeVpcsInput{})
+	allVpcs, err := c.ec2.DescribeVpcsWithContext(vpcCtx, &ec2.DescribeVpcsInput{})
 	if err != nil {
-		level.Error(e.logger).Log("msg", "Call to DescribeVpcs failed", "region", *e.sess.Config.Region, "err", err)
+		level.Error(c.e.logger).Log("msg", "Call to DescribeVpcs failed", "region", c.region, "err", err)
 	} else {
 		for i, _ := range allVpcs.Vpcs {
-			e.collectSubnetsPerVpcUsage(ec2Svc, ch, allVpcs.Vpcs[i])
-			e.collectInterfaceVpcEndpointsPerVpcUsage(ec2Svc, ch, allVpcs.Vpcs[i])
-			e.collectRoutesTablesPerVpcUsage(ec2Svc, ch, allVpcs.Vpcs[i])
-			e.collectIPv4BlocksPerVpcUsage(ec2Svc, ch, allVpcs.Vpcs[i])
+			c.collectSubnetsPerVpcUsage(ch, allVpcs.Vpcs[i])
+			c.collectInterfaceVpcEndpointsPerVpcUsage(ch, allVpcs.Vpcs[i])
+			c.collectRoutesTablesPerVpcUsage(ch, allVpcs.Vpcs[i])
+			c.collectIPv4BlocksPerVpcUsage(ch, allVpcs.Vpcs[i])
 		}
 	}
-	e.collectRoutesPerRouteTableQuota(ec2Svc, serviceQuotaSvc, ch)
-	routesCtx, routesCancel := context.WithTimeout(context.Background(), e.timeout)
+	c.collectRoutesPerRouteTableQuota(ch)
+	routesCtx, routesCancel := context.WithTimeout(context.Background(), c.e.timeout)
 	defer routesCancel()
-	allRouteTables, err := ec2Svc.DescribeRouteTablesWithContext(routesCtx, &ec2.DescribeRouteTablesInput{})
+	allRouteTables, err := c.ec2.DescribeRouteTablesWithContext(routesCtx, &ec2.DescribeRouteTablesInput{})
 	if err != nil {
-		level.Error(e.logger).Log("msg", "Call to DescribeRouteTables failed", "region", *e.sess.Config.Region, "err", err)
+		level.Error(c.e.logger).Log("msg", "Call to DescribeRouteTables failed", "region", c.region, "err", err)
 	} else {
 		for i, _ := range allRouteTables.RouteTables {
-			e.collectRoutesPerRouteTableUsage(ec2Svc, ch, allRouteTables.RouteTables[i])
+			c.collectRoutesPerRouteTableUsage(ch, allRouteTables.RouteTables[i])
 		}
 	}
 }
 
-func (e *VPCExporter) GetQuotaValue(client *servicequotas.ServiceQuotas, serviceCode string, quotaCode string) (float64, error) {
-	ctx, cancelFunc := context.WithTimeout(context.Background(), e.timeout)
+func (e *VPCExporter) Collect(ch chan<- prometheus.Metric) {
+	wg := &sync.WaitGroup{}
+	wg.Add(len(e.sessions))
+	for i, _ := range e.sessions {
+		session := e.sessions[i]
+		region := session.Config.Region
+		collector := VPCCollector{
+			e:             e,
+			ec2:           ec2.New(session),
+			serviceQuotas: servicequotas.New(session),
+			region:        region,
+			wg:            wg,
+		}
+		go collector.Collect(ch)
+	}
+	wg.Wait()
+}
+
+func (c *VPCCollector) GetQuotaValue(client *servicequotas.ServiceQuotas, serviceCode string, quotaCode string) (float64, error) {
+	ctx, cancelFunc := context.WithTimeout(context.Background(), c.e.timeout)
 	defer cancelFunc()
 	sqOutput, err := client.GetServiceQuotaWithContext(ctx, &servicequotas.GetServiceQuotaInput{
 		QuotaCode:   aws.String(quotaCode),
@@ -114,164 +140,164 @@ func (e *VPCExporter) GetQuotaValue(client *servicequotas.ServiceQuotas, service
 	return *sqOutput.Quota.Value, nil
 }
 
-func (e *VPCExporter) collectVpcsPerRegionQuota(svc *ec2.EC2, serviceQuotasSvc *servicequotas.ServiceQuotas, ch chan<- prometheus.Metric) {
-	quota, err := e.GetQuotaValue(serviceQuotasSvc, SERVICE_CODE_VPC, QUOTA_VPCS_PER_REGION)
+func (c *VPCCollector) collectVpcsPerRegionQuota(ch chan<- prometheus.Metric) {
+	quota, err := c.GetQuotaValue(c.serviceQuotas, SERVICE_CODE_VPC, QUOTA_VPCS_PER_REGION)
 	if err != nil {
-		level.Error(e.logger).Log("msg", "Call to VpcsPerRegion ServiceQuota failed", "region", *e.sess.Config.Region, "err", err)
+		level.Error(c.e.logger).Log("msg", "Call to VpcsPerRegion ServiceQuota failed", "region", c.region, "err", err)
 		exporterMetrics.IncrementErrors()
 		return
 	}
-	ch <- prometheus.MustNewConstMetric(e.VpcsPerRegionQuota, prometheus.GaugeValue, quota, *e.sess.Config.Region)
+	ch <- prometheus.MustNewConstMetric(c.e.VpcsPerRegionQuota, prometheus.GaugeValue, quota, *c.region)
 }
 
-func (e *VPCExporter) collectVpcsPerRegionUsage(ec2Svc *ec2.EC2, ch chan<- prometheus.Metric) {
-	ctx, cancelFunc := context.WithTimeout(context.Background(), e.timeout)
+func (c *VPCCollector) collectVpcsPerRegionUsage(ch chan<- prometheus.Metric) {
+	ctx, cancelFunc := context.WithTimeout(context.Background(), c.e.timeout)
 	defer cancelFunc()
-	describeVpcsOutput, err := ec2Svc.DescribeVpcsWithContext(ctx, &ec2.DescribeVpcsInput{})
+	describeVpcsOutput, err := c.ec2.DescribeVpcsWithContext(ctx, &ec2.DescribeVpcsInput{})
 	if err != nil {
-		level.Error(e.logger).Log("msg", "Call to DescribeVpcs failed", "region", *e.sess.Config.Region, "err", err)
+		level.Error(c.e.logger).Log("msg", "Call to DescribeVpcs failed", "region", c.region, "err", err)
 		exporterMetrics.IncrementErrors()
 		return
 	}
 	usage := len(describeVpcsOutput.Vpcs)
-	ch <- prometheus.MustNewConstMetric(e.VpcsPerRegionUsage, prometheus.GaugeValue, float64(usage), *e.sess.Config.Region)
+	ch <- prometheus.MustNewConstMetric(c.e.VpcsPerRegionUsage, prometheus.GaugeValue, float64(usage), *c.region)
 }
 
-func (e *VPCExporter) collectSubnetsPerVpcQuota(svc *ec2.EC2, serviceQuotasSvc *servicequotas.ServiceQuotas, ch chan<- prometheus.Metric) {
-	quota, err := e.GetQuotaValue(serviceQuotasSvc, SERVICE_CODE_VPC, QUOTA_SUBNETS_PER_VPC)
+func (c *VPCCollector) collectSubnetsPerVpcQuota(ch chan<- prometheus.Metric) {
+	quota, err := c.GetQuotaValue(c.serviceQuotas, SERVICE_CODE_VPC, QUOTA_SUBNETS_PER_VPC)
 	if err != nil {
-		level.Error(e.logger).Log("msg", "Call to SubnetsPerVpc ServiceQuota failed", "region", *e.sess.Config.Region, "err", err)
+		level.Error(c.e.logger).Log("msg", "Call to SubnetsPerVpc ServiceQuota failed", "region", c.region, "err", err)
 		exporterMetrics.IncrementErrors()
 		return
 	}
-	ch <- prometheus.MustNewConstMetric(e.SubnetsPerVpcQuota, prometheus.GaugeValue, quota, *e.sess.Config.Region)
+	ch <- prometheus.MustNewConstMetric(c.e.SubnetsPerVpcQuota, prometheus.GaugeValue, quota, *c.region)
 }
 
-func (e *VPCExporter) collectSubnetsPerVpcUsage(svc *ec2.EC2, ch chan<- prometheus.Metric, vpc *ec2.Vpc) {
-	ctx, cancelFunc := context.WithTimeout(context.Background(), e.timeout)
+func (c *VPCCollector) collectSubnetsPerVpcUsage(ch chan<- prometheus.Metric, vpc *ec2.Vpc) {
+	ctx, cancelFunc := context.WithTimeout(context.Background(), c.e.timeout)
 	defer cancelFunc()
-	describeSubnetsOutput, err := svc.DescribeSubnetsWithContext(ctx, &ec2.DescribeSubnetsInput{
+	describeSubnetsOutput, err := c.ec2.DescribeSubnetsWithContext(ctx, &ec2.DescribeSubnetsInput{
 		Filters: []*ec2.Filter{&ec2.Filter{
 			Name:   aws.String("vpc-id"),
 			Values: []*string{vpc.VpcId},
 		}},
 	})
 	if err != nil {
-		level.Error(e.logger).Log("msg", "Call to DescribeSubnets failed", "region", *e.sess.Config.Region, "err", err)
+		level.Error(c.e.logger).Log("msg", "Call to DescribeSubnets failed", "region", c.region, "err", err)
 		exporterMetrics.IncrementErrors()
 		return
 	}
 	usage := len(describeSubnetsOutput.Subnets)
-	ch <- prometheus.MustNewConstMetric(e.SubnetsPerVpcUsage, prometheus.GaugeValue, float64(usage), *e.sess.Config.Region, *vpc.VpcId)
+	ch <- prometheus.MustNewConstMetric(c.e.SubnetsPerVpcUsage, prometheus.GaugeValue, float64(usage), *c.region, *vpc.VpcId)
 }
 
-func (e *VPCExporter) collectRoutesPerRouteTableQuota(svc *ec2.EC2, serviceQuotasSvc *servicequotas.ServiceQuotas, ch chan<- prometheus.Metric) {
-	quota, err := e.GetQuotaValue(serviceQuotasSvc, SERVICE_CODE_VPC, QUOTA_ROUTES_PER_ROUTE_TABLE)
+func (c *VPCCollector) collectRoutesPerRouteTableQuota(ch chan<- prometheus.Metric) {
+	quota, err := c.GetQuotaValue(c.serviceQuotas, SERVICE_CODE_VPC, QUOTA_ROUTES_PER_ROUTE_TABLE)
 	if err != nil {
-		level.Error(e.logger).Log("msg", "Call to RoutesPerRouteTable ServiceQuota failed", "region", *e.sess.Config.Region, "err", err)
+		level.Error(c.e.logger).Log("msg", "Call to RoutesPerRouteTable ServiceQuota failed", "region", c.region, "err", err)
 		exporterMetrics.IncrementErrors()
 		return
 	}
-	ch <- prometheus.MustNewConstMetric(e.RoutesPerRouteTableQuota, prometheus.GaugeValue, quota, *e.sess.Config.Region)
+	ch <- prometheus.MustNewConstMetric(c.e.RoutesPerRouteTableQuota, prometheus.GaugeValue, quota, *c.region)
 }
 
-func (e *VPCExporter) collectRoutesPerRouteTableUsage(svc *ec2.EC2, ch chan<- prometheus.Metric, rtb *ec2.RouteTable) {
-	ctx, cancelFunc := context.WithTimeout(context.Background(), e.timeout)
+func (c *VPCCollector) collectRoutesPerRouteTableUsage(ch chan<- prometheus.Metric, rtb *ec2.RouteTable) {
+	ctx, cancelFunc := context.WithTimeout(context.Background(), c.e.timeout)
 	defer cancelFunc()
-	descRouteTableOutput, err := svc.DescribeRouteTablesWithContext(ctx, &ec2.DescribeRouteTablesInput{
+	descRouteTableOutput, err := c.ec2.DescribeRouteTablesWithContext(ctx, &ec2.DescribeRouteTablesInput{
 		RouteTableIds: []*string{rtb.RouteTableId},
 	})
 	if err != nil {
-		level.Error(e.logger).Log("msg", "Call to DescribeRouteTables failed", "region", *e.sess.Config.Region, "err", err)
+		level.Error(c.e.logger).Log("msg", "Call to DescribeRouteTables failed", "region", c.region, "err", err)
 		exporterMetrics.IncrementErrors()
 		return
 	}
 	quota := len(descRouteTableOutput.RouteTables)
-	ch <- prometheus.MustNewConstMetric(e.RoutesPerRouteTableUsage, prometheus.GaugeValue, float64(quota), *e.sess.Config.Region, *rtb.VpcId, *rtb.RouteTableId)
+	ch <- prometheus.MustNewConstMetric(c.e.RoutesPerRouteTableUsage, prometheus.GaugeValue, float64(quota), *c.region, *rtb.VpcId, *rtb.RouteTableId)
 }
 
-func (e *VPCExporter) collectInterfaceVpcEndpointsPerVpcQuota(ec2Svc *ec2.EC2, serviceQuotasSvc *servicequotas.ServiceQuotas, ch chan<- prometheus.Metric) {
-	quota, err := e.GetQuotaValue(serviceQuotasSvc, SERVICE_CODE_VPC, QUOTA_INTERFACE_VPC_ENDPOINTS_PER_VPC)
+func (c *VPCCollector) collectInterfaceVpcEndpointsPerVpcQuota(ch chan<- prometheus.Metric) {
+	quota, err := c.GetQuotaValue(c.serviceQuotas, SERVICE_CODE_VPC, QUOTA_INTERFACE_VPC_ENDPOINTS_PER_VPC)
 	if err != nil {
-		level.Error(e.logger).Log("msg", "Call to InterfaceVpcEndpointsPerVpc ServiceQuota failed", "region", *e.sess.Config.Region, "err", err)
+		level.Error(c.e.logger).Log("msg", "Call to InterfaceVpcEndpointsPerVpc ServiceQuota failed", "region", c.region, "err", err)
 		exporterMetrics.IncrementErrors()
 		return
 	}
-	ch <- prometheus.MustNewConstMetric(e.InterfaceVpcEndpointsPerVpcQuota, prometheus.GaugeValue, quota, *e.sess.Config.Region)
+	ch <- prometheus.MustNewConstMetric(c.e.InterfaceVpcEndpointsPerVpcQuota, prometheus.GaugeValue, quota, *c.region)
 }
 
-func (e *VPCExporter) collectInterfaceVpcEndpointsPerVpcUsage(ec2Svc *ec2.EC2, ch chan<- prometheus.Metric, vpc *ec2.Vpc) {
-	ctx, cancelFunc := context.WithTimeout(context.Background(), e.timeout)
+func (c *VPCCollector) collectInterfaceVpcEndpointsPerVpcUsage(ch chan<- prometheus.Metric, vpc *ec2.Vpc) {
+	ctx, cancelFunc := context.WithTimeout(context.Background(), c.e.timeout)
 	defer cancelFunc()
-	descVpcEndpoints, err := ec2Svc.DescribeVpcEndpointsWithContext(ctx, &ec2.DescribeVpcEndpointsInput{
+	descVpcEndpoints, err := c.ec2.DescribeVpcEndpointsWithContext(ctx, &ec2.DescribeVpcEndpointsInput{
 		Filters: []*ec2.Filter{{
 			Name:   aws.String("vpc-id"),
 			Values: []*string{vpc.VpcId},
 		}},
 	})
 	if err != nil {
-		level.Error(e.logger).Log("msg", "Call to DescribeVpcEndpoints failed", "region", *e.sess.Config.Region, "err", err)
+		level.Error(c.e.logger).Log("msg", "Call to DescribeVpcEndpoints failed", "region", c.region, "err", err)
 		exporterMetrics.IncrementErrors()
 		return
 	}
 	quota := len(descVpcEndpoints.VpcEndpoints)
-	ch <- prometheus.MustNewConstMetric(e.InterfaceVpcEndpointsPerVpcUsage, prometheus.GaugeValue, float64(quota), *e.sess.Config.Region, *vpc.VpcId)
+	ch <- prometheus.MustNewConstMetric(c.e.InterfaceVpcEndpointsPerVpcUsage, prometheus.GaugeValue, float64(quota), *c.region, *vpc.VpcId)
 }
 
-func (e *VPCExporter) collectRoutesTablesPerVpcQuota(ec2Svc *ec2.EC2, serviceQuotasSvc *servicequotas.ServiceQuotas, ch chan<- prometheus.Metric) {
-	quota, err := e.GetQuotaValue(serviceQuotasSvc, SERVICE_CODE_VPC, QUOTA_ROUTE_TABLES_PER_VPC)
+func (c *VPCCollector) collectRoutesTablesPerVpcQuota(ch chan<- prometheus.Metric) {
+	quota, err := c.GetQuotaValue(c.serviceQuotas, SERVICE_CODE_VPC, QUOTA_ROUTE_TABLES_PER_VPC)
 	if err != nil {
-		level.Error(e.logger).Log("msg", "Call to RoutesTablesPerVpc ServiceQuota failed", "region", *e.sess.Config.Region, "err", err)
+		level.Error(c.e.logger).Log("msg", "Call to RoutesTablesPerVpc ServiceQuota failed", "region", c.region, "err", err)
 		exporterMetrics.IncrementErrors()
 		return
 	}
-	ch <- prometheus.MustNewConstMetric(e.RouteTablesPerVpcQuota, prometheus.GaugeValue, quota, *e.sess.Config.Region)
+	ch <- prometheus.MustNewConstMetric(c.e.RouteTablesPerVpcQuota, prometheus.GaugeValue, quota, *c.region)
 }
 
-func (e *VPCExporter) collectRoutesTablesPerVpcUsage(ec2Svc *ec2.EC2, ch chan<- prometheus.Metric, vpc *ec2.Vpc) {
-	ctx, cancelFunc := context.WithTimeout(context.Background(), e.timeout)
+func (c *VPCCollector) collectRoutesTablesPerVpcUsage(ch chan<- prometheus.Metric, vpc *ec2.Vpc) {
+	ctx, cancelFunc := context.WithTimeout(context.Background(), c.e.timeout)
 	defer cancelFunc()
-	descRouteTables, err := ec2Svc.DescribeRouteTablesWithContext(ctx, &ec2.DescribeRouteTablesInput{
+	descRouteTables, err := c.ec2.DescribeRouteTablesWithContext(ctx, &ec2.DescribeRouteTablesInput{
 		Filters: []*ec2.Filter{{
 			Name:   aws.String("vpc-id"),
 			Values: []*string{vpc.VpcId},
 		}},
 	})
 	if err != nil {
-		level.Error(e.logger).Log("msg", "Call to DescribeRouteTables failed", "region", *e.sess.Config.Region, "err", err)
+		level.Error(c.e.logger).Log("msg", "Call to DescribeRouteTables failed", "region", c.region, "err", err)
 		exporterMetrics.IncrementErrors()
 		return
 	}
 	quota := len(descRouteTables.RouteTables)
-	ch <- prometheus.MustNewConstMetric(e.RouteTablesPerVpcUsage, prometheus.GaugeValue, float64(quota), *e.sess.Config.Region, *vpc.VpcId)
+	ch <- prometheus.MustNewConstMetric(c.e.RouteTablesPerVpcUsage, prometheus.GaugeValue, float64(quota), *c.region, *vpc.VpcId)
 }
 
-func (e *VPCExporter) collectIPv4BlocksPerVpcQuota(ec2Svc *ec2.EC2, serviceQuotasSvc *servicequotas.ServiceQuotas, ch chan<- prometheus.Metric) {
-	quota, err := e.GetQuotaValue(serviceQuotasSvc, SERVICE_CODE_VPC, QUOTA_IPV4_BLOCKS_PER_VPC)
+func (c *VPCCollector) collectIPv4BlocksPerVpcQuota(ch chan<- prometheus.Metric) {
+	quota, err := c.GetQuotaValue(c.serviceQuotas, SERVICE_CODE_VPC, QUOTA_IPV4_BLOCKS_PER_VPC)
 	if err != nil {
-		level.Error(e.logger).Log("msg", "Call to IPv4BlocksPerVpc ServiceQuota failed", "region", *e.sess.Config.Region, "err", err)
+		level.Error(c.e.logger).Log("msg", "Call to IPv4BlocksPerVpc ServiceQuota failed", "region", c.region, "err", err)
 		exporterMetrics.IncrementErrors()
 		return
 	}
-	ch <- prometheus.MustNewConstMetric(e.IPv4BlocksPerVpcQuota, prometheus.GaugeValue, quota, *e.sess.Config.Region)
+	ch <- prometheus.MustNewConstMetric(c.e.IPv4BlocksPerVpcQuota, prometheus.GaugeValue, quota, *c.region)
 }
 
-func (e *VPCExporter) collectIPv4BlocksPerVpcUsage(ec2Svc *ec2.EC2, ch chan<- prometheus.Metric, vpc *ec2.Vpc) {
-	ctx, cancelFunc := context.WithTimeout(context.Background(), e.timeout)
+func (c *VPCCollector) collectIPv4BlocksPerVpcUsage(ch chan<- prometheus.Metric, vpc *ec2.Vpc) {
+	ctx, cancelFunc := context.WithTimeout(context.Background(), c.e.timeout)
 	defer cancelFunc()
-	descVpcs, err := ec2Svc.DescribeVpcsWithContext(ctx, &ec2.DescribeVpcsInput{
+	descVpcs, err := c.ec2.DescribeVpcsWithContext(ctx, &ec2.DescribeVpcsInput{
 		VpcIds: []*string{vpc.VpcId},
 	})
 	if err != nil {
-		level.Error(e.logger).Log("msg", "Call to DescribeVpcs failed", "region", *e.sess.Config.Region, "err", err)
+		level.Error(c.e.logger).Log("msg", "Call to DescribeVpcs failed", "region", c.region, "err", err)
 		exporterMetrics.IncrementErrors()
 		return
 	}
 	if len(descVpcs.Vpcs) != 1 {
-		level.Error(e.logger).Log("msg", "Unexpected numbers of VPCs (!= 1) returned", "region", *e.sess.Config.Region, "vpcId", vpc.VpcId)
+		level.Error(c.e.logger).Log("msg", "Unexpected numbers of VPCs (!= 1) returned", "region", c.region, "vpcId", vpc.VpcId)
 	}
 	quota := len(descVpcs.Vpcs[0].CidrBlockAssociationSet)
-	ch <- prometheus.MustNewConstMetric(e.IPv4BlocksPerVpcUsage, prometheus.GaugeValue, float64(quota), *e.sess.Config.Region, *vpc.VpcId)
+	ch <- prometheus.MustNewConstMetric(c.e.IPv4BlocksPerVpcUsage, prometheus.GaugeValue, float64(quota), *c.region, *vpc.VpcId)
 }
 
 func (e *VPCExporter) Describe(ch chan<- *prometheus.Desc) {
