@@ -29,7 +29,7 @@ objects:
         volumes:
           - name: exporter-configuration
             configMap:
-              name: ${NAME}
+              name: ${CONFIGMAP_NAME}
         containers:
         - name: aws-resource-exporter
           image: ${IMAGE}:${IMAGE_TAG}
@@ -104,7 +104,7 @@ objects:
       qontract.recycle: "true"
     labels:
       app: ${NAME}
-    name: ${NAME}
+    name: ${CONFIGMAP_NAME}
   data:
     aws-resource-exporter-config.yaml: ${AWS_RESOURE_EXPORTER_CONFIGURATION}
 parameters:
@@ -120,6 +120,8 @@ parameters:
   value: aws-resource-exporter
 - name: AWS_REGION
   value: us-east-1
+- name: CONFIGMAP_NAME
+  value: aws-resource-exporter-config
 - name: AWS_RESOURCE_EXPORTER_CONFIGURATION
   value: |
     default:
