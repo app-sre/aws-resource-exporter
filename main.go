@@ -13,7 +13,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/go-kit/kit/log/level"
 	"github.com/prometheus/common/promlog"
 	"github.com/prometheus/common/promlog/flag"
@@ -29,7 +28,6 @@ import (
 const (
 	namespace                      = "aws_resources_exporter"
 	DEFAULT_TIMEOUT  time.Duration = 30 * time.Second
-	FALLBACK_REGION                = "us-east-1"
 	CONFIG_FILE_PATH               = "./aws-resource-exporter-config.yaml"
 )
 
@@ -38,8 +36,6 @@ var (
 	metricsPath   = kingpin.Flag("web.telemetry-path", "Path under which to expose metrics.").Default("/metrics").String()
 
 	exporterMetrics *ExporterMetrics
-	allRegions      []string
-	AllRegions      func() ([]string, error)
 )
 
 func main() {
@@ -81,8 +77,6 @@ func (c *DefaultConfig) ParseRegions() ([]string, error) {
 	switch strings.ToLower(c.Regions) {
 	case "":
 		return []string{}, nil
-	case "all":
-		return AllRegions()
 	default:
 		return strings.Split(c.Regions, ","), nil
 	}
@@ -151,25 +145,6 @@ func run() int {
 	if _, err := creds.Get(); err != nil {
 		level.Error(logger).Log("msg", "Could not get AWS credentials from env variables", "err", err)
 		return 1
-	}
-
-	// Create a global function the config loader can call later on to reduce redundant calls to AWS.
-	AllRegions = func() ([]string, error) {
-		if len(allRegions) != 0 {
-			return allRegions, nil
-		}
-		config := aws.NewConfig().WithCredentials(creds).WithRegion(FALLBACK_REGION)
-		sess := session.Must(session.NewSession(config))
-		ec2svc := ec2.New(sess)
-		awsRegions, err := ec2svc.DescribeRegions(&ec2.DescribeRegionsInput{})
-		if err != nil {
-			level.Error(logger).Log("msg", "Could not retrieve all regions from account", "err", err)
-			return nil, err
-		}
-		for _, region := range awsRegions.Regions {
-			allRegions = append(allRegions, *region.RegionName)
-		}
-		return allRegions, nil
 	}
 
 	exporterMetrics = NewExporterMetrics()
