@@ -43,22 +43,28 @@ func main() {
 }
 
 type BaseConfig struct {
-	Enabled bool     `yaml:"enabled"`
-	Regions []string `yaml:"regions"`
+	Enabled bool `yaml:"enabled"`
+}
+
+type RDSConfig struct {
+	BaseConfig `yaml:"base,inline"`
+	Regions    []string `yaml:"regions"`
 }
 
 type VPCConfig struct {
 	BaseConfig `yaml:"base,inline"`
 	Timeout    time.Duration `yaml:"timeout"`
+	Regions    []string      `yaml:"regions"`
 }
 
 type Route53Config struct {
 	BaseConfig `yaml:"base,inline"`
 	Timeout    time.Duration `yaml:"timeout"`
+	Region     string        `yaml:"region"` // Use only a single Region for now, as the current metric is global
 }
 
 type Config struct {
-	RdsConfig     BaseConfig    `yaml:"rds"`
+	RdsConfig     RDSConfig     `yaml:"rds"`
 	VpcConfig     VPCConfig     `yaml:"vpc"`
 	Route53Config Route53Config `yaml:"route53"`
 }
@@ -82,7 +88,7 @@ func setupCollectors(logger log.Logger, configFile string, creds *credentials.Cr
 	}
 	level.Info(logger).Log("msg", "Configuring vpc with regions", "regions", strings.Join(config.VpcConfig.Regions, ","))
 	level.Info(logger).Log("msg", "Configuring rds with regions", "regions", strings.Join(config.RdsConfig.Regions, ","))
-	level.Info(logger).Log("msg", "Configuring route53 with regions", "regions", strings.Join(config.Route53Config.Regions, ","))
+	level.Info(logger).Log("msg", "Configuring route53 with region", "region", config.Route53Config.Region)
 	var vpcSessions []*session.Session
 	level.Info(logger).Log("msg", "Will VPC metrics be gathered?", "vpc-enabled", config.VpcConfig.Enabled)
 	if config.VpcConfig.Enabled {
@@ -104,14 +110,10 @@ func setupCollectors(logger log.Logger, configFile string, creds *credentials.Cr
 		collectors = append(collectors, NewRDSExporter(rdsSessions, logger))
 	}
 	level.Info(logger).Log("msg", "Will Route53 metrics be gathered?", "route53-enabled", config.Route53Config.Enabled)
-	var route53Sessions []*session.Session
 	if config.Route53Config.Enabled {
-		for _, region := range config.Route53Config.Regions {
-			config := aws.NewConfig().WithCredentials(creds).WithRegion(region)
-			sess := session.Must(session.NewSession(config))
-			route53Sessions = append(route53Sessions, sess)
-		}
-		collectors = append(collectors, NewRoute53Exporter(route53Sessions[0], logger, config.Route53Config.Timeout))
+		awsConfig := aws.NewConfig().WithCredentials(creds).WithRegion(config.Route53Config.Region)
+		sess := session.Must(session.NewSession(awsConfig))
+		collectors = append(collectors, NewRoute53Exporter(sess, logger, config.Route53Config.Timeout))
 	}
 
 	return collectors, nil
