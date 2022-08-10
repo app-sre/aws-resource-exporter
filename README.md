@@ -64,14 +64,19 @@ An example file can look like this:
 ```yaml
 rds:
   enabled: true
-  regions: "us-east-1"
+  regions:
+    - "us-east-1"
 vpc:
   enabled: true
-  regions: "us-east-1,eu-central-1"
+  regions:
+    - "us-east-1"
+    - "eu-central-1"
+    - "eu-central-2"
   timeout: 30s
 route53:
   enabled: true
-  regions: "us-east1"
+  regions:
+    - "us-east-1"
   timeout: 60s
 ```
 

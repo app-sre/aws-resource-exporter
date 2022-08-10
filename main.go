@@ -43,29 +43,24 @@ func main() {
 }
 
 type BaseConfig struct {
-	Enabled bool          `yaml:"enabled"`
-	Regions string        `yaml:"regions"`
-	Timeout time.Duration `yaml:"timeout"`
+	Enabled bool     `yaml:"enabled"`
+	Regions []string `yaml:"regions"`
+}
+
+type VPCConfig struct {
+	BaseConfig `yaml:"base,inline"`
+	Timeout    time.Duration `yaml:"timeout"`
+}
+
+type Route53Config struct {
+	BaseConfig `yaml:"base,inline"`
+	Timeout    time.Duration `yaml:"timeout"`
 }
 
 type Config struct {
-	RdsConfig     BaseConfig `yaml:"rds"`
-	VpcConfig     BaseConfig `yaml:"vpc"`
-	Route53Config BaseConfig `yaml:"route53"`
-}
-
-func (c *BaseConfig) ParseRegions() ([]string, error) {
-	switch strings.ToLower(c.Regions) {
-	case "":
-		return []string{}, nil
-	default:
-		var regions []string
-		rawRegions := strings.Split(c.Regions, ",")
-		for _, rawRegion := range rawRegions {
-			regions = append(regions, strings.Trim(rawRegion, " "))
-		}
-		return regions, nil
-	}
+	RdsConfig     BaseConfig    `yaml:"rds"`
+	VpcConfig     VPCConfig     `yaml:"vpc"`
+	Route53Config Route53Config `yaml:"route53"`
 }
 
 func loadExporterConfiguration(logger log.Logger, configFile string) (*Config, error) {
@@ -85,25 +80,13 @@ func setupCollectors(logger log.Logger, configFile string, creds *credentials.Cr
 	if err != nil {
 		return nil, err
 	}
-	vpcRegions, err := config.VpcConfig.ParseRegions()
-	if err != nil {
-		return collectors, err
-	}
-	level.Info(logger).Log("msg", "Configuring vpc with regions", "regions", strings.Join(vpcRegions, ","))
-	rdsRegions, err := config.RdsConfig.ParseRegions()
-	if err != nil {
-		return collectors, err
-	}
-	level.Info(logger).Log("msg", "Configuring rds with regions", "regions", strings.Join(rdsRegions, ","))
-	route53Regions, err := config.Route53Config.ParseRegions()
-	if err != nil {
-		return collectors, err
-	}
-	level.Info(logger).Log("msg", "Configuring route53 with regions", "regions", strings.Join(route53Regions, ","))
+	level.Info(logger).Log("msg", "Configuring vpc with regions", "regions", strings.Join(config.VpcConfig.Regions, ","))
+	level.Info(logger).Log("msg", "Configuring rds with regions", "regions", strings.Join(config.RdsConfig.Regions, ","))
+	level.Info(logger).Log("msg", "Configuring route53 with regions", "regions", strings.Join(config.Route53Config.Regions, ","))
 	var vpcSessions []*session.Session
 	level.Info(logger).Log("msg", "Will VPC metrics be gathered?", "vpc-enabled", config.VpcConfig.Enabled)
 	if config.VpcConfig.Enabled {
-		for _, region := range vpcRegions {
+		for _, region := range config.VpcConfig.Regions {
 			config := aws.NewConfig().WithCredentials(creds).WithRegion(region)
 			sess := session.Must(session.NewSession(config))
 			vpcSessions = append(vpcSessions, sess)
@@ -113,7 +96,7 @@ func setupCollectors(logger log.Logger, configFile string, creds *credentials.Cr
 	level.Info(logger).Log("msg", "Will RDS metrics be gathered?", "rds-enabled", config.RdsConfig.Enabled)
 	var rdsSessions []*session.Session
 	if config.RdsConfig.Enabled {
-		for _, region := range rdsRegions {
+		for _, region := range config.RdsConfig.Regions {
 			config := aws.NewConfig().WithCredentials(creds).WithRegion(region)
 			sess := session.Must(session.NewSession(config))
 			rdsSessions = append(rdsSessions, sess)
@@ -123,7 +106,7 @@ func setupCollectors(logger log.Logger, configFile string, creds *credentials.Cr
 	level.Info(logger).Log("msg", "Will Route53 metrics be gathered?", "route53-enabled", config.Route53Config.Enabled)
 	var route53Sessions []*session.Session
 	if config.Route53Config.Enabled {
-		for _, region := range route53Regions {
+		for _, region := range config.Route53Config.Regions {
 			config := aws.NewConfig().WithCredentials(creds).WithRegion(region)
 			sess := session.Must(session.NewSession(config))
 			route53Sessions = append(route53Sessions, sess)
