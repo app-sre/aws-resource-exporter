@@ -50,7 +50,7 @@ objects:
                 key: aws_secret_access_key
           - name: AWS_REGION
             value: ${AWS_REGION}
-          - name: AWS_RESOURE_EXPORTER_CONFIG_FILE
+          - name: AWS_RESOURCE_EXPORTER_CONFIG_FILE
             value: /etc/aws-resource-exporter/aws-resource-exporter-config.yaml
           volumeMounts:
             - name: exporter-configuration
