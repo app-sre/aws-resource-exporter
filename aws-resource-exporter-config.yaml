@@ -1,16 +1,16 @@
 rds:
-  enabled: false
+  enabled: true
   regions:
     - "us-east-1"
 vpc:
-  enabled: false
+  enabled: true
   regions:
     - "us-east-1"
     - "eu-central-1"
     - "eu-central-2"
   timeout: 30s
 route53:
-  enabled: false
+  enabled: true
   region: "us-east-1"
   timeout: 60s
 ec2:
