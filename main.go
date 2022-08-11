@@ -59,6 +59,7 @@ type VPCConfig struct {
 
 type Route53Config struct {
 	BaseConfig `yaml:"base,inline"`
+	Interval   time.Duration `yaml:"interval"`
 	Timeout    time.Duration `yaml:"timeout"`
 	Region     string        `yaml:"region"` // Use only a single Region for now, as the current metric is global
 }
@@ -131,7 +132,9 @@ func setupCollectors(logger log.Logger, configFile string, creds *credentials.Cr
 	if config.Route53Config.Enabled {
 		awsConfig := aws.NewConfig().WithCredentials(creds).WithRegion(config.Route53Config.Region)
 		sess := session.Must(session.NewSession(awsConfig))
-		collectors = append(collectors, NewRoute53Exporter(sess, logger, config.Route53Config.Timeout))
+		r53Exporter := NewRoute53Exporter(sess, logger, config.Route53Config.Interval, config.Route53Config.Timeout)
+		collectors = append(collectors, r53Exporter)
+		go r53Exporter.CollectLoop()
 	}
 
 	return collectors, nil
