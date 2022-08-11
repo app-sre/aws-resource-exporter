@@ -63,10 +63,17 @@ type Route53Config struct {
 	Region     string        `yaml:"region"` // Use only a single Region for now, as the current metric is global
 }
 
+type EC2Config struct {
+	BaseConfig `yaml:"base,inline"`
+	Timeout    time.Duration `yaml:"timeout"`
+	Regions    []string      `yaml:"regions"`
+}
+
 type Config struct {
 	RdsConfig     RDSConfig     `yaml:"rds"`
 	VpcConfig     VPCConfig     `yaml:"vpc"`
 	Route53Config Route53Config `yaml:"route53"`
+	EC2Config     EC2Config     `yaml:"ec2"`
 }
 
 func loadExporterConfiguration(logger log.Logger, configFile string) (*Config, error) {
@@ -88,6 +95,7 @@ func setupCollectors(logger log.Logger, configFile string, creds *credentials.Cr
 	}
 	level.Info(logger).Log("msg", "Configuring vpc with regions", "regions", strings.Join(config.VpcConfig.Regions, ","))
 	level.Info(logger).Log("msg", "Configuring rds with regions", "regions", strings.Join(config.RdsConfig.Regions, ","))
+	level.Info(logger).Log("msg", "Configuring ec2 with regions", "regions", strings.Join(config.EC2Config.Regions, ","))
 	level.Info(logger).Log("msg", "Configuring route53 with region", "region", config.Route53Config.Region)
 	var vpcSessions []*session.Session
 	level.Info(logger).Log("msg", "Will VPC metrics be gathered?", "vpc-enabled", config.VpcConfig.Enabled)
@@ -108,6 +116,15 @@ func setupCollectors(logger log.Logger, configFile string, creds *credentials.Cr
 			rdsSessions = append(rdsSessions, sess)
 		}
 		collectors = append(collectors, NewRDSExporter(rdsSessions, logger))
+	}
+	var ec2Sessions []*session.Session
+	if config.EC2Config.Enabled {
+		for _, region := range config.EC2Config.Regions {
+			config := aws.NewConfig().WithCredentials(creds).WithRegion(region)
+			sess := session.Must(session.NewSession(config))
+			ec2Sessions = append(ec2Sessions, sess)
+		}
+		collectors = append(collectors, NewEC2Exporter(ec2Sessions, logger, config.EC2Config.Timeout))
 	}
 	level.Info(logger).Log("msg", "Will Route53 metrics be gathered?", "route53-enabled", config.Route53Config.Enabled)
 	if config.Route53Config.Enabled {
