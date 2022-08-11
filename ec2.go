@@ -41,7 +41,6 @@ func NewEC2Exporter(sessions []*session.Session, logger log.Logger, timeout time
 }
 
 func (e *EC2Exporter) Collect(ch chan<- prometheus.Metric) {
-	//ctx := context.TODO()
 	ctx, ctxCancel := context.WithTimeout(context.Background(), e.timeout)
 	defer ctxCancel()
 	wg := &sync.WaitGroup{}
@@ -89,7 +88,7 @@ func getAllTransitGatewaysWithContext(client *ec2.EC2, ctx context.Context) ([]*
 		MaxResults: aws.Int64(1000),
 	}
 
-	describeGatewaysOutput, err := client.DescribeTransitGatewaysWithContext(context.TODO(), describeGatewaysInput)
+	describeGatewaysOutput, err := client.DescribeTransitGatewaysWithContext(ctx, describeGatewaysInput)
 
 	if err != nil {
 		return nil, err
