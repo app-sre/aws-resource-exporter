@@ -117,6 +117,7 @@ func setupCollectors(logger log.Logger, configFile string, creds *credentials.Cr
 		}
 		collectors = append(collectors, NewRDSExporter(rdsSessions, logger))
 	}
+	level.Info(logger).Log("msg", "Will EC2 metrics be gathered?", "ec2-enabled", config.EC2Config.Enabled)
 	var ec2Sessions []*session.Session
 	if config.EC2Config.Enabled {
 		for _, region := range config.EC2Config.Regions {

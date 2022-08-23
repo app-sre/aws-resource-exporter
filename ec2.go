@@ -19,8 +19,8 @@ const (
 	ec2ServiceCode                    string = "ec2"
 )
 
-var TransitGatewaysQuota *prometheus.Desc = prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "ec2_transitgateways_quota"), "Quota for maximum number of Transitgateways in this account", []string{"aws_region"}, nil)
-var TransitGatewaysUsage *prometheus.Desc = prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "ec2_transitgateways_usage"), "Number of Tranitgatewyas in the AWS Account", []string{"aws_region"}, nil)
+var TransitGatewaysQuota *prometheus.Desc = prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "ec2_transitgatewaysperregion_quota"), "Quota for maximum number of Transitgateways in this account", []string{"aws_region"}, nil)
+var TransitGatewaysUsage *prometheus.Desc = prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "ec2_transitgatewaysperregion_usage"), "Number of Tranitgatewyas in the AWS Account", []string{"aws_region"}, nil)
 
 type EC2Exporter struct {
 	sessions []*session.Session

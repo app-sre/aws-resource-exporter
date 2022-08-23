@@ -7,7 +7,6 @@ vpc:
   regions:
     - "us-east-1"
     - "eu-central-1"
-    - "eu-central-2"
   timeout: 30s
 route53:
   enabled: true
