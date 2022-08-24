@@ -21,6 +21,7 @@ This was made as a complement to [CloudWatch Exporter](https://github.com/promet
 | VPC     | routetablespervpc           | Quota and usage of routetables per VPC              |
 | VPC     | routesperroutetable         | Quota and usage of the routes per routetable        |
 | VPC     | ipv4blockspervpc            | Quota and usage of ipv4 blocks per VPC              |
+| EC2     | transitgatewaysperregion    | Quota and usage of transitgateways per region       |
 | Route53 | recordsperhostedzone        | Quota and usage of resource records per Hosted Zone |
 
 
@@ -71,7 +72,13 @@ vpc:
   regions:
     - "us-east-1"
     - "eu-central-1"
-    - "eu-central-2"
+  timeout: 30s
+ec2:
+  enabled: true
+  regions:
+    - "us-east-1"
+    - "eu-central-1"
+    - "us-west-1"
   timeout: 30s
 route53:
   enabled: true
