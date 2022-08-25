@@ -98,7 +98,7 @@ func (e *VPCExporter) CollectInRegion(session *session.Session, region *string, 
 	if err != nil {
 		level.Error(e.logger).Log("msg", "Call to DescribeVpcs failed", "region", region, "err", err)
 	} else {
-		for i, _ := range allVpcs.Vpcs {
+		for i := range allVpcs.Vpcs {
 			e.collectSubnetsPerVpcUsage(allVpcs.Vpcs[i], ec2Svc, *region)
 			e.collectInterfaceVpcEndpointsPerVpcUsage(allVpcs.Vpcs[i], ec2Svc, *region)
 			e.collectRoutesTablesPerVpcUsage(allVpcs.Vpcs[i], ec2Svc, *region)
@@ -112,7 +112,7 @@ func (e *VPCExporter) CollectInRegion(session *session.Session, region *string, 
 	if err != nil {
 		level.Error(e.logger).Log("msg", "Call to DescribeRouteTables failed", "region", region, "err", err)
 	} else {
-		for i, _ := range allRouteTables.RouteTables {
+		for i := range allRouteTables.RouteTables {
 			e.collectRoutesPerRouteTableUsage(allRouteTables.RouteTables[i], ec2Svc, *region)
 		}
 	}
@@ -123,7 +123,7 @@ func (e *VPCExporter) CollectLoop() {
 
 		wg := &sync.WaitGroup{}
 		wg.Add(len(e.sessions))
-		for i, _ := range e.sessions {
+		for i := range e.sessions {
 			session := e.sessions[i]
 			region := session.Config.Region
 			go e.CollectInRegion(session, region, wg)
@@ -170,14 +170,17 @@ func (e *VPCExporter) collectVpcsPerRegionQuota(client *servicequotas.ServiceQuo
 func (e *VPCExporter) collectVpcsPerRegionUsage(ec2Svc *ec2.EC2, region string) {
 	ctx, cancelFunc := context.WithTimeout(context.Background(), e.timeout)
 	defer cancelFunc()
-	describeVpcsOutput, err := ec2Svc.DescribeVpcsWithContext(ctx, &ec2.DescribeVpcsInput{})
+	numVpcs := 0
+	err := ec2Svc.DescribeVpcsPagesWithContext(ctx, &ec2.DescribeVpcsInput{}, func(page *ec2.DescribeVpcsOutput, lastPage bool) bool {
+		numVpcs += len(page.Vpcs)
+		return !lastPage
+	})
 	if err != nil {
 		level.Error(e.logger).Log("msg", "Call to DescribeVpcs failed", "region", region, "err", err)
 		awsclient.AwsExporterMetrics.IncrementErrors()
 		return
 	}
-	usage := len(describeVpcsOutput.Vpcs)
-	e.cache.AddMetric(prometheus.MustNewConstMetric(e.VpcsPerRegionUsage, prometheus.GaugeValue, float64(usage), region))
+	e.cache.AddMetric(prometheus.MustNewConstMetric(e.VpcsPerRegionUsage, prometheus.GaugeValue, float64(numVpcs), region))
 }
 
 func (e *VPCExporter) collectSubnetsPerVpcQuota(client *servicequotas.ServiceQuotas, region string) {
@@ -193,19 +196,21 @@ func (e *VPCExporter) collectSubnetsPerVpcQuota(client *servicequotas.ServiceQuo
 func (e *VPCExporter) collectSubnetsPerVpcUsage(vpc *ec2.Vpc, ec2Svc *ec2.EC2, region string) {
 	ctx, cancelFunc := context.WithTimeout(context.Background(), e.timeout)
 	defer cancelFunc()
-	describeSubnetsOutput, err := ec2Svc.DescribeSubnetsWithContext(ctx, &ec2.DescribeSubnetsInput{
-		Filters: []*ec2.Filter{&ec2.Filter{
+	numSubnets := 0
+	err := ec2Svc.DescribeSubnetsPagesWithContext(ctx, &ec2.DescribeSubnetsInput{
+		Filters: []*ec2.Filter{{
 			Name:   aws.String("vpc-id"),
 			Values: []*string{vpc.VpcId},
-		}},
+		}}}, func(page *ec2.DescribeSubnetsOutput, lastPage bool) bool {
+		numSubnets += len(page.Subnets)
+		return !lastPage
 	})
 	if err != nil {
 		level.Error(e.logger).Log("msg", "Call to DescribeSubnets failed", "region", region, "err", err)
 		awsclient.AwsExporterMetrics.IncrementErrors()
 		return
 	}
-	usage := len(describeSubnetsOutput.Subnets)
-	e.cache.AddMetric(prometheus.MustNewConstMetric(e.SubnetsPerVpcUsage, prometheus.GaugeValue, float64(usage), region, *vpc.VpcId))
+	e.cache.AddMetric(prometheus.MustNewConstMetric(e.SubnetsPerVpcUsage, prometheus.GaugeValue, float64(numSubnets), region, *vpc.VpcId))
 }
 
 func (e *VPCExporter) collectRoutesPerRouteTableQuota(client *servicequotas.ServiceQuotas, region string) {
@@ -224,6 +229,10 @@ func (e *VPCExporter) collectRoutesPerRouteTableUsage(rtb *ec2.RouteTable, ec2Sv
 	descRouteTableOutput, err := ec2Svc.DescribeRouteTablesWithContext(ctx, &ec2.DescribeRouteTablesInput{
 		RouteTableIds: []*string{rtb.RouteTableId},
 	})
+	if len(descRouteTableOutput.RouteTables) != 1 {
+		level.Error(e.logger).Log("msg", "Unexpected number of routetables (!= 1) returned from DescribeRouteTables")
+		return
+	}
 	if err != nil {
 		level.Error(e.logger).Log("msg", "Call to DescribeRouteTables failed", "region", region, "err", err)
 		awsclient.AwsExporterMetrics.IncrementErrors()
@@ -246,19 +255,21 @@ func (e *VPCExporter) collectInterfaceVpcEndpointsPerVpcQuota(client *servicequo
 func (e *VPCExporter) collectInterfaceVpcEndpointsPerVpcUsage(vpc *ec2.Vpc, ec2Svc *ec2.EC2, region string) {
 	ctx, cancelFunc := context.WithTimeout(context.Background(), e.timeout)
 	defer cancelFunc()
-	descVpcEndpoints, err := ec2Svc.DescribeVpcEndpointsWithContext(ctx, &ec2.DescribeVpcEndpointsInput{
-		Filters: []*ec2.Filter{{
-			Name:   aws.String("vpc-id"),
-			Values: []*string{vpc.VpcId},
-		}},
+
+	numEndpoints := 0
+	descEndpointsInput := &ec2.DescribeVpcEndpointsInput{
+		Filters: []*ec2.Filter{{Name: aws.String("vpc-id"), Values: []*string{vpc.VpcId}}},
+	}
+	err := ec2Svc.DescribeVpcEndpointsPagesWithContext(ctx, descEndpointsInput, func(page *ec2.DescribeVpcEndpointsOutput, lastPage bool) bool {
+		numEndpoints += len(page.VpcEndpoints)
+		return !lastPage
 	})
 	if err != nil {
 		level.Error(e.logger).Log("msg", "Call to DescribeVpcEndpoints failed", "region", region, "err", err)
 		awsclient.AwsExporterMetrics.IncrementErrors()
 		return
 	}
-	quota := len(descVpcEndpoints.VpcEndpoints)
-	e.cache.AddMetric(prometheus.MustNewConstMetric(e.InterfaceVpcEndpointsPerVpcUsage, prometheus.GaugeValue, float64(quota), region, *vpc.VpcId))
+	e.cache.AddMetric(prometheus.MustNewConstMetric(e.InterfaceVpcEndpointsPerVpcUsage, prometheus.GaugeValue, float64(numEndpoints), region, *vpc.VpcId))
 }
 
 func (e *VPCExporter) collectRoutesTablesPerVpcQuota(client *servicequotas.ServiceQuotas, region string) {
@@ -274,19 +285,22 @@ func (e *VPCExporter) collectRoutesTablesPerVpcQuota(client *servicequotas.Servi
 func (e *VPCExporter) collectRoutesTablesPerVpcUsage(vpc *ec2.Vpc, ec2Svc *ec2.EC2, region string) {
 	ctx, cancelFunc := context.WithTimeout(context.Background(), e.timeout)
 	defer cancelFunc()
-	descRouteTables, err := ec2Svc.DescribeRouteTablesWithContext(ctx, &ec2.DescribeRouteTablesInput{
+	var numRouteTables int
+	input := &ec2.DescribeRouteTablesInput{
 		Filters: []*ec2.Filter{{
 			Name:   aws.String("vpc-id"),
 			Values: []*string{vpc.VpcId},
-		}},
+		}}}
+	err := ec2Svc.DescribeRouteTablesPagesWithContext(ctx, input, func(page *ec2.DescribeRouteTablesOutput, lastPage bool) bool {
+		numRouteTables += len(page.RouteTables)
+		return !lastPage
 	})
 	if err != nil {
 		level.Error(e.logger).Log("msg", "Call to DescribeRouteTables failed", "region", region, "err", err)
 		awsclient.AwsExporterMetrics.IncrementErrors()
 		return
 	}
-	quota := len(descRouteTables.RouteTables)
-	e.cache.AddMetric(prometheus.MustNewConstMetric(e.RouteTablesPerVpcUsage, prometheus.GaugeValue, float64(quota), region, *vpc.VpcId))
+	e.cache.AddMetric(prometheus.MustNewConstMetric(e.RouteTablesPerVpcUsage, prometheus.GaugeValue, float64(numRouteTables), region, *vpc.VpcId))
 }
 
 func (e *VPCExporter) collectIPv4BlocksPerVpcQuota(client *servicequotas.ServiceQuotas, region string) {
