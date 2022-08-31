@@ -20,6 +20,7 @@ const (
 )
 
 type Route53Exporter struct {
+	awsAccountId              string
 	sess                      *session.Session
 	RecordsPerHostedZoneQuota *prometheus.Desc
 	RecordsPerHostedZoneUsage *prometheus.Desc
@@ -33,15 +34,17 @@ type Route53Exporter struct {
 	timeout       time.Duration
 }
 
-func NewRoute53Exporter(sess *session.Session, logger log.Logger, interval time.Duration, timeout time.Duration) *Route53Exporter {
+func NewRoute53Exporter(sess *session.Session, logger log.Logger, interval time.Duration, timeout time.Duration, awsAccountId string) *Route53Exporter {
 
 	level.Info(logger).Log("msg", "Initializing Route53 exporter")
+	accountIdLabel := map[string]string{"aws_account_id": awsAccountId}
 
 	exporter := &Route53Exporter{
+		awsAccountId:              awsAccountId,
 		sess:                      sess,
-		RecordsPerHostedZoneQuota: prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "route53_recordsperhostedzone_quota"), "Quota for maximum number of records in a Route53 hosted zone", []string{"hostedzoneid", "hostedzonename"}, nil),
-		RecordsPerHostedZoneUsage: prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "route53_recordsperhostedzone_total"), "Number of Resource records", []string{"hostedzoneid", "hostedzonename"}, nil),
-		LastUpdateTime:            prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "route53_last_updated_timestamp_seconds"), "Last time, the route53 metrics were sucessfully updated", []string{}, nil),
+		RecordsPerHostedZoneQuota: prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "route53_recordsperhostedzone_quota"), "Quota for maximum number of records in a Route53 hosted zone", []string{"hostedzoneid", "hostedzonename"}, accountIdLabel),
+		RecordsPerHostedZoneUsage: prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "route53_recordsperhostedzone_total"), "Number of Resource records", []string{"hostedzoneid", "hostedzonename"}, accountIdLabel),
+		LastUpdateTime:            prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "route53_last_updated_timestamp_seconds"), "Last time, the route53 metrics were sucessfully updated", []string{}, accountIdLabel),
 		cachedMetrics:             []prometheus.Metric{},
 		metricsMutex:              &sync.Mutex{},
 		logger:                    logger,
