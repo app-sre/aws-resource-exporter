@@ -265,73 +265,73 @@ func NewRDSExporter(sessions []*session.Session, logger log.Logger) *RDSExporter
 		AllocatedStorage: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, "", "rds_allocatedstorage"),
 			"The amount of allocated storage in bytes.",
-			[]string{"aws_region", "dbinstance_identifier"},
+			[]string{"aws_region", "dbinstance_identifier", "dbinstance_tags"},
 			nil,
 		),
 		DBInstanceClass: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, "", "rds_dbinstanceclass"),
 			"The DB instance class (type).",
-			[]string{"aws_region", "dbinstance_identifier", "instance_class"},
+			[]string{"aws_region", "dbinstance_identifier", "instance_class", "dbinstance_tags"},
 			nil,
 		),
 		DBInstanceStatus: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, "", "rds_dbinstancestatus"),
 			"The instance status.",
-			[]string{"aws_region", "dbinstance_identifier", "instance_status"},
+			[]string{"aws_region", "dbinstance_identifier", "instance_status", "dbinstance_tags"},
 			nil,
 		),
 		EngineVersion: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, "", "rds_engineversion"),
 			"The DB engine type and version.",
-			[]string{"aws_region", "dbinstance_identifier", "engine", "engine_version"},
+			[]string{"aws_region", "dbinstance_identifier", "engine", "engine_version", "dbinstance_tags"},
 			nil,
 		),
 		LatestRestorableTime: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, "", "rds_latestrestorabletime"),
 			"Latest restorable time (UTC date timestamp).",
-			[]string{"aws_region", "dbinstance_identifier"},
+			[]string{"aws_region", "dbinstance_identifier", "dbinstance_tags"},
 			nil,
 		),
 		MaxConnections: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, "", "rds_maxconnections"),
 			"The DB's max_connections value",
-			[]string{"aws_region", "dbinstance_identifier"},
+			[]string{"aws_region", "dbinstance_identifier", "dbinstance_tags"},
 			nil,
 		),
 		MaxConnectionsMappingError: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, "", "rds_maxconnections_error"),
 			"Indicates no mapping found for instance/parameter group.",
-			[]string{"aws_region", "dbinstance_identifier", "instance_class"},
+			[]string{"aws_region", "dbinstance_identifier", "instance_class", "dbinstance_tags"},
 			nil,
 		),
 		PendingMaintenanceActions: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, "", "rds_pendingmaintenanceactions"),
 			"Pending maintenance actions for a RDS instance. 0 indicates no available maintenance and a separate metric with a value of 1 will be published for every separate action.",
-			[]string{"aws_region", "dbinstance_identifier", "action", "auto_apply_after", "current_apply_date", "description"},
+			[]string{"aws_region", "dbinstance_identifier", "action", "auto_apply_after", "current_apply_date", "description", "dbinstance_tags"},
 			nil,
 		),
 		PubliclyAccessible: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, "", "rds_publiclyaccessible"),
 			"Indicates if the DB is publicly accessible",
-			[]string{"aws_region", "dbinstance_identifier"},
+			[]string{"aws_region", "dbinstance_identifier", "dbinstance_tags"},
 			nil,
 		),
 		StorageEncrypted: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, "", "rds_storageencrypted"),
 			"Indicates if the DB storage is encrypted",
-			[]string{"aws_region", "dbinstance_identifier"},
+			[]string{"aws_region", "dbinstance_identifier", "dbinstance_tags"},
 			nil,
 		),
 		LogsStorageSize: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, "", "rds_logsstorage_size_bytes"),
 			"The amount of storage consumed by log files (in bytes)",
-			[]string{"aws_region", "dbinstance_identifier"},
+			[]string{"aws_region", "dbinstance_identifier", "dbinstance_tags"},
 			nil,
 		),
 		LogsAmount: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, "", "rds_logs_amount"),
 			"The amount of existent log files",
-			[]string{"aws_region", "dbinstance_identifier"},
+			[]string{"aws_region", "dbinstance_identifier", "dbinstance_tags"},
 			nil,
 		),
 		logger: logger,
@@ -367,10 +367,10 @@ func (e *RDSExporter) requestRDSLogMetrics(index int, instanceId string) (*RDSLo
 	return logMetrics, nil
 }
 
-func (e *RDSExporter) getRDSLogMetrics(index int, instanceId string, ch chan<- prometheus.Metric) error {
-	instaceLogFilesId := instanceId + "-" + "logfiles"
+func (e *RDSExporter) getRDSLogMetrics(index int, instanceId string, instanceTags string, ch chan<- prometheus.Metric) error {
+	instanceLogFilesId := instanceId + "-" + "logfiles"
 	var logMetrics *RDSLogsMetrics
-	cachedItem, err := metricsProxy.GetMetricById(instaceLogFilesId)
+	cachedItem, err := metricsProxy.GetMetricById(instanceLogFilesId)
 	if err != nil {
 		level.Debug(e.logger).Log("msg", "Log files metrics can not be fetched from the metrics proxy --> Api Call",
 			"instance", instanceId,
@@ -381,7 +381,7 @@ func (e *RDSExporter) getRDSLogMetrics(index int, instanceId string, ch chan<- p
 			level.Debug(e.logger).Log("msg", "Cancelling context and exiting worker due to an getLogfilesMetrics error")
 			return err
 		}
-		metricsProxy.StoreMetricById(instaceLogFilesId, logMetrics, e.logsMetricsTTL)
+		metricsProxy.StoreMetricById(instanceLogFilesId, logMetrics, e.logsMetricsTTL)
 	} else {
 		level.Debug(e.logger).Log("msg", "Log files metrics fetched from the metrics proxy",
 			"instance", instanceId,
@@ -389,12 +389,12 @@ func (e *RDSExporter) getRDSLogMetrics(index int, instanceId string, ch chan<- p
 		)
 		logMetrics = cachedItem.value.(*RDSLogsMetrics)
 	}
-	ch <- prometheus.MustNewConstMetric(e.LogsAmount, prometheus.GaugeValue, float64(logMetrics.logs), *e.sessions[index].Config.Region, instanceId)
-	ch <- prometheus.MustNewConstMetric(e.LogsStorageSize, prometheus.GaugeValue, float64(logMetrics.totalLogSize), *e.sessions[index].Config.Region, instanceId)
+	ch <- prometheus.MustNewConstMetric(e.LogsAmount, prometheus.GaugeValue, float64(logMetrics.logs), *e.sessions[index].Config.Region, instanceId, instanceTags)
+	ch <- prometheus.MustNewConstMetric(e.LogsStorageSize, prometheus.GaugeValue, float64(logMetrics.totalLogSize), *e.sessions[index].Config.Region, instanceId, instanceTags)
 	return nil
 }
 
-func (e *RDSExporter) createWorkerPool(index int, instancesQueue <-chan string, ch chan<- prometheus.Metric) (context.Context, context.CancelFunc) {
+func (e *RDSExporter) createWorkerPool(index int, instancesQueue <-chan string, instancesTags map[string]string, ch chan<- prometheus.Metric) (context.Context, context.CancelFunc) {
 	ctx, cancel := context.WithCancel(context.Background())
 	for i := 0; i < e.workers; i++ {
 		wg.Add(1)
@@ -410,7 +410,7 @@ func (e *RDSExporter) createWorkerPool(index int, instancesQueue <-chan string, 
 						level.Debug(e.logger).Log("msg", "Work queue is closed. Finishing worker")
 						return
 					}
-					err := e.getRDSLogMetrics(index, instanceId, ch)
+					err := e.getRDSLogMetrics(index, instanceId, instancesTags[instanceId], ch)
 					if err != nil {
 						cancel()
 						return
@@ -443,7 +443,10 @@ func (e *RDSExporter) Collect(ch chan<- prometheus.Metric) {
 
 		// Get all DB instances.
 		// If a Marker is found, do pagination until last page
+
 		var instances []*rds.DBInstance
+		instances_tags := make(map[string]string)
+
 		for {
 			exporterMetrics.IncrementRequests()
 			result, err := e.svcs[i].DescribeDBInstances(input)
@@ -459,10 +462,39 @@ func (e *RDSExporter) Collect(ch chan<- prometheus.Metric) {
 			}
 		}
 
+		// Get all tags associated with DB.
+
+		for _, instance := range instances {
+			inputtag := &rds.ListTagsForResourceInput{
+				ResourceName: instance.DBInstanceArn,
+			}
+
+			resulttag, errtag := e.svcs[i].ListTagsForResource(inputtag)
+			if errtag != nil {
+				level.Error(e.logger).Log("msg", "Call to ListTagsForResource failed", "region", *e.sessions[i].Config.Region, "err", errtag)
+				exporterMetrics.IncrementErrors()
+				return
+			}
+			if resulttag.TagList != nil {
+				for tag_index, tag := range resulttag.TagList {
+                    if tag_index > 0 {
+						instances_tags[*instance.DBInstanceIdentifier] = instances_tags[*instance.DBInstanceIdentifier] + "," + *tag.Key + "=" + *tag.Value
+					} else {
+						instances_tags[*instance.DBInstanceIdentifier] = *tag.Key + "=" + *tag.Value
+					}
+				}
+			} else {
+				level.Debug(e.logger).Log("msg", "No tags found",
+					"instance", *instance.DBInstanceIdentifier,
+				)
+				instances_tags[*instance.DBInstanceIdentifier] = ""
+			}
+		}
+
 		// Create a workerPool and a workQueue to get log metrics
 		// for each instance concurrently
 		instancesQueue := make(chan string)
-		ctx, cancel := e.createWorkerPool(i, instancesQueue, ch)
+		ctx, cancel := e.createWorkerPool(i, instancesQueue, instances_tags, ch)
 		defer cancel()
 
 		for _, instance := range instances {
@@ -483,46 +515,46 @@ func (e *RDSExporter) Collect(ch chan<- prometheus.Metric) {
 						"group", *instance.DBParameterGroups[0].DBParameterGroupName,
 						"value", maxconn)
 					maxConnections = maxconn
-					ch <- prometheus.MustNewConstMetric(e.MaxConnectionsMappingError, prometheus.GaugeValue, 0, *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier, *instance.DBInstanceClass)
+					ch <- prometheus.MustNewConstMetric(e.MaxConnectionsMappingError, prometheus.GaugeValue, 0, *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier, *instance.DBInstanceClass, instances_tags[*instance.DBInstanceIdentifier])
 				} else {
 					level.Error(e.logger).Log("msg", "No DB max_connections mapping exists for instance",
 						"type", *instance.DBInstanceClass,
 						"group", *instance.DBParameterGroups[0].DBParameterGroupName)
-					ch <- prometheus.MustNewConstMetric(e.MaxConnectionsMappingError, prometheus.GaugeValue, 1, *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier, *instance.DBInstanceClass)
+					ch <- prometheus.MustNewConstMetric(e.MaxConnectionsMappingError, prometheus.GaugeValue, 1, *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier, *instance.DBInstanceClass, instances_tags[*instance.DBInstanceIdentifier])
 				}
 			} else {
 				level.Error(e.logger).Log("msg", "No DB max_connections mapping exists for instance",
 					"type", *instance.DBInstanceClass)
-				ch <- prometheus.MustNewConstMetric(e.MaxConnectionsMappingError, prometheus.GaugeValue, 1, *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier, *instance.DBInstanceClass)
+				ch <- prometheus.MustNewConstMetric(e.MaxConnectionsMappingError, prometheus.GaugeValue, 1, *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier, *instance.DBInstanceClass, instances_tags[*instance.DBInstanceIdentifier])
 			}
 
 			if *instance.PubliclyAccessible {
-				ch <- prometheus.MustNewConstMetric(e.PubliclyAccessible, prometheus.GaugeValue, 1, *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier)
+				ch <- prometheus.MustNewConstMetric(e.PubliclyAccessible, prometheus.GaugeValue, 1, *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier, instances_tags[*instance.DBInstanceIdentifier])
 
 			} else {
-				ch <- prometheus.MustNewConstMetric(e.PubliclyAccessible, prometheus.GaugeValue, 0, *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier)
+				ch <- prometheus.MustNewConstMetric(e.PubliclyAccessible, prometheus.GaugeValue, 0, *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier, instances_tags[*instance.DBInstanceIdentifier])
 
 			}
 
 			if *instance.StorageEncrypted {
-				ch <- prometheus.MustNewConstMetric(e.StorageEncrypted, prometheus.GaugeValue, 1, *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier)
+				ch <- prometheus.MustNewConstMetric(e.StorageEncrypted, prometheus.GaugeValue, 1, *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier, instances_tags[*instance.DBInstanceIdentifier])
 
 			} else {
-				ch <- prometheus.MustNewConstMetric(e.StorageEncrypted, prometheus.GaugeValue, 0, *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier)
+				ch <- prometheus.MustNewConstMetric(e.StorageEncrypted, prometheus.GaugeValue, 0, *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier, instances_tags[*instance.DBInstanceIdentifier])
 
 			}
 
 			if instance.LatestRestorableTime != nil {
-				ch <- prometheus.MustNewConstMetric(e.LatestRestorableTime, prometheus.CounterValue, float64(instance.LatestRestorableTime.Unix()), *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier)
+				ch <- prometheus.MustNewConstMetric(e.LatestRestorableTime, prometheus.CounterValue, float64(instance.LatestRestorableTime.Unix()), *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier, instances_tags[*instance.DBInstanceIdentifier])
 			} else {
-				ch <- prometheus.MustNewConstMetric(e.LatestRestorableTime, prometheus.CounterValue, float64(0), *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier)
+				ch <- prometheus.MustNewConstMetric(e.LatestRestorableTime, prometheus.CounterValue, float64(0), *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier, instances_tags[*instance.DBInstanceIdentifier])
 			}
 
-			ch <- prometheus.MustNewConstMetric(e.MaxConnections, prometheus.GaugeValue, float64(maxConnections), *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier)
-			ch <- prometheus.MustNewConstMetric(e.AllocatedStorage, prometheus.GaugeValue, float64(*instance.AllocatedStorage*1024*1024*1024), *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier)
-			ch <- prometheus.MustNewConstMetric(e.DBInstanceStatus, prometheus.GaugeValue, 1, *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier, *instance.DBInstanceStatus)
-			ch <- prometheus.MustNewConstMetric(e.EngineVersion, prometheus.GaugeValue, 1, *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion)
-			ch <- prometheus.MustNewConstMetric(e.DBInstanceClass, prometheus.GaugeValue, 1, *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier, *instance.DBInstanceClass)
+			ch <- prometheus.MustNewConstMetric(e.MaxConnections, prometheus.GaugeValue, float64(maxConnections), *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier, instances_tags[*instance.DBInstanceIdentifier])
+			ch <- prometheus.MustNewConstMetric(e.AllocatedStorage, prometheus.GaugeValue, float64(*instance.AllocatedStorage*1024*1024*1024), *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier, instances_tags[*instance.DBInstanceIdentifier])
+			ch <- prometheus.MustNewConstMetric(e.DBInstanceStatus, prometheus.GaugeValue, 1, *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier, *instance.DBInstanceStatus, instances_tags[*instance.DBInstanceIdentifier])
+			ch <- prometheus.MustNewConstMetric(e.EngineVersion, prometheus.GaugeValue, 1, *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion, instances_tags[*instance.DBInstanceIdentifier])
+			ch <- prometheus.MustNewConstMetric(e.DBInstanceClass, prometheus.GaugeValue, 1, *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier, *instance.DBInstanceClass, instances_tags[*instance.DBInstanceIdentifier])
 
 			select {
 			case <-ctx.Done():
@@ -572,7 +604,7 @@ func (e *RDSExporter) Collect(ch chan<- prometheus.Metric) {
 					currentApplyDate = action.CurrentApplyDate.String()
 				}
 
-				ch <- prometheus.MustNewConstMetric(e.PendingMaintenanceActions, prometheus.GaugeValue, 1, *e.sessions[i].Config.Region, dbIdentifier, *action.Action, autoApplyDate, currentApplyDate, *action.Description)
+				ch <- prometheus.MustNewConstMetric(e.PendingMaintenanceActions, prometheus.GaugeValue, 1, *e.sessions[i].Config.Region, dbIdentifier, *action.Action, autoApplyDate, currentApplyDate, *action.Description, instances_tags[dbIdentifier])
 			}
 		}
 
@@ -581,7 +613,7 @@ func (e *RDSExporter) Collect(ch chan<- prometheus.Metric) {
 		// available.
 		for _, instance := range instances {
 			if !instancesWithPendingMaint[*instance.DBInstanceIdentifier] {
-				ch <- prometheus.MustNewConstMetric(e.PendingMaintenanceActions, prometheus.GaugeValue, 0, *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier, "", "", "", "")
+				ch <- prometheus.MustNewConstMetric(e.PendingMaintenanceActions, prometheus.GaugeValue, 0, *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier, "", "", "", "", instances_tags[*instance.DBInstanceIdentifier])
 			}
 		}
 	}
