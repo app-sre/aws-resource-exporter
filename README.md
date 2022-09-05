@@ -37,7 +37,7 @@ Then:
 
 ### Using the container image
 
-    docker run --rm -d -p 9115:9115 \
+    podman run --rm -d -p 9115:9115 \
         --name aws-resource-exporter \
         --env AWS_ACCESS_KEY_ID=AAA \
         --env AWS_SECRET_ACCESS_KEY=AAA \
@@ -50,7 +50,7 @@ Then:
 
     make build
 
-### Building docker image
+### Building container image
 
     make image image-push
 
