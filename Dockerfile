@@ -1,6 +1,27 @@
-FROM registry.centos.org/centos/centos:7
+##
+## Build
+##
 
-COPY aws-resource-exporter /bin/aws-resource-exporter
+FROM golang:1.19-buster AS build
 
-EXPOSE      9115
-ENTRYPOINT  [ "/bin/aws-resource-exporter" ]
+WORKDIR /app
+
+COPY go.mod go.sum ./
+RUN go mod download
+
+COPY *.go ./
+
+RUN CGO_ENABLED=0 GOOS=linux go build -o /main -ldflags="-s -w" && \
+    chmod +x /main
+
+##
+## Deploy
+##
+
+FROM scratch
+COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
+COPY --from=build /main /aws-resource-exporter
+
+EXPOSE     9115
+ENTRYPOINT ["/aws-resource-exporter"]
+
