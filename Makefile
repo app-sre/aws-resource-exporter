@@ -30,11 +30,15 @@ build:
 
 .PHONY: image
 image:
-	$(CONTAINER_ENGINE) build -t $(REPO):$(TAG) .
+ifeq ($(CONTAINER_ENGINE), podman)
+	@DOCKER_BUILDKIT=1 $(CONTAINER_ENGINE) build --no-cache -t $(REPO):latest . --progress=plain
+else
+	@DOCKER_BUILDKIT=1 $(CONTAINER_ENGINE) --config=$(DOCKER_CONF) build --no-cache -t $(REPO):latest . --progress=plain
+endif
+	@$(CONTAINER_ENGINE) tag $(REPO):latest $(REPO):$(TAG)
 
 .PHONY: image-push
 image-push:
-	$(CONTAINER_ENGINE) tag $(REPO):$(TAG) $(REPO):latest
 	$(CONTAINER_ENGINE) --config=$(DOCKER_CONF) push $(REPO):$(TAG)
 	$(CONTAINER_ENGINE) --config=$(DOCKER_CONF) push $(REPO):latest
 
