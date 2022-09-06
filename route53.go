@@ -80,7 +80,7 @@ func (e *Route53Exporter) getRecordsPerHostedZoneMetrics(client *route53.Route53
 
 			if err != nil {
 				errChan <- fmt.Errorf("Could not get Limits for hosted zone with ID '%s' and name '%s'. Error was: %s", *hostedZone.Id, *hostedZone.Name, err.Error())
-				level.Info(e.logger).Log("msg", "ERROR")
+				level.Info(e.logger).Log("msg", fmt.Sprintf("Error while retrieving hosted zone limit for hosted zone with ID: %s", *hostedZone.Id), "err", err)
 				exporterMetrics.IncrementErrors()
 				return
 			}
