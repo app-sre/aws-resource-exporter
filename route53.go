@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/route53"
 	"github.com/aws/aws-sdk-go/service/servicequotas"
@@ -17,9 +18,11 @@ import (
 )
 
 const (
-	maxRetries           = 10
-	route53ServiceCode   = "route53"
-	hostedZonesQuotaCode = "L-4EA4796A"
+	maxRetries            = 10
+	route53MaxConcurrency = 5
+	route53ServiceCode    = "route53"
+	hostedZonesQuotaCode  = "L-4EA4796A"
+	errorCodeThrottling   = "Throttling"
 )
 
 type Route53Exporter struct {
@@ -66,7 +69,7 @@ func (e *Route53Exporter) getRecordsPerHostedZoneMetrics(client *route53.Route53
 
 	wg := &sync.WaitGroup{}
 	wg.Add(len(hostedZones))
-	sem := make(chan int, 10)
+	sem := make(chan int, route53MaxConcurrency)
 	defer close(sem)
 	for i, hostedZone := range hostedZones {
 
@@ -76,11 +79,10 @@ func (e *Route53Exporter) getRecordsPerHostedZoneMetrics(client *route53.Route53
 				<-sem
 				wg.Done()
 			}()
-			hostedZoneLimitOut, err := GetHostedZoneLimitWithBackoff(client, ctx, hostedZone.Id, maxRetries)
+			hostedZoneLimitOut, err := GetHostedZoneLimitWithBackoff(client, ctx, hostedZone.Id, maxRetries, e.logger)
 
 			if err != nil {
 				errChan <- fmt.Errorf("Could not get Limits for hosted zone with ID '%s' and name '%s'. Error was: %s", *hostedZone.Id, *hostedZone.Name, err.Error())
-				level.Info(e.logger).Log("msg", fmt.Sprintf("Error while retrieving hosted zone limit for hosted zone with ID: %s", *hostedZone.Id), "err", err)
 				exporterMetrics.IncrementErrors()
 				return
 			}
@@ -128,7 +130,7 @@ func (e *Route53Exporter) CollectLoop() {
 		e.Cancel = ctxCancelFunc
 		level.Info(e.logger).Log("msg", "Updating Route53 metrics...")
 
-		hostedZones, err := getAllHostedZones(route53Svc, ctx)
+		hostedZones, err := getAllHostedZones(route53Svc, ctx, e.logger)
 
 		level.Info(e.logger).Log("msg", "Got all zones")
 		if err != nil {
@@ -173,12 +175,12 @@ func (e *Route53Exporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- e.LastUpdateTime
 }
 
-func getAllHostedZones(client *route53.Route53, ctx context.Context) ([]*route53.HostedZone, error) {
+func getAllHostedZones(client *route53.Route53, ctx context.Context, logger log.Logger) ([]*route53.HostedZone, error) {
 	result := []*route53.HostedZone{}
 
 	listZonesInput := route53.ListHostedZonesInput{}
 
-	listZonesOut, err := ListHostedZonesWithBackoff(client, ctx, &listZonesInput, maxRetries)
+	listZonesOut, err := ListHostedZonesWithBackoff(client, ctx, &listZonesInput, maxRetries, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -186,7 +188,7 @@ func getAllHostedZones(client *route53.Route53, ctx context.Context) ([]*route53
 
 	for *listZonesOut.IsTruncated {
 		listZonesInput.Marker = listZonesOut.NextMarker
-		listZonesOut, err = client.ListHostedZonesWithContext(ctx, &listZonesInput)
+		listZonesOut, err = ListHostedZonesWithBackoff(client, ctx, &listZonesInput, maxRetries, logger)
 		if err != nil {
 			return nil, err
 		}
@@ -196,7 +198,7 @@ func getAllHostedZones(client *route53.Route53, ctx context.Context) ([]*route53
 	return result, nil
 }
 
-func ListHostedZonesWithBackoff(client *route53.Route53, ctx context.Context, input *route53.ListHostedZonesInput, maxTries int) (*route53.ListHostedZonesOutput, error) {
+func ListHostedZonesWithBackoff(client *route53.Route53, ctx context.Context, input *route53.ListHostedZonesInput, maxTries int, logger log.Logger) (*route53.ListHostedZonesOutput, error) {
 	var listHostedZonesOut *route53.ListHostedZonesOutput
 	var err error
 
@@ -205,14 +207,17 @@ func ListHostedZonesWithBackoff(client *route53.Route53, ctx context.Context, in
 		if err == nil {
 			return listHostedZonesOut, err
 		}
+		if !isThrottlingError(err) {
+			return nil, err
+		}
+		level.Debug(logger).Log("msg", "Retrying throttling api call", "tries", i+1, "endpoint", "ListHostedZones")
 		backOffSeconds := math.Pow(2, float64(i-1))
-		fmt.Printf("Backing off for %f.1 seconds\n", backOffSeconds)
 		time.Sleep(time.Duration(backOffSeconds) * time.Second)
 	}
 	return nil, err
 }
 
-func GetHostedZoneLimitWithBackoff(client *route53.Route53, ctx context.Context, hostedZoneId *string, maxTries int) (*route53.GetHostedZoneLimitOutput, error) {
+func GetHostedZoneLimitWithBackoff(client *route53.Route53, ctx context.Context, hostedZoneId *string, maxTries int, logger log.Logger) (*route53.GetHostedZoneLimitOutput, error) {
 	hostedZoneLimitInput := &route53.GetHostedZoneLimitInput{
 		HostedZoneId: hostedZoneId,
 		Type:         aws.String(route53.HostedZoneLimitTypeMaxRrsetsByZone),
@@ -225,8 +230,20 @@ func GetHostedZoneLimitWithBackoff(client *route53.Route53, ctx context.Context,
 		if err == nil {
 			return hostedZoneLimitOut, err
 		}
+
+		if !isThrottlingError(err) {
+			return nil, err
+		}
+		level.Debug(logger).Log("msg", "Retrying throttling api call", "tries", i+1, "endpoint", "GetHostedZoneLimit", "hostedZoneID", hostedZoneId)
 		backOffSeconds := math.Pow(2, float64(i-1))
 		time.Sleep(time.Duration(backOffSeconds) * time.Second)
+
 	}
 	return nil, err
+}
+
+// isThrottlingError returns true if the error given is an instance of awserr.Error and the error code matches the constant errorCodeThrottling. It's not compared against route53.ErrCodeThrottlingException as this does not match what the api is returning.
+func isThrottlingError(err error) bool {
+	awsError, isAwsError := err.(awserr.Error)
+	return isAwsError && awsError.Code() == errorCodeThrottling
 }
