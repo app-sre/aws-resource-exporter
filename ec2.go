@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/app-sre/aws-resource-exporter/pkg"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -24,35 +25,51 @@ var TransitGatewaysUsage *prometheus.Desc = prometheus.NewDesc(prometheus.BuildF
 
 type EC2Exporter struct {
 	sessions []*session.Session
+	cache    pkg.MetricsCache
 
-	logger  log.Logger
-	timeout time.Duration
+	logger   log.Logger
+	timeout  time.Duration
+	interval time.Duration
 }
 
-func NewEC2Exporter(sessions []*session.Session, logger log.Logger, timeout time.Duration) *EC2Exporter {
+func NewEC2Exporter(sessions []*session.Session, logger log.Logger, config EC2Config) *EC2Exporter {
 
 	level.Info(logger).Log("msg", "Initializing EC2 exporter")
 	return &EC2Exporter{
 		sessions: sessions,
+		cache:    *pkg.NewMetricsCache(*config.CacheTTL),
 
-		logger:  logger,
-		timeout: timeout,
+		logger:   logger,
+		timeout:  config.Timeout,
+		interval: *config.Interval,
 	}
 }
 
 func (e *EC2Exporter) Collect(ch chan<- prometheus.Metric) {
-	ctx, ctxCancel := context.WithTimeout(context.Background(), e.timeout)
-	defer ctxCancel()
-	wg := &sync.WaitGroup{}
-	wg.Add(len(e.sessions))
-
-	for _, sess := range e.sessions {
-		go collectInRegion(sess, e.logger, wg, ch, ctx)
+	for _, m := range e.cache.GetAllMetrics() {
+		ch <- m
 	}
-	wg.Wait()
 }
 
-func collectInRegion(sess *session.Session, logger log.Logger, wg *sync.WaitGroup, ch chan<- prometheus.Metric, ctx context.Context) {
+func (e *EC2Exporter) CollectLoop() {
+	for {
+		ctx, ctxCancel := context.WithTimeout(context.Background(), e.timeout)
+		defer ctxCancel()
+		wg := &sync.WaitGroup{}
+		wg.Add(len(e.sessions))
+
+		for _, sess := range e.sessions {
+			go e.collectInRegion(sess, e.logger, wg, ctx)
+		}
+		wg.Wait()
+
+		level.Info(e.logger).Log("msg", "EC2 metrics Updated")
+
+		time.Sleep(e.interval)
+	}
+}
+
+func (e *EC2Exporter) collectInRegion(sess *session.Session, logger log.Logger, wg *sync.WaitGroup, ctx context.Context) {
 	defer wg.Done()
 	ec2Svc := ec2.New(sess)
 	serviceQuotaSvc := servicequotas.New(sess)
@@ -71,9 +88,8 @@ func collectInRegion(sess *session.Session, logger log.Logger, wg *sync.WaitGrou
 		return
 	}
 
-	ch <- prometheus.MustNewConstMetric(TransitGatewaysUsage, prometheus.GaugeValue, float64(len(gateways)), *sess.Config.Region)
-	ch <- prometheus.MustNewConstMetric(TransitGatewaysQuota, prometheus.GaugeValue, quota, *sess.Config.Region)
-
+	e.cache.AddMetric(prometheus.MustNewConstMetric(TransitGatewaysUsage, prometheus.GaugeValue, float64(len(gateways)), *sess.Config.Region))
+	e.cache.AddMetric(prometheus.MustNewConstMetric(TransitGatewaysQuota, prometheus.GaugeValue, quota, *sess.Config.Region))
 }
 
 func (e *EC2Exporter) Describe(ch chan<- *prometheus.Desc) {

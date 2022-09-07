@@ -13,7 +13,6 @@ route53:
   enabled: true
   region: "us-east-1"
   timeout: 300s
-  interval: 300s
 ec2:
   enabled: true
   regions:

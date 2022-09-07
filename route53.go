@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/app-sre/aws-resource-exporter/pkg"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -34,14 +35,13 @@ type Route53Exporter struct {
 	LastUpdateTime             *prometheus.Desc
 	Cancel                     context.CancelFunc
 
-	cachedMetrics []prometheus.Metric
-	metricsMutex  *sync.Mutex
-	logger        log.Logger
-	interval      time.Duration
-	timeout       time.Duration
+	cache    pkg.MetricsCache
+	logger   log.Logger
+	interval time.Duration
+	timeout  time.Duration
 }
 
-func NewRoute53Exporter(sess *session.Session, logger log.Logger, interval time.Duration, timeout time.Duration) *Route53Exporter {
+func NewRoute53Exporter(sess *session.Session, logger log.Logger, config Route53Config) *Route53Exporter {
 
 	level.Info(logger).Log("msg", "Initializing Route53 exporter")
 
@@ -52,19 +52,16 @@ func NewRoute53Exporter(sess *session.Session, logger log.Logger, interval time.
 		HostedZonesPerAccountQuota: prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "route53_hostedzonesperaccount_quota"), "Quota for maximum number of Route53 hosted zones in an account", []string{}, nil),
 		HostedZonesPerAccountUsage: prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "route53_hostedzonesperaccount_total"), "Number of Resource records", []string{}, nil),
 		LastUpdateTime:             prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "route53_last_updated_timestamp_seconds"), "Last time, the route53 metrics were sucessfully updated", []string{}, nil),
-		cachedMetrics:              []prometheus.Metric{},
-		metricsMutex:               &sync.Mutex{},
+		cache:                      *pkg.NewMetricsCache(*config.CacheTTL),
 		logger:                     logger,
-		interval:                   interval,
-		timeout:                    timeout,
+		interval:                   *config.Interval,
+		timeout:                    config.Timeout,
 	}
 	return exporter
 }
 
-func (e *Route53Exporter) getRecordsPerHostedZoneMetrics(client *route53.Route53, hostedZones []*route53.HostedZone, ctx context.Context) ([]prometheus.Metric, []error) {
-	metricsChan := make(chan prometheus.Metric, len(hostedZones)*2)
+func (e *Route53Exporter) getRecordsPerHostedZoneMetrics(client *route53.Route53, hostedZones []*route53.HostedZone, ctx context.Context) []error {
 	errChan := make(chan error, len(hostedZones))
-	result := []prometheus.Metric{}
 	errs := []error{}
 
 	wg := &sync.WaitGroup{}
@@ -87,37 +84,30 @@ func (e *Route53Exporter) getRecordsPerHostedZoneMetrics(client *route53.Route53
 				return
 			}
 			level.Info(e.logger).Log("msg", fmt.Sprintf("Currently at hosted zone: %d / %d", i, len(hostedZones)))
-			metricsChan <- prometheus.MustNewConstMetric(e.RecordsPerHostedZoneQuota, prometheus.GaugeValue, float64(*hostedZoneLimitOut.Limit.Value), *hostedZone.Id, *hostedZone.Name)
-			metricsChan <- prometheus.MustNewConstMetric(e.RecordsPerHostedZoneUsage, prometheus.GaugeValue, float64(*hostedZoneLimitOut.Count), *hostedZone.Id, *hostedZone.Name)
+			e.cache.AddMetric(prometheus.MustNewConstMetric(e.RecordsPerHostedZoneQuota, prometheus.GaugeValue, float64(*hostedZoneLimitOut.Limit.Value), *hostedZone.Id, *hostedZone.Name))
+			e.cache.AddMetric(prometheus.MustNewConstMetric(e.RecordsPerHostedZoneUsage, prometheus.GaugeValue, float64(*hostedZoneLimitOut.Count), *hostedZone.Id, *hostedZone.Name))
 
 		}(i, hostedZone)
 	}
 	wg.Wait()
 	close(errChan)
-	close(metricsChan)
 
-	for metric := range metricsChan {
-		result = append(result, metric)
-	}
 	for err := range errChan {
 		errs = append(errs, err)
 	}
 
-	return result, errs
+	return errs
 }
 
-func (e *Route53Exporter) getHostedZonesPerAccountMetrics(client *servicequotas.ServiceQuotas, hostedZones []*route53.HostedZone, ctx context.Context) ([]prometheus.Metric, error) {
-	result := []prometheus.Metric{}
+func (e *Route53Exporter) getHostedZonesPerAccountMetrics(client *servicequotas.ServiceQuotas, hostedZones []*route53.HostedZone, ctx context.Context) error {
 	quota, err := getQuotaValueWithContext(client, route53ServiceCode, hostedZonesQuotaCode, ctx)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	result = append(result,
-		prometheus.MustNewConstMetric(e.HostedZonesPerAccountQuota, prometheus.GaugeValue, quota),
-		prometheus.MustNewConstMetric(e.HostedZonesPerAccountUsage, prometheus.GaugeValue, float64(len(hostedZones))),
-	)
-	return result, nil
+	e.cache.AddMetric(prometheus.MustNewConstMetric(e.HostedZonesPerAccountQuota, prometheus.GaugeValue, quota))
+	e.cache.AddMetric(prometheus.MustNewConstMetric(e.HostedZonesPerAccountUsage, prometheus.GaugeValue, float64(len(hostedZones))))
+	return nil
 }
 
 // CollectLoop runs indefinitely to collect the route53 metrics in a cache. Metrics are only written into the cache once all have been collected to ensure that we don't have a partial collect.
@@ -138,21 +128,18 @@ func (e *Route53Exporter) CollectLoop() {
 			exporterMetrics.IncrementErrors()
 		}
 
-		allMetrics := []prometheus.Metric{}
-		hostedZonesPerAccountMetrics, err := e.getHostedZonesPerAccountMetrics(serviceQuotaSvc, hostedZones, ctx)
-		allMetrics = append(allMetrics, hostedZonesPerAccountMetrics...)
+		err = e.getHostedZonesPerAccountMetrics(serviceQuotaSvc, hostedZones, ctx)
+		if err != nil {
+			level.Error(e.logger).Log("msg", "Could not get limits for hosted zone", "error", err.Error())
+			exporterMetrics.IncrementErrors()
+		}
 
-		recordsPerHostedZoneMetrics, errs := e.getRecordsPerHostedZoneMetrics(route53Svc, hostedZones, ctx)
+		errs := e.getRecordsPerHostedZoneMetrics(route53Svc, hostedZones, ctx)
 		for _, err = range errs {
 			level.Error(e.logger).Log("msg", "Could not get limits for hosted zone", "error", err.Error())
 			exporterMetrics.IncrementErrors()
 		}
 
-		allMetrics = append(allMetrics, recordsPerHostedZoneMetrics...)
-
-		e.metricsMutex.Lock()
-		e.cachedMetrics = append(allMetrics, prometheus.MustNewConstMetric(e.LastUpdateTime, prometheus.GaugeValue, float64(time.Now().Unix())))
-		e.metricsMutex.Unlock()
 		level.Info(e.logger).Log("msg", "Route53 metrics Updated")
 
 		ctxCancelFunc() // should never do anything as we don't run stuff in the background
@@ -162,10 +149,8 @@ func (e *Route53Exporter) CollectLoop() {
 }
 
 func (e *Route53Exporter) Collect(ch chan<- prometheus.Metric) {
-	e.metricsMutex.Lock()
-	defer e.metricsMutex.Unlock()
-	for _, metric := range e.cachedMetrics {
-		ch <- metric
+	for _, m := range e.cache.GetAllMetrics() {
+		ch <- m
 	}
 }
 
