@@ -11,16 +11,16 @@ import (
 )
 
 type MetricsCache struct {
-	cacheMutex   *sync.Mutex
-	entries      map[string]CacheEntry
-	ttlInSeconds int
+	cacheMutex *sync.Mutex
+	entries    map[string]cacheEntry
+	ttl        time.Duration
 }
 
-func NewMetricsCache(ttlInSeconds int) *MetricsCache {
+func NewMetricsCache(ttl time.Duration) *MetricsCache {
 	return &MetricsCache{
-		cacheMutex:   &sync.Mutex{},
-		entries:      map[string]CacheEntry{},
-		ttlInSeconds: ttlInSeconds,
+		cacheMutex: &sync.Mutex{},
+		entries:    map[string]cacheEntry{},
+		ttl:        ttl,
 	}
 }
 
@@ -37,20 +37,22 @@ func getMetricHash(metric prometheus.Metric) string {
 	return fmt.Sprintf("%x", checksum[:])
 }
 
+// AddMetric adds a metric to the cache
 func (mc *MetricsCache) AddMetric(metric prometheus.Metric) {
 	mc.cacheMutex.Lock()
-	mc.entries[getMetricHash(metric)] = CacheEntry{
+	mc.entries[getMetricHash(metric)] = cacheEntry{
 		creation: time.Now(),
 		metric:   metric,
 	}
 	mc.cacheMutex.Unlock()
 }
 
+// GetAllMetrics Iterates over all cached metrics and discards expired ones.
 func (mc *MetricsCache) GetAllMetrics() []prometheus.Metric {
 	mc.cacheMutex.Lock()
 	returnArr := make([]prometheus.Metric, 0)
 	for k, v := range mc.entries {
-		if time.Since(v.creation).Seconds() > float64(mc.ttlInSeconds) {
+		if time.Since(v.creation).Seconds() > mc.ttl.Seconds() {
 			delete(mc.entries, k)
 		} else {
 			returnArr = append(returnArr, v.metric)
@@ -60,7 +62,7 @@ func (mc *MetricsCache) GetAllMetrics() []prometheus.Metric {
 	return returnArr
 }
 
-type CacheEntry struct {
+type cacheEntry struct {
 	creation time.Time
 	metric   prometheus.Metric
 }

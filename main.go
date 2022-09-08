@@ -45,7 +45,7 @@ func main() {
 type BaseConfig struct {
 	Enabled  bool           `yaml:"enabled"`
 	Interval *time.Duration `yaml:"interval"`
-	CacheTTL *int           `yaml:"cacheTTL"`
+	CacheTTL *time.Duration `yaml:"cache_ttl"`
 }
 
 type RDSConfig struct {
@@ -78,10 +78,6 @@ type Config struct {
 	EC2Config     EC2Config     `yaml:"ec2"`
 }
 
-func intPtr(integer int) *int {
-	return &integer
-}
-
 func durationPtr(duration time.Duration) *time.Duration {
 	return &duration
 }
@@ -96,16 +92,16 @@ func loadExporterConfiguration(logger log.Logger, configFile string) (*Config, e
 	yaml.Unmarshal(file, &config)
 
 	if config.RdsConfig.CacheTTL == nil {
-		config.RdsConfig.CacheTTL = intPtr(35)
+		config.RdsConfig.CacheTTL = durationPtr(35 * time.Second)
 	}
 	if config.VpcConfig.CacheTTL == nil {
-		config.VpcConfig.CacheTTL = intPtr(35)
+		config.VpcConfig.CacheTTL = durationPtr(35 * time.Second)
 	}
 	if config.Route53Config.CacheTTL == nil {
-		config.Route53Config.CacheTTL = intPtr(35)
+		config.Route53Config.CacheTTL = durationPtr(35 * time.Second)
 	}
 	if config.EC2Config.CacheTTL == nil {
-		config.EC2Config.CacheTTL = intPtr(35)
+		config.EC2Config.CacheTTL = durationPtr(35 * time.Second)
 	}
 
 	if config.RdsConfig.Interval == nil {

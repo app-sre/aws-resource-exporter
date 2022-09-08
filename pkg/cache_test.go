@@ -20,7 +20,7 @@ func TestGetMetricHash(t *testing.T) {
 }
 
 func TestSameMetricWithDifferentLabelsDontOverwrite(t *testing.T) {
-	cache := NewMetricsCache(1)
+	cache := NewMetricsCache(1 * time.Second)
 	desc := prometheus.NewDesc("test", "multimetric", []string{"aws_region"}, nil)
 
 	metricEast1 := prometheus.MustNewConstMetric(desc, prometheus.GaugeValue, 1, "us-east-1")
@@ -37,7 +37,7 @@ func TestSameMetricWithDifferentLabelsDontOverwrite(t *testing.T) {
 }
 
 func TestMetricCacheGetAllWithTTL(t *testing.T) {
-	cache := NewMetricsCache(1)
+	cache := NewMetricsCache(1 * time.Second)
 
 	testMetric := createTestMetric("testing", 1)
 	cache.AddMetric(testMetric)
