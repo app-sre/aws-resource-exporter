@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 )
 
 type MetricsCache struct {
@@ -24,7 +25,15 @@ func NewMetricsCache(ttlInSeconds int) *MetricsCache {
 }
 
 func getMetricHash(metric prometheus.Metric) string {
-	checksum := sha256.Sum256([]byte(metric.Desc().String()))
+	var dto dto.Metric
+	metric.Write(&dto)
+	labelString := metric.Desc().String()
+
+	for _, labelPair := range dto.GetLabel() {
+		labelString = fmt.Sprintf("%s,%s,%s", labelString, labelPair.GetName(), labelPair.GetValue())
+	}
+
+	checksum := sha256.Sum256([]byte(labelString))
 	return fmt.Sprintf("%x", checksum[:])
 }
 
