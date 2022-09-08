@@ -55,7 +55,7 @@ func NewRoute53Exporter(sess *session.Session, logger log.Logger, config Route53
 		cache:                      *pkg.NewMetricsCache(*config.CacheTTL),
 		logger:                     logger,
 		interval:                   *config.Interval,
-		timeout:                    config.Timeout,
+		timeout:                    *config.Timeout,
 	}
 	return exporter
 }

@@ -40,7 +40,7 @@ func NewEC2Exporter(sessions []*session.Session, logger log.Logger, config EC2Co
 		cache:    *pkg.NewMetricsCache(*config.CacheTTL),
 
 		logger:   logger,
-		timeout:  config.Timeout,
+		timeout:  *config.Timeout,
 		interval: *config.Interval,
 	}
 }

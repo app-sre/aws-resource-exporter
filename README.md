@@ -73,6 +73,8 @@ vpc:
     - "us-east-1"
     - "eu-central-1"
   timeout: 30s
+  interval: 300s
+  cache_ttl: 500s
 ec2:
   enabled: true
   regions:
@@ -84,6 +86,7 @@ route53:
   enabled: true
   region: "us-east-1"
   timeout: 60s
+  interval: 90s
 ```
 
 Some exporters might expose different configuration values, see the example files for possible keys.
@@ -95,6 +98,13 @@ tweak this behavior.
 
 - `LOGS_METRICS_WORKERS`: Number of workers to request log metrics in parallel (default=10)
 - `LOGS_METRICS_TTL`: Cache TTL for rds logs related metrics (default=300)
+
+
+Defaults:
+  - interval: 15 seconds
+  - cache_ttl: 35 seconds
+  - timeout: 10 seconds
+
 
 To view all available command-line flags, run `./aws-resource-exporter -h`.
 

@@ -71,7 +71,7 @@ func NewVPCExporter(sess []*session.Session, logger log.Logger, config VPCConfig
 		IPv4BlocksPerVpcQuota:            prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_ipv4blockspervpc_quota"), "The quota of ipv4 blocks per vpc", []string{"aws_region"}, nil),
 		IPv4BlocksPerVpcUsage:            prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_ipv4blockspervpc_usage"), "The usage of ipv4 blocks per vpc", []string{"aws_region", "vpcid"}, nil),
 		logger:                           logger,
-		timeout:                          config.Timeout,
+		timeout:                          *config.Timeout,
 		cache:                            *pkg.NewMetricsCache(*config.CacheTTL),
 		interval:                         *config.Interval,
 	}
