@@ -1,4 +1,4 @@
-package main
+package pkg
 
 import (
 	"sync"
@@ -6,6 +6,8 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/prometheus/client_golang/prometheus"
 )
+
+var AwsExporterMetrics *ExporterMetrics
 
 // ExporterMetrics defines an instance of the exporter metrics
 type ExporterMetrics struct {

@@ -1,8 +1,9 @@
-package main
+package pkg
 
 import (
 	"os"
 	"strconv"
+	"time"
 )
 
 func GetEnvIntValue(envname string) (*int, error) {
@@ -17,4 +18,8 @@ func GetEnvIntValue(envname string) (*int, error) {
 	} else {
 		return nil, nil
 	}
+}
+
+func durationPtr(duration time.Duration) *time.Duration {
+	return &duration
 }

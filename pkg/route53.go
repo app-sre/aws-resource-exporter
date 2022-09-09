@@ -1,4 +1,4 @@
-package main
+package pkg
 
 import (
 	"context"
@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/app-sre/aws-resource-exporter/pkg"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -35,7 +34,7 @@ type Route53Exporter struct {
 	LastUpdateTime             *prometheus.Desc
 	Cancel                     context.CancelFunc
 
-	cache    pkg.MetricsCache
+	cache    MetricsCache
 	logger   log.Logger
 	interval time.Duration
 	timeout  time.Duration
@@ -52,7 +51,7 @@ func NewRoute53Exporter(sess *session.Session, logger log.Logger, config Route53
 		HostedZonesPerAccountQuota: prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "route53_hostedzonesperaccount_quota"), "Quota for maximum number of Route53 hosted zones in an account", []string{}, nil),
 		HostedZonesPerAccountUsage: prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "route53_hostedzonesperaccount_total"), "Number of Resource records", []string{}, nil),
 		LastUpdateTime:             prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "route53_last_updated_timestamp_seconds"), "Last time, the route53 metrics were sucessfully updated", []string{}, nil),
-		cache:                      *pkg.NewMetricsCache(*config.CacheTTL),
+		cache:                      *NewMetricsCache(*config.CacheTTL),
 		logger:                     logger,
 		interval:                   *config.Interval,
 		timeout:                    *config.Timeout,
@@ -80,7 +79,7 @@ func (e *Route53Exporter) getRecordsPerHostedZoneMetrics(client *route53.Route53
 
 			if err != nil {
 				errChan <- fmt.Errorf("Could not get Limits for hosted zone with ID '%s' and name '%s'. Error was: %s", *hostedZone.Id, *hostedZone.Name, err.Error())
-				exporterMetrics.IncrementErrors()
+				AwsExporterMetrics.IncrementErrors()
 				return
 			}
 			level.Info(e.logger).Log("msg", fmt.Sprintf("Currently at hosted zone: %d / %d", i, len(hostedZones)))
@@ -125,19 +124,19 @@ func (e *Route53Exporter) CollectLoop() {
 		level.Info(e.logger).Log("msg", "Got all zones")
 		if err != nil {
 			level.Error(e.logger).Log("msg", "Could not retrieve the list of hosted zones", "error", err.Error())
-			exporterMetrics.IncrementErrors()
+			AwsExporterMetrics.IncrementErrors()
 		}
 
 		err = e.getHostedZonesPerAccountMetrics(serviceQuotaSvc, hostedZones, ctx)
 		if err != nil {
 			level.Error(e.logger).Log("msg", "Could not get limits for hosted zone", "error", err.Error())
-			exporterMetrics.IncrementErrors()
+			AwsExporterMetrics.IncrementErrors()
 		}
 
 		errs := e.getRecordsPerHostedZoneMetrics(route53Svc, hostedZones, ctx)
 		for _, err = range errs {
 			level.Error(e.logger).Log("msg", "Could not get limits for hosted zone", "error", err.Error())
-			exporterMetrics.IncrementErrors()
+			AwsExporterMetrics.IncrementErrors()
 		}
 
 		level.Info(e.logger).Log("msg", "Route53 metrics Updated")
