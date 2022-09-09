@@ -43,7 +43,9 @@ func main() {
 }
 
 type BaseConfig struct {
-	Enabled bool `yaml:"enabled"`
+	Enabled  bool           `yaml:"enabled"`
+	Interval *time.Duration `yaml:"interval"`
+	CacheTTL *time.Duration `yaml:"cache_ttl"`
 }
 
 type RDSConfig struct {
@@ -53,21 +55,20 @@ type RDSConfig struct {
 
 type VPCConfig struct {
 	BaseConfig `yaml:"base,inline"`
-	Timeout    time.Duration `yaml:"timeout"`
-	Regions    []string      `yaml:"regions"`
+	Timeout    *time.Duration `yaml:"timeout"`
+	Regions    []string       `yaml:"regions"`
 }
 
 type Route53Config struct {
 	BaseConfig `yaml:"base,inline"`
-	Interval   time.Duration `yaml:"interval"`
-	Timeout    time.Duration `yaml:"timeout"`
-	Region     string        `yaml:"region"` // Use only a single Region for now, as the current metric is global
+	Timeout    *time.Duration `yaml:"timeout"`
+	Region     string         `yaml:"region"` // Use only a single Region for now, as the current metric is global
 }
 
 type EC2Config struct {
 	BaseConfig `yaml:"base,inline"`
-	Timeout    time.Duration `yaml:"timeout"`
-	Regions    []string      `yaml:"regions"`
+	Timeout    *time.Duration `yaml:"timeout"`
+	Regions    []string       `yaml:"regions"`
 }
 
 type Config struct {
@@ -75,6 +76,10 @@ type Config struct {
 	VpcConfig     VPCConfig     `yaml:"vpc"`
 	Route53Config Route53Config `yaml:"route53"`
 	EC2Config     EC2Config     `yaml:"ec2"`
+}
+
+func durationPtr(duration time.Duration) *time.Duration {
+	return &duration
 }
 
 func loadExporterConfiguration(logger log.Logger, configFile string) (*Config, error) {
@@ -85,6 +90,42 @@ func loadExporterConfiguration(logger log.Logger, configFile string) (*Config, e
 		return nil, errors.New("Could not load configuration file: " + configFile)
 	}
 	yaml.Unmarshal(file, &config)
+
+	if config.RdsConfig.CacheTTL == nil {
+		config.RdsConfig.CacheTTL = durationPtr(35 * time.Second)
+	}
+	if config.VpcConfig.CacheTTL == nil {
+		config.VpcConfig.CacheTTL = durationPtr(35 * time.Second)
+	}
+	if config.Route53Config.CacheTTL == nil {
+		config.Route53Config.CacheTTL = durationPtr(35 * time.Second)
+	}
+	if config.EC2Config.CacheTTL == nil {
+		config.EC2Config.CacheTTL = durationPtr(35 * time.Second)
+	}
+
+	if config.RdsConfig.Interval == nil {
+		config.RdsConfig.Interval = durationPtr(15 * time.Second)
+	}
+	if config.VpcConfig.Interval == nil {
+		config.VpcConfig.Interval = durationPtr(15 * time.Second)
+	}
+	if config.Route53Config.Interval == nil {
+		config.Route53Config.Interval = durationPtr(15 * time.Second)
+	}
+	if config.EC2Config.Interval == nil {
+		config.EC2Config.Interval = durationPtr(15 * time.Second)
+	}
+
+	if config.VpcConfig.Timeout == nil {
+		config.VpcConfig.Timeout = durationPtr(10 * time.Second)
+	}
+	if config.Route53Config.Timeout == nil {
+		config.Route53Config.Timeout = durationPtr(10 * time.Second)
+	}
+	if config.EC2Config.Timeout == nil {
+		config.EC2Config.Timeout = durationPtr(10 * time.Second)
+	}
 	return &config, nil
 }
 
@@ -106,7 +147,9 @@ func setupCollectors(logger log.Logger, configFile string, creds *credentials.Cr
 			sess := session.Must(session.NewSession(config))
 			vpcSessions = append(vpcSessions, sess)
 		}
-		collectors = append(collectors, NewVPCExporter(vpcSessions, logger, config.VpcConfig.Timeout))
+		vpcExporter := NewVPCExporter(vpcSessions, logger, config.VpcConfig)
+		collectors = append(collectors, vpcExporter)
+		go vpcExporter.CollectLoop()
 	}
 	level.Info(logger).Log("msg", "Will RDS metrics be gathered?", "rds-enabled", config.RdsConfig.Enabled)
 	var rdsSessions []*session.Session
@@ -116,7 +159,9 @@ func setupCollectors(logger log.Logger, configFile string, creds *credentials.Cr
 			sess := session.Must(session.NewSession(config))
 			rdsSessions = append(rdsSessions, sess)
 		}
-		collectors = append(collectors, NewRDSExporter(rdsSessions, logger))
+		rdsExporter := NewRDSExporter(rdsSessions, logger, config.RdsConfig)
+		collectors = append(collectors, rdsExporter)
+		go rdsExporter.CollectLoop()
 	}
 	level.Info(logger).Log("msg", "Will EC2 metrics be gathered?", "ec2-enabled", config.EC2Config.Enabled)
 	var ec2Sessions []*session.Session
@@ -126,13 +171,15 @@ func setupCollectors(logger log.Logger, configFile string, creds *credentials.Cr
 			sess := session.Must(session.NewSession(config))
 			ec2Sessions = append(ec2Sessions, sess)
 		}
-		collectors = append(collectors, NewEC2Exporter(ec2Sessions, logger, config.EC2Config.Timeout))
+		ec2Exporter := NewEC2Exporter(ec2Sessions, logger, config.EC2Config)
+		collectors = append(collectors, ec2Exporter)
+		go ec2Exporter.CollectLoop()
 	}
 	level.Info(logger).Log("msg", "Will Route53 metrics be gathered?", "route53-enabled", config.Route53Config.Enabled)
 	if config.Route53Config.Enabled {
 		awsConfig := aws.NewConfig().WithCredentials(creds).WithRegion(config.Route53Config.Region)
 		sess := session.Must(session.NewSession(awsConfig))
-		r53Exporter := NewRoute53Exporter(sess, logger, config.Route53Config.Interval, config.Route53Config.Timeout)
+		r53Exporter := NewRoute53Exporter(sess, logger, config.Route53Config)
 		collectors = append(collectors, r53Exporter)
 		go r53Exporter.CollectLoop()
 	}
