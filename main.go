@@ -11,6 +11,7 @@ import (
 	"github.com/app-sre/aws-resource-exporter/pkg"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/sts"
 	"github.com/go-kit/kit/log/level"
 	"github.com/prometheus/common/promlog"
 	"github.com/prometheus/common/promlog/flag"
@@ -35,6 +36,18 @@ var (
 
 func main() {
 	os.Exit(run())
+}
+
+func getAwsAccountNumber(logger log.Logger) (string, error) {
+	config := aws.NewConfig().WithRegion("us-east-1")
+	sess := session.Must(session.NewSession(config))
+	stsClient := sts.New(sess)
+	identityOutput, err := stsClient.GetCallerIdentity(&sts.GetCallerIdentityInput{})
+	if err != nil {
+		level.Error(logger).Log("msg", "Could not retrieve caller identity of the aws account", "err", err)
+		return "", err
+	}
+	return *identityOutput.Account, nil
 }
 
 func setupCollectors(logger log.Logger, configFile string) ([]prometheus.Collector, error) {

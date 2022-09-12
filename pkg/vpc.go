@@ -56,22 +56,22 @@ type VPCCollector struct {
 
 func NewVPCExporter(sess []*session.Session, logger log.Logger, config VPCConfig, awsAccountId string) *VPCExporter {
 	level.Info(logger).Log("msg", "Initializing VPC exporter")
-	accountIdLabel := map[string]string{"aws_account_id": awsAccountId}
+	constLabels := map[string]string{"aws_account_id": awsAccountId, SERVICE_CODE_KEY: SERVICE_CODE_VPC}
 	return &VPCExporter{
 		awsAccountId:                     awsAccountId,
 		sessions:                         sess,
-		VpcsPerRegionQuota:               prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_vpcsperregion_quota"), "The quota of VPCs per region", []string{"aws_region"}, accountIdLabel),
-		VpcsPerRegionUsage:               prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_vpcsperregion_usage"), "The usage of VPCs per region", []string{"aws_region"}, accountIdLabel),
-		SubnetsPerVpcQuota:               prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_subnetspervpc_quota"), "The quota of subnets per VPC", []string{"aws_region"}, accountIdLabel),
-		SubnetsPerVpcUsage:               prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_subnetspervpc_usage"), "The usage of subnets per VPC", []string{"aws_region", "vpcid"}, accountIdLabel),
-		RoutesPerRouteTableQuota:         prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_routesperroutetable_quota"), "The quota of routes per routetable", []string{"aws_region"}, accountIdLabel),
-		RoutesPerRouteTableUsage:         prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_routesperroutetable_usage"), "The usage of routes per routetable", []string{"aws_region", "vpcid", "routetableid"}, accountIdLabel),
-		InterfaceVpcEndpointsPerVpcQuota: prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_interfacevpcendpointspervpc_quota"), "The quota of interface vpc endpoints per vpc", []string{"aws_region"}, accountIdLabel),
-		InterfaceVpcEndpointsPerVpcUsage: prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_interfacevpcendpointspervpc_usage"), "The usage of interface vpc endpoints per vpc", []string{"aws_region", "vpcid"}, accountIdLabel),
-		RouteTablesPerVpcQuota:           prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_routetablespervpc_quota"), "The quota of route tables per vpc", []string{"aws_region"}, accountIdLabel),
-		RouteTablesPerVpcUsage:           prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_routetablespervpc_usage"), "The usage of route tables per vpc", []string{"aws_region", "vpcid"}, accountIdLabel),
-		IPv4BlocksPerVpcQuota:            prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_ipv4blockspervpc_quota"), "The quota of ipv4 blocks per vpc", []string{"aws_region"}, accountIdLabel),
-		IPv4BlocksPerVpcUsage:            prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_ipv4blockspervpc_usage"), "The usage of ipv4 blocks per vpc", []string{"aws_region", "vpcid"}, accountIdLabel),
+		VpcsPerRegionQuota:               prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_vpcsperregion_quota"), "The quota of VPCs per region", []string{"aws_region"}, WithKeyValue(constLabels, QUOTA_CODE_KEY, QUOTA_VPCS_PER_REGION)),
+		VpcsPerRegionUsage:               prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_vpcsperregion_usage"), "The usage of VPCs per region", []string{"aws_region"}, WithKeyValue(constLabels, QUOTA_CODE_KEY, QUOTA_VPCS_PER_REGION)),
+		SubnetsPerVpcQuota:               prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_subnetspervpc_quota"), "The quota of subnets per VPC", []string{"aws_region"}, WithKeyValue(constLabels, QUOTA_CODE_KEY, QUOTA_SUBNETS_PER_VPC)),
+		SubnetsPerVpcUsage:               prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_subnetspervpc_usage"), "The usage of subnets per VPC", []string{"aws_region", "vpcid"}, WithKeyValue(constLabels, QUOTA_CODE_KEY, QUOTA_SUBNETS_PER_VPC)),
+		RoutesPerRouteTableQuota:         prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_routesperroutetable_quota"), "The quota of routes per routetable", []string{"aws_region"}, WithKeyValue(constLabels, QUOTA_CODE_KEY, QUOTA_ROUTES_PER_ROUTE_TABLE)),
+		RoutesPerRouteTableUsage:         prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_routesperroutetable_usage"), "The usage of routes per routetable", []string{"aws_region", "vpcid", "routetableid"}, WithKeyValue(constLabels, QUOTA_CODE_KEY, QUOTA_ROUTES_PER_ROUTE_TABLE)),
+		InterfaceVpcEndpointsPerVpcQuota: prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_interfacevpcendpointspervpc_quota"), "The quota of interface vpc endpoints per vpc", []string{"aws_region"}, WithKeyValue(constLabels, QUOTA_CODE_KEY, QUOTA_INTERFACE_VPC_ENDPOINTS_PER_VPC)),
+		InterfaceVpcEndpointsPerVpcUsage: prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_interfacevpcendpointspervpc_usage"), "The usage of interface vpc endpoints per vpc", []string{"aws_region", "vpcid"}, WithKeyValue(constLabels, QUOTA_CODE_KEY, QUOTA_INTERFACE_VPC_ENDPOINTS_PER_VPC)),
+		RouteTablesPerVpcQuota:           prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_routetablespervpc_quota"), "The quota of route tables per vpc", []string{"aws_region"}, WithKeyValue(constLabels, QUOTA_CODE_KEY, QUOTA_ROUTE_TABLES_PER_VPC)),
+		RouteTablesPerVpcUsage:           prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_routetablespervpc_usage"), "The usage of route tables per vpc", []string{"aws_region", "vpcid"}, WithKeyValue(constLabels, QUOTA_CODE_KEY, QUOTA_ROUTE_TABLES_PER_VPC)),
+		IPv4BlocksPerVpcQuota:            prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_ipv4blockspervpc_quota"), "The quota of ipv4 blocks per vpc", []string{"aws_region"}, WithKeyValue(constLabels, QUOTA_CODE_KEY, QUOTA_IPV4_BLOCKS_PER_VPC)),
+		IPv4BlocksPerVpcUsage:            prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_ipv4blockspervpc_usage"), "The usage of ipv4 blocks per vpc", []string{"aws_region", "vpcid"}, WithKeyValue(constLabels, QUOTA_CODE_KEY, QUOTA_IPV4_BLOCKS_PER_VPC)),
 		logger:                           logger,
 		timeout:                          *config.Timeout,
 		cache:                            *NewMetricsCache(*config.CacheTTL),
