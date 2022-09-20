@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/app-sre/aws-resource-exporter/pkg/awsclient"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -70,17 +71,17 @@ func (e *EC2Exporter) CollectLoop() {
 
 func (e *EC2Exporter) collectInRegion(sess *session.Session, logger log.Logger, wg *sync.WaitGroup, ctx context.Context) {
 	defer wg.Done()
-	ec2Svc := ec2.New(sess)
-	serviceQuotaSvc := servicequotas.New(sess)
 
-	quota, err := getQuotaValueWithContext(serviceQuotaSvc, ec2ServiceCode, transitGatewayPerAccountQuotaCode, ctx)
+	aws := awsclient.NewClientFromSession(sess)
+
+	quota, err := getQuotaValueWithContext(aws, ec2ServiceCode, transitGatewayPerAccountQuotaCode, ctx)
 	if err != nil {
 		level.Error(logger).Log("msg", "Could not retrieve Transit Gateway quota", "error", err.Error())
 		AwsExporterMetrics.IncrementErrors()
 		return
 	}
 
-	gateways, err := getAllTransitGatewaysWithContext(ec2Svc, ctx)
+	gateways, err := getAllTransitGatewaysWithContext(aws, ctx)
 	if err != nil {
 		level.Error(logger).Log("msg", "Could not retrieve Transit Gateway quota", "error", err.Error())
 		AwsExporterMetrics.IncrementErrors()
@@ -96,20 +97,30 @@ func (e *EC2Exporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- TransitGatewaysUsage
 }
 
-func getAllTransitGatewaysWithContext(client *ec2.EC2, ctx context.Context) ([]*ec2.TransitGateway, error) {
-	results := []*ec2.TransitGateway{}
-	describeGatewaysInput := &ec2.DescribeTransitGatewaysInput{
+func createDescribeTransitGatewayInput() *ec2.DescribeTransitGatewaysInput {
+	return &ec2.DescribeTransitGatewaysInput{
 		DryRun:     aws.Bool(false),
 		MaxResults: aws.Int64(1000),
 	}
+}
 
+func createGetServiceQuotaInput(serviceCode, quotaCode string) *servicequotas.GetServiceQuotaInput {
+	return &servicequotas.GetServiceQuotaInput{
+		ServiceCode: aws.String(serviceCode),
+		QuotaCode:   aws.String(quotaCode),
+	}
+}
+
+func getAllTransitGatewaysWithContext(client awsclient.Client, ctx context.Context) ([]*ec2.TransitGateway, error) {
+	results := []*ec2.TransitGateway{}
+	describeGatewaysInput := createDescribeTransitGatewayInput()
 	describeGatewaysOutput, err := client.DescribeTransitGatewaysWithContext(ctx, describeGatewaysInput)
 
 	if err != nil {
 		return nil, err
 	}
 	results = append(results, describeGatewaysOutput.TransitGateways...)
-
+	// TODO: replace with aws-go-sdk pagination method
 	for describeGatewaysOutput.NextToken != nil {
 		describeGatewaysInput.SetNextToken(*describeGatewaysOutput.NextToken)
 		describeGatewaysOutput, err := client.DescribeTransitGatewaysWithContext(ctx, describeGatewaysInput)
@@ -122,11 +133,8 @@ func getAllTransitGatewaysWithContext(client *ec2.EC2, ctx context.Context) ([]*
 	return results, nil
 }
 
-func getQuotaValueWithContext(client *servicequotas.ServiceQuotas, serviceCode string, quotaCode string, ctx context.Context) (float64, error) {
-	sqOutput, err := client.GetServiceQuotaWithContext(ctx, &servicequotas.GetServiceQuotaInput{
-		QuotaCode:   aws.String(quotaCode),
-		ServiceCode: aws.String(serviceCode),
-	})
+func getQuotaValueWithContext(client awsclient.Client, serviceCode string, quotaCode string, ctx context.Context) (float64, error) {
+	sqOutput, err := client.GetServiceQuotaWithContext(ctx, createGetServiceQuotaInput(serviceCode, quotaCode))
 
 	if err != nil {
 		return 0, err

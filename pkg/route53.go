@@ -7,11 +7,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/app-sre/aws-resource-exporter/pkg/awsclient"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/route53"
-	"github.com/aws/aws-sdk-go/service/servicequotas"
 	"github.com/go-kit/kit/log"
 	"github.com/go-kit/kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
@@ -98,7 +98,7 @@ func (e *Route53Exporter) getRecordsPerHostedZoneMetrics(client *route53.Route53
 	return errs
 }
 
-func (e *Route53Exporter) getHostedZonesPerAccountMetrics(client *servicequotas.ServiceQuotas, hostedZones []*route53.HostedZone, ctx context.Context) error {
+func (e *Route53Exporter) getHostedZonesPerAccountMetrics(client awsclient.Client, hostedZones []*route53.HostedZone, ctx context.Context) error {
 	quota, err := getQuotaValueWithContext(client, route53ServiceCode, hostedZonesQuotaCode, ctx)
 	if err != nil {
 		return err
@@ -112,7 +112,7 @@ func (e *Route53Exporter) getHostedZonesPerAccountMetrics(client *servicequotas.
 // CollectLoop runs indefinitely to collect the route53 metrics in a cache. Metrics are only written into the cache once all have been collected to ensure that we don't have a partial collect.
 func (e *Route53Exporter) CollectLoop() {
 	route53Svc := route53.New(e.sess)
-	serviceQuotaSvc := servicequotas.New(e.sess)
+	client := awsclient.NewClientFromSession(e.sess)
 
 	for {
 		ctx, ctxCancelFunc := context.WithTimeout(context.Background(), e.timeout)
@@ -127,7 +127,7 @@ func (e *Route53Exporter) CollectLoop() {
 			AwsExporterMetrics.IncrementErrors()
 		}
 
-		err = e.getHostedZonesPerAccountMetrics(serviceQuotaSvc, hostedZones, ctx)
+		err = e.getHostedZonesPerAccountMetrics(client, hostedZones, ctx)
 		if err != nil {
 			level.Error(e.logger).Log("msg", "Could not get limits for hosted zone", "error", err.Error())
 			AwsExporterMetrics.IncrementErrors()
