@@ -1,11 +1,10 @@
-package main
+package pkg
 
 import (
 	"context"
 	"sync"
 	"time"
 
-	"github.com/app-sre/aws-resource-exporter/pkg"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -42,7 +41,7 @@ type VPCExporter struct {
 
 	logger   log.Logger
 	timeout  time.Duration
-	cache    pkg.MetricsCache
+	cache    MetricsCache
 	interval time.Duration
 }
 
@@ -72,7 +71,7 @@ func NewVPCExporter(sess []*session.Session, logger log.Logger, config VPCConfig
 		IPv4BlocksPerVpcUsage:            prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_ipv4blockspervpc_usage"), "The usage of ipv4 blocks per vpc", []string{"aws_region", "vpcid"}, nil),
 		logger:                           logger,
 		timeout:                          *config.Timeout,
-		cache:                            *pkg.NewMetricsCache(*config.CacheTTL),
+		cache:                            *NewMetricsCache(*config.CacheTTL),
 		interval:                         *config.Interval,
 	}
 }
@@ -158,7 +157,7 @@ func (e *VPCExporter) collectVpcsPerRegionQuota(client *servicequotas.ServiceQuo
 	quota, err := e.GetQuotaValue(client, SERVICE_CODE_VPC, QUOTA_VPCS_PER_REGION)
 	if err != nil {
 		level.Error(e.logger).Log("msg", "Call to VpcsPerRegion ServiceQuota failed", "region", region, "err", err)
-		exporterMetrics.IncrementErrors()
+		AwsExporterMetrics.IncrementErrors()
 		return
 	}
 	e.cache.AddMetric(prometheus.MustNewConstMetric(e.VpcsPerRegionQuota, prometheus.GaugeValue, quota, region))
@@ -170,7 +169,7 @@ func (e *VPCExporter) collectVpcsPerRegionUsage(ec2Svc *ec2.EC2, region string) 
 	describeVpcsOutput, err := ec2Svc.DescribeVpcsWithContext(ctx, &ec2.DescribeVpcsInput{})
 	if err != nil {
 		level.Error(e.logger).Log("msg", "Call to DescribeVpcs failed", "region", region, "err", err)
-		exporterMetrics.IncrementErrors()
+		AwsExporterMetrics.IncrementErrors()
 		return
 	}
 	usage := len(describeVpcsOutput.Vpcs)
@@ -181,7 +180,7 @@ func (e *VPCExporter) collectSubnetsPerVpcQuota(client *servicequotas.ServiceQuo
 	quota, err := e.GetQuotaValue(client, SERVICE_CODE_VPC, QUOTA_SUBNETS_PER_VPC)
 	if err != nil {
 		level.Error(e.logger).Log("msg", "Call to SubnetsPerVpc ServiceQuota failed", "region", region, "err", err)
-		exporterMetrics.IncrementErrors()
+		AwsExporterMetrics.IncrementErrors()
 		return
 	}
 	e.cache.AddMetric(prometheus.MustNewConstMetric(e.SubnetsPerVpcQuota, prometheus.GaugeValue, quota, region))
@@ -198,7 +197,7 @@ func (e *VPCExporter) collectSubnetsPerVpcUsage(vpc *ec2.Vpc, ec2Svc *ec2.EC2, r
 	})
 	if err != nil {
 		level.Error(e.logger).Log("msg", "Call to DescribeSubnets failed", "region", region, "err", err)
-		exporterMetrics.IncrementErrors()
+		AwsExporterMetrics.IncrementErrors()
 		return
 	}
 	usage := len(describeSubnetsOutput.Subnets)
@@ -209,7 +208,7 @@ func (e *VPCExporter) collectRoutesPerRouteTableQuota(client *servicequotas.Serv
 	quota, err := e.GetQuotaValue(client, SERVICE_CODE_VPC, QUOTA_ROUTES_PER_ROUTE_TABLE)
 	if err != nil {
 		level.Error(e.logger).Log("msg", "Call to RoutesPerRouteTable ServiceQuota failed", "region", region, "err", err)
-		exporterMetrics.IncrementErrors()
+		AwsExporterMetrics.IncrementErrors()
 		return
 	}
 	e.cache.AddMetric(prometheus.MustNewConstMetric(e.RoutesPerRouteTableQuota, prometheus.GaugeValue, quota, region))
@@ -223,7 +222,7 @@ func (e *VPCExporter) collectRoutesPerRouteTableUsage(rtb *ec2.RouteTable, ec2Sv
 	})
 	if err != nil {
 		level.Error(e.logger).Log("msg", "Call to DescribeRouteTables failed", "region", region, "err", err)
-		exporterMetrics.IncrementErrors()
+		AwsExporterMetrics.IncrementErrors()
 		return
 	}
 	quota := len(descRouteTableOutput.RouteTables)
@@ -234,7 +233,7 @@ func (e *VPCExporter) collectInterfaceVpcEndpointsPerVpcQuota(client *servicequo
 	quota, err := e.GetQuotaValue(client, SERVICE_CODE_VPC, QUOTA_INTERFACE_VPC_ENDPOINTS_PER_VPC)
 	if err != nil {
 		level.Error(e.logger).Log("msg", "Call to InterfaceVpcEndpointsPerVpc ServiceQuota failed", "region", region, "err", err)
-		exporterMetrics.IncrementErrors()
+		AwsExporterMetrics.IncrementErrors()
 		return
 	}
 	e.cache.AddMetric(prometheus.MustNewConstMetric(e.InterfaceVpcEndpointsPerVpcQuota, prometheus.GaugeValue, quota, region))
@@ -251,7 +250,7 @@ func (e *VPCExporter) collectInterfaceVpcEndpointsPerVpcUsage(vpc *ec2.Vpc, ec2S
 	})
 	if err != nil {
 		level.Error(e.logger).Log("msg", "Call to DescribeVpcEndpoints failed", "region", region, "err", err)
-		exporterMetrics.IncrementErrors()
+		AwsExporterMetrics.IncrementErrors()
 		return
 	}
 	quota := len(descVpcEndpoints.VpcEndpoints)
@@ -262,7 +261,7 @@ func (e *VPCExporter) collectRoutesTablesPerVpcQuota(client *servicequotas.Servi
 	quota, err := e.GetQuotaValue(client, SERVICE_CODE_VPC, QUOTA_ROUTE_TABLES_PER_VPC)
 	if err != nil {
 		level.Error(e.logger).Log("msg", "Call to RoutesTablesPerVpc ServiceQuota failed", "region", region, "err", err)
-		exporterMetrics.IncrementErrors()
+		AwsExporterMetrics.IncrementErrors()
 		return
 	}
 	e.cache.AddMetric(prometheus.MustNewConstMetric(e.RouteTablesPerVpcQuota, prometheus.GaugeValue, quota, region))
@@ -279,7 +278,7 @@ func (e *VPCExporter) collectRoutesTablesPerVpcUsage(vpc *ec2.Vpc, ec2Svc *ec2.E
 	})
 	if err != nil {
 		level.Error(e.logger).Log("msg", "Call to DescribeRouteTables failed", "region", region, "err", err)
-		exporterMetrics.IncrementErrors()
+		AwsExporterMetrics.IncrementErrors()
 		return
 	}
 	quota := len(descRouteTables.RouteTables)
@@ -290,7 +289,7 @@ func (e *VPCExporter) collectIPv4BlocksPerVpcQuota(client *servicequotas.Service
 	quota, err := e.GetQuotaValue(client, SERVICE_CODE_VPC, QUOTA_IPV4_BLOCKS_PER_VPC)
 	if err != nil {
 		level.Error(e.logger).Log("msg", "Call to IPv4BlocksPerVpc ServiceQuota failed", "region", region, "err", err)
-		exporterMetrics.IncrementErrors()
+		AwsExporterMetrics.IncrementErrors()
 		return
 	}
 	e.cache.AddMetric(prometheus.MustNewConstMetric(e.IPv4BlocksPerVpcQuota, prometheus.GaugeValue, quota, region))
@@ -304,7 +303,7 @@ func (e *VPCExporter) collectIPv4BlocksPerVpcUsage(vpc *ec2.Vpc, ec2Svc *ec2.EC2
 	})
 	if err != nil {
 		level.Error(e.logger).Log("msg", "Call to DescribeVpcs failed", "region", region, "err", err)
-		exporterMetrics.IncrementErrors()
+		AwsExporterMetrics.IncrementErrors()
 		return
 	}
 	if len(descVpcs.Vpcs) != 1 {

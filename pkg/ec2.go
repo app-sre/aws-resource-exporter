@@ -1,11 +1,10 @@
-package main
+package pkg
 
 import (
 	"context"
 	"sync"
 	"time"
 
-	"github.com/app-sre/aws-resource-exporter/pkg"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
@@ -25,7 +24,7 @@ var TransitGatewaysUsage *prometheus.Desc = prometheus.NewDesc(prometheus.BuildF
 
 type EC2Exporter struct {
 	sessions []*session.Session
-	cache    pkg.MetricsCache
+	cache    MetricsCache
 
 	logger   log.Logger
 	timeout  time.Duration
@@ -37,7 +36,7 @@ func NewEC2Exporter(sessions []*session.Session, logger log.Logger, config EC2Co
 	level.Info(logger).Log("msg", "Initializing EC2 exporter")
 	return &EC2Exporter{
 		sessions: sessions,
-		cache:    *pkg.NewMetricsCache(*config.CacheTTL),
+		cache:    *NewMetricsCache(*config.CacheTTL),
 
 		logger:   logger,
 		timeout:  *config.Timeout,
@@ -77,14 +76,14 @@ func (e *EC2Exporter) collectInRegion(sess *session.Session, logger log.Logger, 
 	quota, err := getQuotaValueWithContext(serviceQuotaSvc, ec2ServiceCode, transitGatewayPerAccountQuotaCode, ctx)
 	if err != nil {
 		level.Error(logger).Log("msg", "Could not retrieve Transit Gateway quota", "error", err.Error())
-		exporterMetrics.IncrementErrors()
+		AwsExporterMetrics.IncrementErrors()
 		return
 	}
 
 	gateways, err := getAllTransitGatewaysWithContext(ec2Svc, ctx)
 	if err != nil {
 		level.Error(logger).Log("msg", "Could not retrieve Transit Gateway quota", "error", err.Error())
-		exporterMetrics.IncrementErrors()
+		AwsExporterMetrics.IncrementErrors()
 		return
 	}
 

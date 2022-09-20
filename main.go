@@ -1,8 +1,6 @@
 package main
 
 import (
-	"errors"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"os/signal"
@@ -10,6 +8,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/app-sre/aws-resource-exporter/pkg"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/go-kit/kit/log/level"
@@ -21,7 +20,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/version"
 	"gopkg.in/alecthomas/kingpin.v2"
-	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -33,104 +31,15 @@ const (
 var (
 	listenAddress = kingpin.Flag("web.listen-address", "The address to listen on for HTTP requests.").Default(":9115").String()
 	metricsPath   = kingpin.Flag("web.telemetry-path", "Path under which to expose metrics.").Default("/metrics").String()
-
-	exporterMetrics *ExporterMetrics
 )
 
 func main() {
 	os.Exit(run())
 }
 
-type BaseConfig struct {
-	Enabled  bool           `yaml:"enabled"`
-	Interval *time.Duration `yaml:"interval"`
-	CacheTTL *time.Duration `yaml:"cache_ttl"`
-}
-
-type RDSConfig struct {
-	BaseConfig `yaml:"base,inline"`
-	Regions    []string `yaml:"regions"`
-}
-
-type VPCConfig struct {
-	BaseConfig `yaml:"base,inline"`
-	Timeout    *time.Duration `yaml:"timeout"`
-	Regions    []string       `yaml:"regions"`
-}
-
-type Route53Config struct {
-	BaseConfig `yaml:"base,inline"`
-	Timeout    *time.Duration `yaml:"timeout"`
-	Region     string         `yaml:"region"` // Use only a single Region for now, as the current metric is global
-}
-
-type EC2Config struct {
-	BaseConfig `yaml:"base,inline"`
-	Timeout    *time.Duration `yaml:"timeout"`
-	Regions    []string       `yaml:"regions"`
-}
-
-type Config struct {
-	RdsConfig     RDSConfig     `yaml:"rds"`
-	VpcConfig     VPCConfig     `yaml:"vpc"`
-	Route53Config Route53Config `yaml:"route53"`
-	EC2Config     EC2Config     `yaml:"ec2"`
-}
-
-func durationPtr(duration time.Duration) *time.Duration {
-	return &duration
-}
-
-func loadExporterConfiguration(logger log.Logger, configFile string) (*Config, error) {
-	var config Config
-	file, err := ioutil.ReadFile(configFile)
-	if err != nil {
-		level.Error(logger).Log("Could not load configuration file")
-		return nil, errors.New("Could not load configuration file: " + configFile)
-	}
-	yaml.Unmarshal(file, &config)
-
-	if config.RdsConfig.CacheTTL == nil {
-		config.RdsConfig.CacheTTL = durationPtr(35 * time.Second)
-	}
-	if config.VpcConfig.CacheTTL == nil {
-		config.VpcConfig.CacheTTL = durationPtr(35 * time.Second)
-	}
-	if config.Route53Config.CacheTTL == nil {
-		config.Route53Config.CacheTTL = durationPtr(35 * time.Second)
-	}
-	if config.EC2Config.CacheTTL == nil {
-		config.EC2Config.CacheTTL = durationPtr(35 * time.Second)
-	}
-
-	if config.RdsConfig.Interval == nil {
-		config.RdsConfig.Interval = durationPtr(15 * time.Second)
-	}
-	if config.VpcConfig.Interval == nil {
-		config.VpcConfig.Interval = durationPtr(15 * time.Second)
-	}
-	if config.Route53Config.Interval == nil {
-		config.Route53Config.Interval = durationPtr(15 * time.Second)
-	}
-	if config.EC2Config.Interval == nil {
-		config.EC2Config.Interval = durationPtr(15 * time.Second)
-	}
-
-	if config.VpcConfig.Timeout == nil {
-		config.VpcConfig.Timeout = durationPtr(10 * time.Second)
-	}
-	if config.Route53Config.Timeout == nil {
-		config.Route53Config.Timeout = durationPtr(10 * time.Second)
-	}
-	if config.EC2Config.Timeout == nil {
-		config.EC2Config.Timeout = durationPtr(10 * time.Second)
-	}
-	return &config, nil
-}
-
 func setupCollectors(logger log.Logger, configFile string) ([]prometheus.Collector, error) {
 	var collectors []prometheus.Collector
-	config, err := loadExporterConfiguration(logger, configFile)
+	config, err := pkg.LoadExporterConfiguration(logger, configFile)
 	if err != nil {
 		return nil, err
 	}
@@ -146,7 +55,7 @@ func setupCollectors(logger log.Logger, configFile string) ([]prometheus.Collect
 			sess := session.Must(session.NewSession(config))
 			vpcSessions = append(vpcSessions, sess)
 		}
-		vpcExporter := NewVPCExporter(vpcSessions, logger, config.VpcConfig)
+		vpcExporter := pkg.NewVPCExporter(vpcSessions, logger, config.VpcConfig)
 		collectors = append(collectors, vpcExporter)
 		go vpcExporter.CollectLoop()
 	}
@@ -158,7 +67,7 @@ func setupCollectors(logger log.Logger, configFile string) ([]prometheus.Collect
 			sess := session.Must(session.NewSession(config))
 			rdsSessions = append(rdsSessions, sess)
 		}
-		rdsExporter := NewRDSExporter(rdsSessions, logger, config.RdsConfig)
+		rdsExporter := pkg.NewRDSExporter(rdsSessions, logger, config.RdsConfig)
 		collectors = append(collectors, rdsExporter)
 		go rdsExporter.CollectLoop()
 	}
@@ -170,7 +79,7 @@ func setupCollectors(logger log.Logger, configFile string) ([]prometheus.Collect
 			sess := session.Must(session.NewSession(config))
 			ec2Sessions = append(ec2Sessions, sess)
 		}
-		ec2Exporter := NewEC2Exporter(ec2Sessions, logger, config.EC2Config)
+		ec2Exporter := pkg.NewEC2Exporter(ec2Sessions, logger, config.EC2Config)
 		collectors = append(collectors, ec2Exporter)
 		go ec2Exporter.CollectLoop()
 	}
@@ -178,7 +87,7 @@ func setupCollectors(logger log.Logger, configFile string) ([]prometheus.Collect
 	if config.Route53Config.Enabled {
 		awsConfig := aws.NewConfig().WithRegion(config.Route53Config.Region)
 		sess := session.Must(session.NewSession(awsConfig))
-		r53Exporter := NewRoute53Exporter(sess, logger, config.Route53Config)
+		r53Exporter := pkg.NewRoute53Exporter(sess, logger, config.Route53Config)
 		collectors = append(collectors, r53Exporter)
 		go r53Exporter.CollectLoop()
 	}
@@ -197,7 +106,8 @@ func run() int {
 	level.Info(logger).Log("msg", "Starting"+namespace, "version", version.Info())
 	level.Info(logger).Log("msg", "Build context", version.BuildContext())
 
-	exporterMetrics = NewExporterMetrics()
+	pkg.AwsExporterMetrics = pkg.NewExporterMetrics()
+
 	var configFile string
 	if path := os.Getenv("AWS_RESOURCE_EXPORTER_CONFIG_FILE"); path != "" {
 		configFile = path
@@ -209,7 +119,7 @@ func run() int {
 		level.Error(logger).Log("msg", "Could not load configuration file", "err", err)
 		return 1
 	}
-	collectors := append(cs, exporterMetrics)
+	collectors := append(cs, pkg.AwsExporterMetrics)
 	prometheus.MustRegister(
 		collectors...,
 	)

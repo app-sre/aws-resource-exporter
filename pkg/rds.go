@@ -1,4 +1,4 @@
-package main
+package pkg
 
 import (
 	"context"
@@ -7,7 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/app-sre/aws-resource-exporter/pkg"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/go-kit/kit/log"
@@ -230,7 +229,7 @@ type RDSExporter struct {
 	logsMetricsTTL int
 
 	logger   log.Logger
-	cache    pkg.MetricsCache
+	cache    MetricsCache
 	interval time.Duration
 }
 
@@ -336,7 +335,7 @@ func NewRDSExporter(sessions []*session.Session, logger log.Logger, config RDSCo
 			nil,
 		),
 		logger:   logger,
-		cache:    *pkg.NewMetricsCache(*config.CacheTTL),
+		cache:    *NewMetricsCache(*config.CacheTTL),
 		interval: *config.Interval,
 	}
 }
@@ -351,11 +350,11 @@ func (e *RDSExporter) requestRDSLogMetrics(index int, instanceId string) (*RDSLo
 	}
 
 	for {
-		exporterMetrics.IncrementRequests()
+		AwsExporterMetrics.IncrementRequests()
 		result, err := e.svcs[index].DescribeDBLogFiles(input)
 		if err != nil {
 			level.Error(e.logger).Log("msg", "Call to DescribeDBLogFiles failed", "region", *e.sessions[index].Config.Region, "instance", &instanceId, "err", err)
-			exporterMetrics.IncrementErrors()
+			AwsExporterMetrics.IncrementErrors()
 			return nil, err
 		}
 		for _, log := range result.DescribeDBLogFiles {
@@ -448,11 +447,11 @@ func (e *RDSExporter) CollectLoop() {
 			// If a Marker is found, do pagination until last page
 			var instances []*rds.DBInstance
 			for {
-				exporterMetrics.IncrementRequests()
+				AwsExporterMetrics.IncrementRequests()
 				result, err := e.svcs[i].DescribeDBInstances(input)
 				if err != nil {
 					level.Error(e.logger).Log("msg", "Call to DescribeDBInstances failed", "region", *e.sessions[i].Config.Region, "err", err)
-					exporterMetrics.IncrementErrors()
+					AwsExporterMetrics.IncrementErrors()
 					return
 				}
 				instances = append(instances, result.DBInstances...)
@@ -544,11 +543,11 @@ func (e *RDSExporter) CollectLoop() {
 			instancesWithPendingMaint := make(map[string]bool)
 
 			for {
-				exporterMetrics.IncrementRequests()
+				AwsExporterMetrics.IncrementRequests()
 				result, err := e.svcs[i].DescribePendingMaintenanceActions(describePendingMaintInput)
 				if err != nil {
 					level.Error(e.logger).Log("msg", "Call to DescribePendingMaintenanceActions failed", "region", *e.sessions[i].Config.Region, "err", err)
-					exporterMetrics.IncrementErrors()
+					AwsExporterMetrics.IncrementErrors()
 					return
 				}
 				instancesPendMaintActionsData = append(instancesPendMaintActionsData, result.PendingMaintenanceActions...)
