@@ -120,7 +120,7 @@ func getAllTransitGatewaysWithContext(client awsclient.Client, ctx context.Conte
 		return nil, err
 	}
 	results = append(results, describeGatewaysOutput.TransitGateways...)
-
+	// TODO: replace with aws-go-sdk pagination method
 	for describeGatewaysOutput.NextToken != nil {
 		describeGatewaysInput.SetNextToken(*describeGatewaysOutput.NextToken)
 		describeGatewaysOutput, err := client.DescribeTransitGatewaysWithContext(ctx, describeGatewaysInput)

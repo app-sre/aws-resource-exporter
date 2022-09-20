@@ -33,16 +33,6 @@ type awsClient struct {
 	serviceQuotasClient servicequotasiface.ServiceQuotasAPI
 }
 
-// NewAwsClientInput input for new aws client
-type NewAwsClientInput struct {
-	AwsCredsSecretIDKey     string
-	AwsCredsSecretAccessKey string
-	AwsToken                string
-	AwsRegion               string
-	SecretName              string
-	NameSpace               string
-}
-
 func (c *awsClient) DescribeTransitGatewaysWithContext(ctx aws.Context, input *ec2.DescribeTransitGatewaysInput, opts ...request.Option) (*ec2.DescribeTransitGatewaysOutput, error) {
 	return c.ec2Client.DescribeTransitGatewaysWithContext(ctx, input, opts...)
 }

@@ -38,10 +38,10 @@ func TestGetQuotaValueWithContext(t *testing.T) {
 
 	mockClient.EXPECT().GetServiceQuotaWithContext(ctx,
 		createGetServiceQuotaInput(ec2ServiceCode, transitGatewayPerAccountQuotaCode)).Return(
-		&servicequotas.GetServiceQuotaOutput{Quota: &servicequotas.ServiceQuota{Value: aws.Float64(1337.0)}}, nil,
+		&servicequotas.GetServiceQuotaOutput{Quota: &servicequotas.ServiceQuota{Value: aws.Float64(123.0)}}, nil,
 	)
 
 	quotaValue, err := getQuotaValueWithContext(mockClient, ec2ServiceCode, transitGatewayPerAccountQuotaCode, ctx)
 	assert.Nil(t, err)
-	assert.Equal(t, quotaValue, 1337.0)
+	assert.Equal(t, quotaValue, 123.0)
 }

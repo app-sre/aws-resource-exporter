@@ -112,7 +112,7 @@ func (e *Route53Exporter) getHostedZonesPerAccountMetrics(client awsclient.Clien
 // CollectLoop runs indefinitely to collect the route53 metrics in a cache. Metrics are only written into the cache once all have been collected to ensure that we don't have a partial collect.
 func (e *Route53Exporter) CollectLoop() {
 	route53Svc := route53.New(e.sess)
-	awsclient := awsclient.NewClientFromSession(e.sess)
+	client := awsclient.NewClientFromSession(e.sess)
 
 	for {
 		ctx, ctxCancelFunc := context.WithTimeout(context.Background(), e.timeout)
@@ -127,7 +127,7 @@ func (e *Route53Exporter) CollectLoop() {
 			AwsExporterMetrics.IncrementErrors()
 		}
 
-		err = e.getHostedZonesPerAccountMetrics(awsclient, hostedZones, ctx)
+		err = e.getHostedZonesPerAccountMetrics(client, hostedZones, ctx)
 		if err != nil {
 			level.Error(e.logger).Log("msg", "Could not get limits for hosted zone", "error", err.Error())
 			AwsExporterMetrics.IncrementErrors()
