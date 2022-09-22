@@ -23,3 +23,13 @@ func GetEnvIntValue(envname string) (*int, error) {
 func durationPtr(duration time.Duration) *time.Duration {
 	return &duration
 }
+
+// Add a new key to the map and return the new map
+func WithKeyValue(m map[string]string, key string, value string) map[string]string {
+	newMap := make(map[string]string)
+	for k, v := range m {
+		newMap[k] = v
+	}
+	newMap[key] = value
+	return newMap
+}

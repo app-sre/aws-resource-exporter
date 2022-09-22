@@ -20,8 +20,8 @@ const (
 	ec2ServiceCode                    string = "ec2"
 )
 
-var TransitGatewaysQuota *prometheus.Desc = prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "ec2_transitgatewaysperregion_quota"), "Quota for maximum number of Transitgateways in this account", []string{"aws_region"}, nil)
-var TransitGatewaysUsage *prometheus.Desc = prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "ec2_transitgatewaysperregion_usage"), "Number of Tranitgatewyas in the AWS Account", []string{"aws_region"}, nil)
+var TransitGatewaysQuota *prometheus.Desc
+var TransitGatewaysUsage *prometheus.Desc
 
 type EC2Exporter struct {
 	sessions []*session.Session
@@ -32,9 +32,14 @@ type EC2Exporter struct {
 	interval time.Duration
 }
 
-func NewEC2Exporter(sessions []*session.Session, logger log.Logger, config EC2Config) *EC2Exporter {
+func NewEC2Exporter(sessions []*session.Session, logger log.Logger, config EC2Config, awsAccountId string) *EC2Exporter {
 
 	level.Info(logger).Log("msg", "Initializing EC2 exporter")
+	constLabels := map[string]string{"aws_account_id": awsAccountId, QUOTA_CODE_KEY: transitGatewayPerAccountQuotaCode, SERVICE_CODE_KEY: ec2ServiceCode}
+
+	TransitGatewaysQuota = prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "ec2_transitgatewaysperregion_quota"), "Quota for maximum number of Transitgateways in this account", []string{"aws_region"}, constLabels)
+	TransitGatewaysUsage = prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "ec2_transitgatewaysperregion_usage"), "Number of Tranitgatewyas in the AWS Account", []string{"aws_region"}, constLabels)
+
 	return &EC2Exporter{
 		sessions: sessions,
 		cache:    *NewMetricsCache(*config.CacheTTL),

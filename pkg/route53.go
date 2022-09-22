@@ -18,11 +18,12 @@ import (
 )
 
 const (
-	maxRetries            = 10
-	route53MaxConcurrency = 5
-	route53ServiceCode    = "route53"
-	hostedZonesQuotaCode  = "L-4EA4796A"
-	errorCodeThrottling   = "Throttling"
+	maxRetries                    = 10
+	route53MaxConcurrency         = 5
+	route53ServiceCode            = "route53"
+	hostedZonesQuotaCode          = "L-4EA4796A"
+	recordsPerHostedZoneQuotaCode = "L-E209CC9F"
+	errorCodeThrottling           = "Throttling"
 )
 
 type Route53Exporter struct {
@@ -40,17 +41,18 @@ type Route53Exporter struct {
 	timeout  time.Duration
 }
 
-func NewRoute53Exporter(sess *session.Session, logger log.Logger, config Route53Config) *Route53Exporter {
+func NewRoute53Exporter(sess *session.Session, logger log.Logger, config Route53Config, awsAccountId string) *Route53Exporter {
 
 	level.Info(logger).Log("msg", "Initializing Route53 exporter")
+	constLabels := map[string]string{"aws_account_id": awsAccountId, SERVICE_CODE_KEY: route53ServiceCode}
 
 	exporter := &Route53Exporter{
 		sess:                       sess,
-		RecordsPerHostedZoneQuota:  prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "route53_recordsperhostedzone_quota"), "Quota for maximum number of records in a Route53 hosted zone", []string{"hostedzoneid", "hostedzonename"}, nil),
-		RecordsPerHostedZoneUsage:  prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "route53_recordsperhostedzone_total"), "Number of Resource records", []string{"hostedzoneid", "hostedzonename"}, nil),
-		HostedZonesPerAccountQuota: prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "route53_hostedzonesperaccount_quota"), "Quota for maximum number of Route53 hosted zones in an account", []string{}, nil),
-		HostedZonesPerAccountUsage: prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "route53_hostedzonesperaccount_total"), "Number of Resource records", []string{}, nil),
-		LastUpdateTime:             prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "route53_last_updated_timestamp_seconds"), "Last time, the route53 metrics were sucessfully updated", []string{}, nil),
+		RecordsPerHostedZoneQuota:  prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "route53_recordsperhostedzone_quota"), "Quota for maximum number of records in a Route53 hosted zone", []string{"hostedzoneid", "hostedzonename"}, WithKeyValue(constLabels, QUOTA_CODE_KEY, recordsPerHostedZoneQuotaCode)),
+		RecordsPerHostedZoneUsage:  prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "route53_recordsperhostedzone_total"), "Number of Resource records", []string{"hostedzoneid", "hostedzonename"}, WithKeyValue(constLabels, QUOTA_CODE_KEY, recordsPerHostedZoneQuotaCode)),
+		HostedZonesPerAccountQuota: prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "route53_hostedzonesperaccount_quota"), "Quota for maximum number of Route53 hosted zones in an account", []string{}, WithKeyValue(constLabels, QUOTA_CODE_KEY, hostedZonesQuotaCode)),
+		HostedZonesPerAccountUsage: prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "route53_hostedzonesperaccount_total"), "Number of Resource records", []string{}, WithKeyValue(constLabels, QUOTA_CODE_KEY, hostedZonesQuotaCode)),
+		LastUpdateTime:             prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "route53_last_updated_timestamp_seconds"), "Last time, the route53 metrics were sucessfully updated", []string{}, constLabels),
 		cache:                      *NewMetricsCache(*config.CacheTTL),
 		logger:                     logger,
 		interval:                   *config.Interval,
