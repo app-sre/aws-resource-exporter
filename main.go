@@ -38,9 +38,7 @@ func main() {
 	os.Exit(run())
 }
 
-func getAwsAccountNumber(logger log.Logger) (string, error) {
-	config := aws.NewConfig().WithRegion("us-east-1")
-	sess := session.Must(session.NewSession(config))
+func getAwsAccountNumber(logger log.Logger, sess *session.Session) (string, error) {
 	stsClient := sts.New(sess)
 	identityOutput, err := stsClient.GetCallerIdentity(&sts.GetCallerIdentityInput{})
 	if err != nil {
@@ -61,7 +59,10 @@ func setupCollectors(logger log.Logger, configFile string) ([]prometheus.Collect
 	level.Info(logger).Log("msg", "Configuring ec2 with regions", "regions", strings.Join(config.EC2Config.Regions, ","))
 	level.Info(logger).Log("msg", "Configuring route53 with region", "region", config.Route53Config.Region)
 	level.Info(logger).Log("msg", "Will VPC metrics be gathered?", "vpc-enabled", config.VpcConfig.Enabled)
-	awsAccountId, err := getAwsAccountNumber(logger)
+	// Create a single session here, because we need the accountid, before we create the other configs
+	awsConfig := aws.NewConfig().WithRegion("us-east-1")
+	sess := session.Must(session.NewSession(awsConfig))
+	awsAccountId, err := getAwsAccountNumber(logger, sess)
 	if err != nil {
 		return collectors, err
 	}
