@@ -21,11 +21,7 @@ type Client interface {
 	DescribeTransitGatewaysWithContext(ctx aws.Context, input *ec2.DescribeTransitGatewaysInput, opts ...request.Option) (*ec2.DescribeTransitGatewaysOutput, error)
 
 	// Service Quota
-	GetServiceQuota(*servicequotas.GetServiceQuotaInput) (*servicequotas.GetServiceQuotaOutput, error)
 	GetServiceQuotaWithContext(ctx aws.Context, input *servicequotas.GetServiceQuotaInput, opts ...request.Option) (*servicequotas.GetServiceQuotaOutput, error)
-	RequestServiceQuotaIncrease(*servicequotas.RequestServiceQuotaIncreaseInput) (*servicequotas.RequestServiceQuotaIncreaseOutput, error)
-	ListRequestedServiceQuotaChangeHistory(*servicequotas.ListRequestedServiceQuotaChangeHistoryInput) (*servicequotas.ListRequestedServiceQuotaChangeHistoryOutput, error)
-	ListRequestedServiceQuotaChangeHistoryByQuota(*servicequotas.ListRequestedServiceQuotaChangeHistoryByQuotaInput) (*servicequotas.ListRequestedServiceQuotaChangeHistoryByQuotaOutput, error)
 }
 
 type awsClient struct {
@@ -37,28 +33,8 @@ func (c *awsClient) DescribeTransitGatewaysWithContext(ctx aws.Context, input *e
 	return c.ec2Client.DescribeTransitGatewaysWithContext(ctx, input, opts...)
 }
 
-func (c *awsClient) DeleteSubnet(input *ec2.DeleteSubnetInput) (*ec2.DeleteSubnetOutput, error) {
-	return c.ec2Client.DeleteSubnet(input)
-}
-
-func (c *awsClient) GetServiceQuota(input *servicequotas.GetServiceQuotaInput) (*servicequotas.GetServiceQuotaOutput, error) {
-	return c.serviceQuotasClient.GetServiceQuota(input)
-}
-
 func (c *awsClient) GetServiceQuotaWithContext(ctx aws.Context, input *servicequotas.GetServiceQuotaInput, opts ...request.Option) (*servicequotas.GetServiceQuotaOutput, error) {
 	return c.serviceQuotasClient.GetServiceQuotaWithContext(ctx, input, opts...)
-}
-
-func (c *awsClient) RequestServiceQuotaIncrease(input *servicequotas.RequestServiceQuotaIncreaseInput) (*servicequotas.RequestServiceQuotaIncreaseOutput, error) {
-	return c.serviceQuotasClient.RequestServiceQuotaIncrease(input)
-}
-
-func (c *awsClient) ListRequestedServiceQuotaChangeHistory(input *servicequotas.ListRequestedServiceQuotaChangeHistoryInput) (*servicequotas.ListRequestedServiceQuotaChangeHistoryOutput, error) {
-	return c.serviceQuotasClient.ListRequestedServiceQuotaChangeHistory(input)
-}
-
-func (c *awsClient) ListRequestedServiceQuotaChangeHistoryByQuota(input *servicequotas.ListRequestedServiceQuotaChangeHistoryByQuotaInput) (*servicequotas.ListRequestedServiceQuotaChangeHistoryByQuotaOutput, error) {
-	return c.serviceQuotasClient.ListRequestedServiceQuotaChangeHistoryByQuota(input)
 }
 
 func NewClientFromSession(sess *session.Session) Client {
