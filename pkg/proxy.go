@@ -14,7 +14,7 @@ type MetricProxyItem struct {
 
 type MetricProxy struct {
 	metrics map[string]*MetricProxyItem
-	mutex   sync.Mutex
+	mutex   sync.RWMutex
 }
 
 func NewMetricProxy() *MetricProxy {
@@ -24,6 +24,8 @@ func NewMetricProxy() *MetricProxy {
 }
 
 func (mp *MetricProxy) GetMetricById(id string) (*MetricProxyItem, error) {
+	mp.mutex.RLock()
+	defer mp.mutex.RUnlock()
 	if m, ok := mp.metrics[id]; ok {
 		if time.Since(m.creationTime).Seconds() > float64(m.ttl) {
 			return nil, errors.New("metric ttl has expired")
