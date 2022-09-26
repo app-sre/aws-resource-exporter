@@ -164,6 +164,10 @@ var DBMaxConnections = map[string]map[string]int64{
 		"default":          21845,
 		"default.mysql5.7": 21845,
 	},
+	"db.r5.12xlarge": map[string]int64{
+		"default":          16000,
+		"default.mysql5.7": 16000,
+	},
 	"db.r5.16xlarge": map[string]int64{
 		"default":          43690,
 		"default.mysql5.7": 43690,
