@@ -6,7 +6,12 @@ import (
 	"context"
 
 	"github.com/aws/aws-sdk-go/aws/request"
+<<<<<<< HEAD
 	"github.com/aws/aws-sdk-go/service/rds"
+=======
+	"github.com/aws/aws-sdk-go/service/route53"
+	"github.com/aws/aws-sdk-go/service/route53/route53iface"
+>>>>>>> b04e4b2 (adding tests for route53)
 	"github.com/aws/aws-sdk-go/service/servicequotas"
 	"github.com/aws/aws-sdk-go/service/servicequotas/servicequotasiface"
 
@@ -33,12 +38,20 @@ type Client interface {
 
 	// Service Quota
 	GetServiceQuotaWithContext(ctx aws.Context, input *servicequotas.GetServiceQuotaInput, opts ...request.Option) (*servicequotas.GetServiceQuotaOutput, error)
+	RequestServiceQuotaIncrease(*servicequotas.RequestServiceQuotaIncreaseInput) (*servicequotas.RequestServiceQuotaIncreaseOutput, error)
+	ListRequestedServiceQuotaChangeHistory(*servicequotas.ListRequestedServiceQuotaChangeHistoryInput) (*servicequotas.ListRequestedServiceQuotaChangeHistoryOutput, error)
+	ListRequestedServiceQuotaChangeHistoryByQuota(*servicequotas.ListRequestedServiceQuotaChangeHistoryByQuotaInput) (*servicequotas.ListRequestedServiceQuotaChangeHistoryByQuotaOutput, error)
+
+	//route53
+	ListHostedZonesWithContext(ctx context.Context, input *route53.ListHostedZonesInput, opts ...request.Option) (*route53.ListHostedZonesOutput, error)
+	GetHostedZoneLimitWithContext(ctx context.Context, input *route53.GetHostedZoneLimitInput, opts ...request.Option) (*route53.GetHostedZoneLimitOutput, error)
 }
 
 type awsClient struct {
 	ec2Client           ec2iface.EC2API
 	rdsClient           rds.RDS
 	serviceQuotasClient servicequotasiface.ServiceQuotasAPI
+	route53Client       route53iface.Route53API
 }
 
 func (c *awsClient) DescribeTransitGatewaysWithContext(ctx aws.Context, input *ec2.DescribeTransitGatewaysInput, opts ...request.Option) (*ec2.DescribeTransitGatewaysOutput, error) {
@@ -115,10 +128,22 @@ func (c *awsClient) DescribeDBInstancesAll(ctx context.Context) ([]*rds.DBInstan
 	return instances, nil
 }
 
+func (c *awsClient) ListHostedZonesWithContext(ctx context.Context, input *route53.ListHostedZonesInput, opts ...request.Option) (*route53.ListHostedZonesOutput, error) {
+	return c.route53Client.ListHostedZonesWithContext(ctx, input, opts...)
+}
+
+func (c *awsClient) GetHostedZoneLimitWithContext(ctx context.Context, input *route53.GetHostedZoneLimitInput, opts ...request.Option) (*route53.GetHostedZoneLimitOutput, error) {
+	return c.route53Client.GetHostedZoneLimitWithContext(ctx, input, opts...)
+}
+
 func NewClientFromSession(sess *session.Session) Client {
 	return &awsClient{
 		ec2Client:           ec2.New(sess),
 		serviceQuotasClient: servicequotas.New(sess),
+<<<<<<< HEAD
 		rdsClient:           *rds.New(sess),
+=======
+		route53Client:       route53.New(sess),
+>>>>>>> b04e4b2 (adding tests for route53)
 	}
 }
