@@ -12,15 +12,11 @@ func TestGetMetricById(t *testing.T) {
 		mp  *MetricProxy
 		key string
 	}
-	type want struct {
-		item *MetricProxyItem
-		err  error
-	}
 	now := time.Now()
 	tests := []struct {
 		name string
 		args args
-		want want
+		want *MetricProxyItem
 	}{
 		{
 			name: "Attempt retrieving value by providing valid id (key exists)",
@@ -36,21 +32,36 @@ func TestGetMetricById(t *testing.T) {
 				},
 				key: "valid",
 			},
-			want: want{
-				item: &MetricProxyItem{
-					value:        "value",
-					ttl:          math.MaxInt32,
-					creationTime: now,
-				},
-				err: nil,
+			want: &MetricProxyItem{
+				value:        "value",
+				ttl:          math.MaxInt32,
+				creationTime: now,
 			},
+		},
+		{
+			name: "Attempt retrieving value by providing valid id but ttl expired",
+			args: args{
+				mp: &MetricProxy{
+					metrics: map[string]*MetricProxyItem{
+						"expired": &MetricProxyItem{
+							value:        100,
+							ttl:          1,
+							creationTime: now,
+						},
+					},
+				},
+				key: "expired",
+			},
+			want: nil,
 		},
 	}
 
+	time.Sleep(2 * time.Second) //ensure ttl for second test expires
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got, err := tt.args.mp.GetMetricById(tt.args.key); !reflect.DeepEqual(got, tt.want.item) || err != tt.want.err {
-				t.Errorf("GetMetricById() = %v, want %v", got, tt.want.item)
+			if got, _ := tt.args.mp.GetMetricById(tt.args.key); !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("GetMetricById() = %v, want %v", got, tt.want)
 			}
 		})
 	}
