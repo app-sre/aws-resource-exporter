@@ -1,4 +1,4 @@
-package pkg
+package awsclient
 
 import (
 	"sync"
@@ -23,7 +23,7 @@ type ExporterMetrics struct {
 }
 
 // NewExporterMetrics creates a new exporter metrics instance
-func NewExporterMetrics() *ExporterMetrics {
+func NewExporterMetrics(namespace string) *ExporterMetrics {
 	return &ExporterMetrics{
 		APIRequests: prometheus.NewDesc(
 			prometheus.BuildFQName(namespace, "", "apirequests"),

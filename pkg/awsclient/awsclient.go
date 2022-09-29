@@ -68,12 +68,13 @@ func (c *awsClient) DescribeDBLogFilesAll(ctx context.Context, instanceId string
 
 	var logOutPuts []*rds.DescribeDBLogFilesOutput
 	err := c.DescribeDBLogFilesPagesWithContext(ctx, input, func(ddlo *rds.DescribeDBLogFilesOutput, b bool) bool {
-		// AwsExporterMetrics.IncrementRequests()
+		AwsExporterMetrics.IncrementRequests()
 		logOutPuts = append(logOutPuts, ddlo)
 		return true
 	})
 
 	if err != nil {
+		AwsExporterMetrics.IncrementErrors()
 		return nil, err
 	}
 
@@ -85,11 +86,13 @@ func (c *awsClient) DescribePendingMaintenanceActionsAll(ctx context.Context) ([
 
 	var instancesPendMaintActionsData []*rds.ResourcePendingMaintenanceActions
 	err := c.DescribePendingMaintenanceActionsPagesWithContext(ctx, describePendingMaintInput, func(dpm *rds.DescribePendingMaintenanceActionsOutput, b bool) bool {
+		AwsExporterMetrics.IncrementRequests()
 		instancesPendMaintActionsData = append(instancesPendMaintActionsData, dpm.PendingMaintenanceActions...)
 		return true
 	})
 
 	if err != nil {
+		AwsExporterMetrics.IncrementErrors()
 		return nil, err
 	}
 
@@ -101,10 +104,12 @@ func (c *awsClient) DescribeDBInstancesAll(ctx context.Context) ([]*rds.DBInstan
 
 	var instances []*rds.DBInstance
 	err := c.DescribeDBInstancesPagesWithContext(ctx, input, func(ddo *rds.DescribeDBInstancesOutput, b bool) bool {
+		AwsExporterMetrics.IncrementRequests()
 		instances = append(instances, ddo.DBInstances...)
 		return true
 	})
 	if err != nil {
+		AwsExporterMetrics.IncrementErrors()
 		return nil, err
 	}
 	return instances, nil

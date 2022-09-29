@@ -82,14 +82,14 @@ func (e *EC2Exporter) collectInRegion(sess *session.Session, logger log.Logger, 
 	quota, err := getQuotaValueWithContext(aws, ec2ServiceCode, transitGatewayPerAccountQuotaCode, ctx)
 	if err != nil {
 		level.Error(logger).Log("msg", "Could not retrieve Transit Gateway quota", "error", err.Error())
-		AwsExporterMetrics.IncrementErrors()
+		awsclient.AwsExporterMetrics.IncrementErrors()
 		return
 	}
 
 	gateways, err := getAllTransitGatewaysWithContext(aws, ctx)
 	if err != nil {
 		level.Error(logger).Log("msg", "Could not retrieve Transit Gateway quota", "error", err.Error())
-		AwsExporterMetrics.IncrementErrors()
+		awsclient.AwsExporterMetrics.IncrementErrors()
 		return
 	}
 

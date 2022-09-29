@@ -348,7 +348,6 @@ func (e *RDSExporter) requestRDSLogMetrics(ctx context.Context, sessionIndex int
 	logOutPuts, err := e.svcs[sessionIndex].DescribeDBLogFilesAll(ctx, instanceId)
 	if err != nil {
 		level.Error(e.logger).Log("msg", "Call to DescribeDBLogFiles failed", "region", e.getRegion(sessionIndex), "instance", &instanceId, "err", err)
-		AwsExporterMetrics.IncrementErrors()
 		return nil, err
 	}
 
@@ -525,7 +524,6 @@ func (e *RDSExporter) CollectLoop() {
 			instances, err := e.svcs[i].DescribeDBInstancesAll(ctx)
 			if err != nil {
 				level.Error(e.logger).Log("msg", "Call to DescribeDBInstances failed", "region", *e.sessions[i].Config.Region, "err", err)
-				AwsExporterMetrics.IncrementErrors()
 			}
 
 			wg := sync.WaitGroup{}
