@@ -25,9 +25,7 @@ func TestGetHostedZoneLimitWithContext(t *testing.T) {
 				Type:  aws.String("route53"),
 				Value: aws.Int64(10)}}, nil)
 
-	value, err := getQuotaValueWithContextRoute53(mockClient, route53ServiceCode, hostedZonesQuotaCode, ctx)
-	println("this is the value")
-	println(value)
+	value, err := getHostedZoneValueWithContext(mockClient, route53ServiceCode, hostedZonesQuotaCode, ctx)
 	assert.Nil(t, err)
 	assert.Equal(t, value, int64(10))
 }
