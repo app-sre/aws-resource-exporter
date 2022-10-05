@@ -6,12 +6,9 @@ import (
 	"context"
 
 	"github.com/aws/aws-sdk-go/aws/request"
-<<<<<<< HEAD
 	"github.com/aws/aws-sdk-go/service/rds"
-=======
 	"github.com/aws/aws-sdk-go/service/route53"
 	"github.com/aws/aws-sdk-go/service/route53/route53iface"
->>>>>>> b04e4b2 (adding tests for route53)
 	"github.com/aws/aws-sdk-go/service/servicequotas"
 	"github.com/aws/aws-sdk-go/service/servicequotas/servicequotasiface"
 
@@ -140,10 +137,7 @@ func NewClientFromSession(sess *session.Session) Client {
 	return &awsClient{
 		ec2Client:           ec2.New(sess),
 		serviceQuotasClient: servicequotas.New(sess),
-<<<<<<< HEAD
 		rdsClient:           *rds.New(sess),
-=======
 		route53Client:       route53.New(sess),
->>>>>>> b04e4b2 (adding tests for route53)
 	}
 }
