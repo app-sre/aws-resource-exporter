@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/app-sre/aws-resource-exporter/pkg"
+	"github.com/app-sre/aws-resource-exporter/pkg/awsclient"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sts"
@@ -124,7 +125,7 @@ func run() int {
 	level.Info(logger).Log("msg", "Starting"+namespace, "version", version.Info())
 	level.Info(logger).Log("msg", "Build context", version.BuildContext())
 
-	pkg.AwsExporterMetrics = pkg.NewExporterMetrics()
+	awsclient.AwsExporterMetrics = awsclient.NewExporterMetrics(namespace)
 
 	var configFile string
 	if path := os.Getenv("AWS_RESOURCE_EXPORTER_CONFIG_FILE"); path != "" {
@@ -137,7 +138,7 @@ func run() int {
 		level.Error(logger).Log("msg", "Could not load configuration file", "err", err)
 		return 1
 	}
-	collectors := append(cs, pkg.AwsExporterMetrics)
+	collectors := append(cs, awsclient.AwsExporterMetrics)
 	prometheus.MustRegister(
 		collectors...,
 	)

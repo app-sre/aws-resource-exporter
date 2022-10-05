@@ -5,11 +5,13 @@
 package mock
 
 import (
+	context "context"
 	reflect "reflect"
 
 	aws "github.com/aws/aws-sdk-go/aws"
 	request "github.com/aws/aws-sdk-go/aws/request"
 	ec2 "github.com/aws/aws-sdk-go/service/ec2"
+	rds "github.com/aws/aws-sdk-go/service/rds"
 	servicequotas "github.com/aws/aws-sdk-go/service/servicequotas"
 	gomock "github.com/golang/mock/gomock"
 )
@@ -37,6 +39,108 @@ func (m *MockClient) EXPECT() *MockClientMockRecorder {
 	return m.recorder
 }
 
+// DescribeDBInstancesAll mocks base method.
+func (m *MockClient) DescribeDBInstancesAll(ctx context.Context) ([]*rds.DBInstance, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DescribeDBInstancesAll", ctx)
+	ret0, _ := ret[0].([]*rds.DBInstance)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DescribeDBInstancesAll indicates an expected call of DescribeDBInstancesAll.
+func (mr *MockClientMockRecorder) DescribeDBInstancesAll(ctx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeDBInstancesAll", reflect.TypeOf((*MockClient)(nil).DescribeDBInstancesAll), ctx)
+}
+
+// DescribeDBInstancesPagesWithContext mocks base method.
+func (m *MockClient) DescribeDBInstancesPagesWithContext(ctx aws.Context, input *rds.DescribeDBInstancesInput, fn func(*rds.DescribeDBInstancesOutput, bool) bool, opts ...request.Option) error {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, input, fn}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "DescribeDBInstancesPagesWithContext", varargs...)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DescribeDBInstancesPagesWithContext indicates an expected call of DescribeDBInstancesPagesWithContext.
+func (mr *MockClientMockRecorder) DescribeDBInstancesPagesWithContext(ctx, input, fn interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, input, fn}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeDBInstancesPagesWithContext", reflect.TypeOf((*MockClient)(nil).DescribeDBInstancesPagesWithContext), varargs...)
+}
+
+// DescribeDBLogFilesAll mocks base method.
+func (m *MockClient) DescribeDBLogFilesAll(ctx context.Context, instanceId string) ([]*rds.DescribeDBLogFilesOutput, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DescribeDBLogFilesAll", ctx, instanceId)
+	ret0, _ := ret[0].([]*rds.DescribeDBLogFilesOutput)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DescribeDBLogFilesAll indicates an expected call of DescribeDBLogFilesAll.
+func (mr *MockClientMockRecorder) DescribeDBLogFilesAll(ctx, instanceId interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeDBLogFilesAll", reflect.TypeOf((*MockClient)(nil).DescribeDBLogFilesAll), ctx, instanceId)
+}
+
+// DescribeDBLogFilesPagesWithContext mocks base method.
+func (m *MockClient) DescribeDBLogFilesPagesWithContext(ctx aws.Context, input *rds.DescribeDBLogFilesInput, fn func(*rds.DescribeDBLogFilesOutput, bool) bool, opts ...request.Option) error {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, input, fn}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "DescribeDBLogFilesPagesWithContext", varargs...)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DescribeDBLogFilesPagesWithContext indicates an expected call of DescribeDBLogFilesPagesWithContext.
+func (mr *MockClientMockRecorder) DescribeDBLogFilesPagesWithContext(ctx, input, fn interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, input, fn}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeDBLogFilesPagesWithContext", reflect.TypeOf((*MockClient)(nil).DescribeDBLogFilesPagesWithContext), varargs...)
+}
+
+// DescribePendingMaintenanceActionsAll mocks base method.
+func (m *MockClient) DescribePendingMaintenanceActionsAll(ctx context.Context) ([]*rds.ResourcePendingMaintenanceActions, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DescribePendingMaintenanceActionsAll", ctx)
+	ret0, _ := ret[0].([]*rds.ResourcePendingMaintenanceActions)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DescribePendingMaintenanceActionsAll indicates an expected call of DescribePendingMaintenanceActionsAll.
+func (mr *MockClientMockRecorder) DescribePendingMaintenanceActionsAll(ctx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribePendingMaintenanceActionsAll", reflect.TypeOf((*MockClient)(nil).DescribePendingMaintenanceActionsAll), ctx)
+}
+
+// DescribePendingMaintenanceActionsPagesWithContext mocks base method.
+func (m *MockClient) DescribePendingMaintenanceActionsPagesWithContext(ctx aws.Context, input *rds.DescribePendingMaintenanceActionsInput, fn func(*rds.DescribePendingMaintenanceActionsOutput, bool) bool, opts ...request.Option) error {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, input, fn}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "DescribePendingMaintenanceActionsPagesWithContext", varargs...)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DescribePendingMaintenanceActionsPagesWithContext indicates an expected call of DescribePendingMaintenanceActionsPagesWithContext.
+func (mr *MockClientMockRecorder) DescribePendingMaintenanceActionsPagesWithContext(ctx, input, fn interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, input, fn}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribePendingMaintenanceActionsPagesWithContext", reflect.TypeOf((*MockClient)(nil).DescribePendingMaintenanceActionsPagesWithContext), varargs...)
+}
+
 // DescribeTransitGatewaysWithContext mocks base method.
 func (m *MockClient) DescribeTransitGatewaysWithContext(ctx aws.Context, input *ec2.DescribeTransitGatewaysInput, opts ...request.Option) (*ec2.DescribeTransitGatewaysOutput, error) {
 	m.ctrl.T.Helper()
@@ -57,21 +161,6 @@ func (mr *MockClientMockRecorder) DescribeTransitGatewaysWithContext(ctx, input 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeTransitGatewaysWithContext", reflect.TypeOf((*MockClient)(nil).DescribeTransitGatewaysWithContext), varargs...)
 }
 
-// GetServiceQuota mocks base method.
-func (m *MockClient) GetServiceQuota(arg0 *servicequotas.GetServiceQuotaInput) (*servicequotas.GetServiceQuotaOutput, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetServiceQuota", arg0)
-	ret0, _ := ret[0].(*servicequotas.GetServiceQuotaOutput)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetServiceQuota indicates an expected call of GetServiceQuota.
-func (mr *MockClientMockRecorder) GetServiceQuota(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetServiceQuota", reflect.TypeOf((*MockClient)(nil).GetServiceQuota), arg0)
-}
-
 // GetServiceQuotaWithContext mocks base method.
 func (m *MockClient) GetServiceQuotaWithContext(ctx aws.Context, input *servicequotas.GetServiceQuotaInput, opts ...request.Option) (*servicequotas.GetServiceQuotaOutput, error) {
 	m.ctrl.T.Helper()
@@ -90,49 +179,4 @@ func (mr *MockClientMockRecorder) GetServiceQuotaWithContext(ctx, input interfac
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]interface{}{ctx, input}, opts...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetServiceQuotaWithContext", reflect.TypeOf((*MockClient)(nil).GetServiceQuotaWithContext), varargs...)
-}
-
-// ListRequestedServiceQuotaChangeHistory mocks base method.
-func (m *MockClient) ListRequestedServiceQuotaChangeHistory(arg0 *servicequotas.ListRequestedServiceQuotaChangeHistoryInput) (*servicequotas.ListRequestedServiceQuotaChangeHistoryOutput, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListRequestedServiceQuotaChangeHistory", arg0)
-	ret0, _ := ret[0].(*servicequotas.ListRequestedServiceQuotaChangeHistoryOutput)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// ListRequestedServiceQuotaChangeHistory indicates an expected call of ListRequestedServiceQuotaChangeHistory.
-func (mr *MockClientMockRecorder) ListRequestedServiceQuotaChangeHistory(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListRequestedServiceQuotaChangeHistory", reflect.TypeOf((*MockClient)(nil).ListRequestedServiceQuotaChangeHistory), arg0)
-}
-
-// ListRequestedServiceQuotaChangeHistoryByQuota mocks base method.
-func (m *MockClient) ListRequestedServiceQuotaChangeHistoryByQuota(arg0 *servicequotas.ListRequestedServiceQuotaChangeHistoryByQuotaInput) (*servicequotas.ListRequestedServiceQuotaChangeHistoryByQuotaOutput, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListRequestedServiceQuotaChangeHistoryByQuota", arg0)
-	ret0, _ := ret[0].(*servicequotas.ListRequestedServiceQuotaChangeHistoryByQuotaOutput)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// ListRequestedServiceQuotaChangeHistoryByQuota indicates an expected call of ListRequestedServiceQuotaChangeHistoryByQuota.
-func (mr *MockClientMockRecorder) ListRequestedServiceQuotaChangeHistoryByQuota(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListRequestedServiceQuotaChangeHistoryByQuota", reflect.TypeOf((*MockClient)(nil).ListRequestedServiceQuotaChangeHistoryByQuota), arg0)
-}
-
-// RequestServiceQuotaIncrease mocks base method.
-func (m *MockClient) RequestServiceQuotaIncrease(arg0 *servicequotas.RequestServiceQuotaIncreaseInput) (*servicequotas.RequestServiceQuotaIncreaseOutput, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RequestServiceQuotaIncrease", arg0)
-	ret0, _ := ret[0].(*servicequotas.RequestServiceQuotaIncreaseOutput)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// RequestServiceQuotaIncrease indicates an expected call of RequestServiceQuotaIncrease.
-func (mr *MockClientMockRecorder) RequestServiceQuotaIncrease(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RequestServiceQuotaIncrease", reflect.TypeOf((*MockClient)(nil).RequestServiceQuotaIncrease), arg0)
 }

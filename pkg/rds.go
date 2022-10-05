@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/app-sre/aws-resource-exporter/pkg/awsclient"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/go-kit/kit/log"
@@ -35,7 +36,6 @@ type RDSLogsMetrics struct {
 
 // MetricsProxy
 var metricsProxy = NewMetricProxy()
-var wg sync.WaitGroup
 
 // DBMaxConnections is a hardcoded map of instance types and DB Parameter Group names
 // This is a dump workaround created because by default the DB Parameter Group `max_connections` is a function
@@ -212,22 +212,83 @@ var DBMaxConnections = map[string]map[string]int64{
 	},
 }
 
+var AllocatedStorage *prometheus.Desc = prometheus.NewDesc(
+	prometheus.BuildFQName(namespace, "", "rds_allocatedstorage"),
+	"The amount of allocated storage in bytes.",
+	[]string{"aws_region", "dbinstance_identifier"},
+	nil,
+)
+var DBInstanceClass *prometheus.Desc = prometheus.NewDesc(
+	prometheus.BuildFQName(namespace, "", "rds_dbinstanceclass"),
+	"The DB instance class (type).",
+	[]string{"aws_region", "dbinstance_identifier", "instance_class"},
+	nil,
+)
+var DBInstanceStatus *prometheus.Desc = prometheus.NewDesc(
+	prometheus.BuildFQName(namespace, "", "rds_dbinstancestatus"),
+	"The instance status.",
+	[]string{"aws_region", "dbinstance_identifier", "instance_status"},
+	nil,
+)
+var EngineVersion *prometheus.Desc = prometheus.NewDesc(
+	prometheus.BuildFQName(namespace, "", "rds_engineversion"),
+	"The DB engine type and version.",
+	[]string{"aws_region", "dbinstance_identifier", "engine", "engine_version"},
+	nil,
+)
+var LatestRestorableTime *prometheus.Desc = prometheus.NewDesc(
+	prometheus.BuildFQName(namespace, "", "rds_latestrestorabletime"),
+	"Latest restorable time (UTC date timestamp).",
+	[]string{"aws_region", "dbinstance_identifier"},
+	nil,
+)
+var MaxConnections *prometheus.Desc = prometheus.NewDesc(
+	prometheus.BuildFQName(namespace, "", "rds_maxconnections"),
+	"The DB's max_connections value",
+	[]string{"aws_region", "dbinstance_identifier"},
+	nil,
+)
+var MaxConnectionsMappingError *prometheus.Desc = prometheus.NewDesc(
+	prometheus.BuildFQName(namespace, "", "rds_maxconnections_error"),
+	"Indicates no mapping found for instance/parameter group.",
+	[]string{"aws_region", "dbinstance_identifier", "instance_class"},
+	nil,
+)
+var PendingMaintenanceActions *prometheus.Desc = prometheus.NewDesc(
+	prometheus.BuildFQName(namespace, "", "rds_pendingmaintenanceactions"),
+	"Pending maintenance actions for a RDS instance. 0 indicates no available maintenance and a separate metric with a value of 1 will be published for every separate action.",
+	[]string{"aws_region", "dbinstance_identifier", "action", "auto_apply_after", "current_apply_date", "description"},
+	nil,
+)
+var PubliclyAccessible *prometheus.Desc = prometheus.NewDesc(
+	prometheus.BuildFQName(namespace, "", "rds_publiclyaccessible"),
+	"Indicates if the DB is publicly accessible",
+	[]string{"aws_region", "dbinstance_identifier"},
+	nil,
+)
+var StorageEncrypted *prometheus.Desc = prometheus.NewDesc(
+	prometheus.BuildFQName(namespace, "", "rds_storageencrypted"),
+	"Indicates if the DB storage is encrypted",
+	[]string{"aws_region", "dbinstance_identifier"},
+	nil,
+)
+var LogsStorageSize *prometheus.Desc = prometheus.NewDesc(
+	prometheus.BuildFQName(namespace, "", "rds_logsstorage_size_bytes"),
+	"The amount of storage consumed by log files (in bytes)",
+	[]string{"aws_region", "dbinstance_identifier"},
+	nil,
+)
+var LogsAmount *prometheus.Desc = prometheus.NewDesc(
+	prometheus.BuildFQName(namespace, "", "rds_logs_amount"),
+	"The amount of existent log files",
+	[]string{"aws_region", "dbinstance_identifier"},
+	nil,
+)
+
 // RDSExporter defines an instance of the RDS Exporter
 type RDSExporter struct {
-	sessions                   []*session.Session
-	svcs                       []*rds.RDS
-	AllocatedStorage           *prometheus.Desc
-	DBInstanceClass            *prometheus.Desc
-	DBInstanceStatus           *prometheus.Desc
-	EngineVersion              *prometheus.Desc
-	LatestRestorableTime       *prometheus.Desc
-	MaxConnections             *prometheus.Desc
-	MaxConnectionsMappingError *prometheus.Desc
-	PendingMaintenanceActions  *prometheus.Desc
-	PubliclyAccessible         *prometheus.Desc
-	StorageEncrypted           *prometheus.Desc
-	LogsStorageSize            *prometheus.Desc
-	LogsAmount                 *prometheus.Desc
+	sessions []*session.Session
+	svcs     []awsclient.Client
 
 	workers        int
 	logsMetricsTTL int
@@ -235,6 +296,7 @@ type RDSExporter struct {
 	logger   log.Logger
 	cache    MetricsCache
 	interval time.Duration
+	timeout  time.Duration
 }
 
 // NewRDSExporter creates a new RDSExporter instance
@@ -256,9 +318,9 @@ func NewRDSExporter(sessions []*session.Session, logger log.Logger, config RDSCo
 	} else {
 		level.Info(logger).Log("msg", fmt.Sprintf("Using Env value for logs metrics TTL: %d", *logMetricsTTL))
 	}
-	var rdses []*rds.RDS
+	var rdses []awsclient.Client
 	for _, session := range sessions {
-		rdses = append(rdses, rds.New(session))
+		rdses = append(rdses, awsclient.NewClientFromSession(session))
 	}
 
 	return &RDSExporter{
@@ -266,337 +328,225 @@ func NewRDSExporter(sessions []*session.Session, logger log.Logger, config RDSCo
 		svcs:           rdses,
 		workers:        *workers,
 		logsMetricsTTL: *logMetricsTTL,
-		AllocatedStorage: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, "", "rds_allocatedstorage"),
-			"The amount of allocated storage in bytes.",
-			[]string{"aws_region", "dbinstance_identifier"},
-			nil,
-		),
-		DBInstanceClass: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, "", "rds_dbinstanceclass"),
-			"The DB instance class (type).",
-			[]string{"aws_region", "dbinstance_identifier", "instance_class"},
-			nil,
-		),
-		DBInstanceStatus: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, "", "rds_dbinstancestatus"),
-			"The instance status.",
-			[]string{"aws_region", "dbinstance_identifier", "instance_status"},
-			nil,
-		),
-		EngineVersion: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, "", "rds_engineversion"),
-			"The DB engine type and version.",
-			[]string{"aws_region", "dbinstance_identifier", "engine", "engine_version"},
-			nil,
-		),
-		LatestRestorableTime: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, "", "rds_latestrestorabletime"),
-			"Latest restorable time (UTC date timestamp).",
-			[]string{"aws_region", "dbinstance_identifier"},
-			nil,
-		),
-		MaxConnections: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, "", "rds_maxconnections"),
-			"The DB's max_connections value",
-			[]string{"aws_region", "dbinstance_identifier"},
-			nil,
-		),
-		MaxConnectionsMappingError: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, "", "rds_maxconnections_error"),
-			"Indicates no mapping found for instance/parameter group.",
-			[]string{"aws_region", "dbinstance_identifier", "instance_class"},
-			nil,
-		),
-		PendingMaintenanceActions: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, "", "rds_pendingmaintenanceactions"),
-			"Pending maintenance actions for a RDS instance. 0 indicates no available maintenance and a separate metric with a value of 1 will be published for every separate action.",
-			[]string{"aws_region", "dbinstance_identifier", "action", "auto_apply_after", "current_apply_date", "description"},
-			nil,
-		),
-		PubliclyAccessible: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, "", "rds_publiclyaccessible"),
-			"Indicates if the DB is publicly accessible",
-			[]string{"aws_region", "dbinstance_identifier"},
-			nil,
-		),
-		StorageEncrypted: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, "", "rds_storageencrypted"),
-			"Indicates if the DB storage is encrypted",
-			[]string{"aws_region", "dbinstance_identifier"},
-			nil,
-		),
-		LogsStorageSize: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, "", "rds_logsstorage_size_bytes"),
-			"The amount of storage consumed by log files (in bytes)",
-			[]string{"aws_region", "dbinstance_identifier"},
-			nil,
-		),
-		LogsAmount: prometheus.NewDesc(
-			prometheus.BuildFQName(namespace, "", "rds_logs_amount"),
-			"The amount of existent log files",
-			[]string{"aws_region", "dbinstance_identifier"},
-			nil,
-		),
-		logger:   logger,
-		cache:    *NewMetricsCache(*config.CacheTTL),
-		interval: *config.Interval,
+		logger:         logger,
+		cache:          *NewMetricsCache(*config.CacheTTL),
+		interval:       *config.Interval,
+		timeout:        *config.Timeout,
 	}
 }
 
-func (e *RDSExporter) requestRDSLogMetrics(index int, instanceId string) (*RDSLogsMetrics, error) {
+func (e *RDSExporter) getRegion(sessionIndex int) string {
+	return *e.sessions[sessionIndex].Config.Region
+}
+
+func (e *RDSExporter) requestRDSLogMetrics(ctx context.Context, sessionIndex int, instanceId string) (*RDSLogsMetrics, error) {
 	var logMetrics = &RDSLogsMetrics{
 		logs:         0,
 		totalLogSize: 0,
 	}
-	var input = &rds.DescribeDBLogFilesInput{
-		DBInstanceIdentifier: &instanceId,
+
+	logOutPuts, err := e.svcs[sessionIndex].DescribeDBLogFilesAll(ctx, instanceId)
+	if err != nil {
+		level.Error(e.logger).Log("msg", "Call to DescribeDBLogFiles failed", "region", e.getRegion(sessionIndex), "instance", &instanceId, "err", err)
+		return nil, err
 	}
 
-	for {
-		AwsExporterMetrics.IncrementRequests()
-		result, err := e.svcs[index].DescribeDBLogFiles(input)
-		if err != nil {
-			level.Error(e.logger).Log("msg", "Call to DescribeDBLogFiles failed", "region", *e.sessions[index].Config.Region, "instance", &instanceId, "err", err)
-			AwsExporterMetrics.IncrementErrors()
-			return nil, err
-		}
-		for _, log := range result.DescribeDBLogFiles {
+	for _, outputs := range logOutPuts {
+		for _, log := range outputs.DescribeDBLogFiles {
 			logMetrics.logs++
 			logMetrics.totalLogSize += *log.Size
 		}
-		input.Marker = result.Marker
-		if result.Marker == nil {
-			break
-		}
+
 	}
+
 	return logMetrics, nil
 }
 
-func (e *RDSExporter) getRDSLogMetrics(index int, instanceId string) error {
+func (e *RDSExporter) addRDSLogMetrics(ctx context.Context, sessionIndex int, instanceId string) error {
 	instaceLogFilesId := instanceId + "-" + "logfiles"
 	var logMetrics *RDSLogsMetrics
 	cachedItem, err := metricsProxy.GetMetricById(instaceLogFilesId)
 	if err != nil {
-		level.Debug(e.logger).Log("msg", "Log files metrics can not be fetched from the metrics proxy --> Api Call",
-			"instance", instanceId,
-			"err", err,
-		)
-		logMetrics, err = e.requestRDSLogMetrics(index, instanceId)
+		logMetrics, err = e.requestRDSLogMetrics(ctx, sessionIndex, instanceId)
 		if err != nil {
-			level.Debug(e.logger).Log("msg", "Cancelling context and exiting worker due to an getLogfilesMetrics error")
 			return err
 		}
 		metricsProxy.StoreMetricById(instaceLogFilesId, logMetrics, e.logsMetricsTTL)
 	} else {
-		level.Debug(e.logger).Log("msg", "Log files metrics fetched from the metrics proxy",
-			"instance", instanceId,
-			"ttl", float64(cachedItem.ttl)-time.Since(cachedItem.creationTime).Seconds(),
-		)
 		logMetrics = cachedItem.value.(*RDSLogsMetrics)
 	}
-	e.cache.AddMetric(prometheus.MustNewConstMetric(e.LogsAmount, prometheus.GaugeValue, float64(logMetrics.logs), *e.sessions[index].Config.Region, instanceId))
-	e.cache.AddMetric(prometheus.MustNewConstMetric(e.LogsStorageSize, prometheus.GaugeValue, float64(logMetrics.totalLogSize), *e.sessions[index].Config.Region, instanceId))
+	e.cache.AddMetric(prometheus.MustNewConstMetric(LogsAmount, prometheus.GaugeValue, float64(logMetrics.logs), e.getRegion(sessionIndex), instanceId))
+	e.cache.AddMetric(prometheus.MustNewConstMetric(LogsStorageSize, prometheus.GaugeValue, float64(logMetrics.totalLogSize), e.getRegion(sessionIndex), instanceId))
 	return nil
 }
 
-func (e *RDSExporter) createWorkerPool(index int, instancesQueue <-chan string) (context.Context, context.CancelFunc) {
-	ctx, cancel := context.WithCancel(context.Background())
-	for i := 0; i < e.workers; i++ {
-		wg.Add(1)
-		go func(queue <-chan string, wg *sync.WaitGroup) {
-			defer wg.Done()
-			for {
-				select {
-				case <-ctx.Done():
-					level.Info(e.logger).Log("msg", "Context cancelled. Finishing Worker")
-					return
-				case instanceId, ok := <-queue:
-					if !ok {
-						level.Debug(e.logger).Log("msg", "Work queue is closed. Finishing worker")
-						return
-					}
-					err := e.getRDSLogMetrics(index, instanceId)
-					if err != nil {
-						cancel()
-						return
-					}
-				}
-			}
-		}(instancesQueue, &wg)
+func (e *RDSExporter) addAllLogMetrics(ctx context.Context, sessionIndex int, instances []*rds.DBInstance) {
+	wg := &sync.WaitGroup{}
+	wg.Add(len(instances))
+
+	// this channel is used to limit the number of concurrency
+	sem := make(chan int, e.workers)
+
+	defer close(sem)
+	for _, instance := range instances {
+		sem <- 1
+		go func(instanceName string) {
+			defer func() {
+				<-sem
+				wg.Done()
+			}()
+			e.addRDSLogMetrics(ctx, sessionIndex, instanceName)
+		}(*instance.DBInstanceIdentifier)
 	}
-	return ctx, cancel
+	wg.Wait()
+}
+
+func (e *RDSExporter) addAllInstanceMetrics(sessionIndex int, instances []*rds.DBInstance) {
+	for _, instance := range instances {
+		var maxConnections int64
+		if valmap, ok := DBMaxConnections[*instance.DBInstanceClass]; ok {
+			var maxconn int64
+			var found bool
+			if val, ok := valmap[*instance.DBParameterGroups[0].DBParameterGroupName]; ok {
+				maxconn = val
+				found = true
+			} else if val, ok := valmap["default"]; ok {
+				maxconn = val
+				found = true
+			}
+			if found {
+				level.Debug(e.logger).Log("msg", "Found mapping for instance",
+					"type", *instance.DBInstanceClass,
+					"group", *instance.DBParameterGroups[0].DBParameterGroupName,
+					"value", maxconn)
+				maxConnections = maxconn
+				e.cache.AddMetric(prometheus.MustNewConstMetric(MaxConnectionsMappingError, prometheus.GaugeValue, 0, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.DBInstanceClass))
+			} else {
+				level.Error(e.logger).Log("msg", "No DB max_connections mapping exists for instance",
+					"type", *instance.DBInstanceClass,
+					"group", *instance.DBParameterGroups[0].DBParameterGroupName)
+				e.cache.AddMetric(prometheus.MustNewConstMetric(MaxConnectionsMappingError, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.DBInstanceClass))
+			}
+		} else {
+			level.Error(e.logger).Log("msg", "No DB max_connections mapping exists for instance",
+				"type", *instance.DBInstanceClass)
+			e.cache.AddMetric(prometheus.MustNewConstMetric(MaxConnectionsMappingError, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.DBInstanceClass))
+		}
+
+		var public = 0.0
+		if *instance.PubliclyAccessible {
+			public = 1.0
+		}
+		e.cache.AddMetric(prometheus.MustNewConstMetric(PubliclyAccessible, prometheus.GaugeValue, public, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier))
+
+		var encrypted = 0.0
+		if *instance.StorageEncrypted {
+			encrypted = 1.0
+		}
+		e.cache.AddMetric(prometheus.MustNewConstMetric(StorageEncrypted, prometheus.GaugeValue, encrypted, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier))
+
+		var restoreTime = 0.0
+		if instance.LatestRestorableTime != nil {
+			restoreTime = float64(instance.LatestRestorableTime.Unix())
+		}
+		e.cache.AddMetric(prometheus.MustNewConstMetric(LatestRestorableTime, prometheus.CounterValue, restoreTime, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier))
+
+		e.cache.AddMetric(prometheus.MustNewConstMetric(MaxConnections, prometheus.GaugeValue, float64(maxConnections), e.getRegion(sessionIndex), *instance.DBInstanceIdentifier))
+		e.cache.AddMetric(prometheus.MustNewConstMetric(AllocatedStorage, prometheus.GaugeValue, float64(*instance.AllocatedStorage*1024*1024*1024), e.getRegion(sessionIndex), *instance.DBInstanceIdentifier))
+		e.cache.AddMetric(prometheus.MustNewConstMetric(DBInstanceStatus, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.DBInstanceStatus))
+		e.cache.AddMetric(prometheus.MustNewConstMetric(EngineVersion, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion))
+		e.cache.AddMetric(prometheus.MustNewConstMetric(DBInstanceClass, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.DBInstanceClass))
+	}
+}
+
+func (e *RDSExporter) addAllPendingMaintenancesMetrics(ctx context.Context, sessionIndex int, instances []*rds.DBInstance) {
+	// Get pending maintenance data because this isn't provided in DescribeDBInstances
+	instancesWithPendingMaint := make(map[string]bool)
+
+	instancesPendMaintActionsData, err := e.svcs[sessionIndex].DescribePendingMaintenanceActionsAll(ctx)
+
+	if err != nil {
+		level.Error(e.logger).Log("msg", "Call to DescribePendingMaintenanceActions failed", "region", e.getRegion(sessionIndex), "err", err)
+		return
+	}
+
+	// Create the metrics for all instances that have pending maintenance actions
+	for _, instance := range instancesPendMaintActionsData {
+		for _, action := range instance.PendingMaintenanceActionDetails {
+			// DescribePendingMaintenanceActions only returns ARNs, so this gets the identifier.
+			dbIdentifier := strings.Split(*instance.ResourceIdentifier, ":")[6]
+			instancesWithPendingMaint[dbIdentifier] = true
+
+			var autoApplyDate string
+			if action.AutoAppliedAfterDate != nil {
+				autoApplyDate = action.AutoAppliedAfterDate.String()
+			}
+
+			var currentApplyDate string
+			if action.CurrentApplyDate != nil {
+				currentApplyDate = action.CurrentApplyDate.String()
+			}
+
+			e.cache.AddMetric(prometheus.MustNewConstMetric(PendingMaintenanceActions, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), dbIdentifier, *action.Action, autoApplyDate, currentApplyDate, *action.Description))
+		}
+	}
+
+	// DescribePendingMaintenanceActions only returns data about database with pending maintenance, so for any of the
+	// other databases returned from DescribeDBInstances, publish a value of "0" indicating that maintenance isn't
+	// available.
+	for _, instance := range instances {
+		if !instancesWithPendingMaint[*instance.DBInstanceIdentifier] {
+			e.cache.AddMetric(prometheus.MustNewConstMetric(PendingMaintenanceActions, prometheus.GaugeValue, 0, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, "", "", "", ""))
+		}
+	}
+
 }
 
 // Describe is used by the Prometheus client to return a description of the metrics
 func (e *RDSExporter) Describe(ch chan<- *prometheus.Desc) {
-	ch <- e.AllocatedStorage
-	ch <- e.DBInstanceClass
-	ch <- e.DBInstanceStatus
-	ch <- e.EngineVersion
-	ch <- e.LatestRestorableTime
-	ch <- e.MaxConnections
-	ch <- e.MaxConnectionsMappingError
-	ch <- e.PendingMaintenanceActions
-	ch <- e.PubliclyAccessible
-	ch <- e.StorageEncrypted
+	ch <- AllocatedStorage
+	ch <- DBInstanceClass
+	ch <- DBInstanceStatus
+	ch <- EngineVersion
+	ch <- LatestRestorableTime
+	ch <- MaxConnections
+	ch <- MaxConnectionsMappingError
+	ch <- PendingMaintenanceActions
+	ch <- PubliclyAccessible
+	ch <- StorageEncrypted
 }
 
 func (e *RDSExporter) CollectLoop() {
 	for {
+		ctx, cancel := context.WithTimeout(context.Background(), e.timeout)
 		for i, _ := range e.sessions {
-			input := &rds.DescribeDBInstancesInput{}
 
-			// Get all DB instances.
-			// If a Marker is found, do pagination until last page
-			var instances []*rds.DBInstance
-			for {
-				AwsExporterMetrics.IncrementRequests()
-				result, err := e.svcs[i].DescribeDBInstances(input)
-				if err != nil {
-					level.Error(e.logger).Log("msg", "Call to DescribeDBInstances failed", "region", *e.sessions[i].Config.Region, "err", err)
-					AwsExporterMetrics.IncrementErrors()
-					return
-				}
-				instances = append(instances, result.DBInstances...)
-				input.Marker = result.Marker
-				if result.Marker == nil {
-					break
-				}
+			instances, err := e.svcs[i].DescribeDBInstancesAll(ctx)
+			if err != nil {
+				level.Error(e.logger).Log("msg", "Call to DescribeDBInstances failed", "region", *e.sessions[i].Config.Region, "err", err)
 			}
 
-			// Create a workerPool and a workQueue to get log metrics
-			// for each instance concurrently
-			instancesQueue := make(chan string)
-			ctx, cancel := e.createWorkerPool(i, instancesQueue)
-			defer cancel()
+			wg := sync.WaitGroup{}
+			wg.Add(3)
 
-			for _, instance := range instances {
-				var maxConnections int64
-				if valmap, ok := DBMaxConnections[*instance.DBInstanceClass]; ok {
-					var maxconn int64
-					var found bool
-					if val, ok := valmap[*instance.DBParameterGroups[0].DBParameterGroupName]; ok {
-						maxconn = val
-						found = true
-					} else if val, ok := valmap["default"]; ok {
-						maxconn = val
-						found = true
-					}
-					if found {
-						level.Debug(e.logger).Log("msg", "Found mapping for instance",
-							"type", *instance.DBInstanceClass,
-							"group", *instance.DBParameterGroups[0].DBParameterGroupName,
-							"value", maxconn)
-						maxConnections = maxconn
-						e.cache.AddMetric(prometheus.MustNewConstMetric(e.MaxConnectionsMappingError, prometheus.GaugeValue, 0, *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier, *instance.DBInstanceClass))
-					} else {
-						level.Error(e.logger).Log("msg", "No DB max_connections mapping exists for instance",
-							"type", *instance.DBInstanceClass,
-							"group", *instance.DBParameterGroups[0].DBParameterGroupName)
-						e.cache.AddMetric(prometheus.MustNewConstMetric(e.MaxConnectionsMappingError, prometheus.GaugeValue, 1, *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier, *instance.DBInstanceClass))
-					}
-				} else {
-					level.Error(e.logger).Log("msg", "No DB max_connections mapping exists for instance",
-						"type", *instance.DBInstanceClass)
-					e.cache.AddMetric(prometheus.MustNewConstMetric(e.MaxConnectionsMappingError, prometheus.GaugeValue, 1, *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier, *instance.DBInstanceClass))
-				}
-
-				if *instance.PubliclyAccessible {
-					e.cache.AddMetric(prometheus.MustNewConstMetric(e.PubliclyAccessible, prometheus.GaugeValue, 1, *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier))
-
-				} else {
-					e.cache.AddMetric(prometheus.MustNewConstMetric(e.PubliclyAccessible, prometheus.GaugeValue, 0, *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier))
-
-				}
-
-				if *instance.StorageEncrypted {
-					e.cache.AddMetric(prometheus.MustNewConstMetric(e.StorageEncrypted, prometheus.GaugeValue, 1, *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier))
-
-				} else {
-					e.cache.AddMetric(prometheus.MustNewConstMetric(e.StorageEncrypted, prometheus.GaugeValue, 0, *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier))
-
-				}
-
-				if instance.LatestRestorableTime != nil {
-					e.cache.AddMetric(prometheus.MustNewConstMetric(e.LatestRestorableTime, prometheus.CounterValue, float64(instance.LatestRestorableTime.Unix()), *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier))
-				} else {
-					e.cache.AddMetric(prometheus.MustNewConstMetric(e.LatestRestorableTime, prometheus.CounterValue, float64(0), *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier))
-				}
-
-				e.cache.AddMetric(prometheus.MustNewConstMetric(e.MaxConnections, prometheus.GaugeValue, float64(maxConnections), *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier))
-				e.cache.AddMetric(prometheus.MustNewConstMetric(e.AllocatedStorage, prometheus.GaugeValue, float64(*instance.AllocatedStorage*1024*1024*1024), *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier))
-				e.cache.AddMetric(prometheus.MustNewConstMetric(e.DBInstanceStatus, prometheus.GaugeValue, 1, *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier, *instance.DBInstanceStatus))
-				e.cache.AddMetric(prometheus.MustNewConstMetric(e.EngineVersion, prometheus.GaugeValue, 1, *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion))
-				e.cache.AddMetric(prometheus.MustNewConstMetric(e.DBInstanceClass, prometheus.GaugeValue, 1, *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier, *instance.DBInstanceClass))
-
-				select {
-				case <-ctx.Done():
-					continue
-				default:
-					instanceId := *instance.DBInstanceIdentifier
-					instancesQueue <- instanceId
-				}
-
-			}
-			close(instancesQueue)
-
-			// Get pending maintenance data because this isn't provided in DescribeDBInstances
-			var instancesPendMaintActionsData []*rds.ResourcePendingMaintenanceActions
-			describePendingMaintInput := &rds.DescribePendingMaintenanceActionsInput{}
-			instancesWithPendingMaint := make(map[string]bool)
-
-			for {
-				AwsExporterMetrics.IncrementRequests()
-				result, err := e.svcs[i].DescribePendingMaintenanceActions(describePendingMaintInput)
-				if err != nil {
-					level.Error(e.logger).Log("msg", "Call to DescribePendingMaintenanceActions failed", "region", *e.sessions[i].Config.Region, "err", err)
-					AwsExporterMetrics.IncrementErrors()
-					return
-				}
-				instancesPendMaintActionsData = append(instancesPendMaintActionsData, result.PendingMaintenanceActions...)
-				describePendingMaintInput.Marker = result.Marker
-				if result.Marker == nil {
-					break
-				}
-			}
-
-			// Create the metrics for all instances that have pending maintenance actions
-			for _, instance := range instancesPendMaintActionsData {
-				for _, action := range instance.PendingMaintenanceActionDetails {
-					// DescribePendingMaintenanceActions only returns ARNs, so this gets the identifier.
-					dbIdentifier := strings.Split(*instance.ResourceIdentifier, ":")[6]
-					instancesWithPendingMaint[dbIdentifier] = true
-
-					var autoApplyDate string
-					if action.AutoAppliedAfterDate != nil {
-						autoApplyDate = action.AutoAppliedAfterDate.String()
-					}
-
-					var currentApplyDate string
-					if action.CurrentApplyDate != nil {
-						currentApplyDate = action.CurrentApplyDate.String()
-					}
-
-					e.cache.AddMetric(prometheus.MustNewConstMetric(e.PendingMaintenanceActions, prometheus.GaugeValue, 1, *e.sessions[i].Config.Region, dbIdentifier, *action.Action, autoApplyDate, currentApplyDate, *action.Description))
-				}
-			}
-
-			// DescribePendingMaintenanceActions only returns data about database with pending maintenance, so for any of the
-			// other databases returned from DescribeDBInstances, publish a value of "0" indicating that maintenance isn't
-			// available.
-			for _, instance := range instances {
-				if !instancesWithPendingMaint[*instance.DBInstanceIdentifier] {
-					e.cache.AddMetric(prometheus.MustNewConstMetric(e.PendingMaintenanceActions, prometheus.GaugeValue, 0, *e.sessions[i].Config.Region, *instance.DBInstanceIdentifier, "", "", "", ""))
-				}
-			}
+			go func() {
+				e.addAllInstanceMetrics(i, instances)
+				wg.Done()
+			}()
+			go func() {
+				e.addAllLogMetrics(ctx, i, instances)
+				wg.Done()
+			}()
+			go func() {
+				e.addAllPendingMaintenancesMetrics(ctx, i, instances)
+				wg.Done()
+			}()
+			wg.Wait()
 		}
-
-		// wait for the log metrics routines.
-		wg.Wait()
 
 		level.Info(e.logger).Log("msg", "RDS metrics Updated")
 
+		cancel()
 		time.Sleep(e.interval)
 	}
 }

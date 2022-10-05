@@ -81,7 +81,7 @@ func (e *Route53Exporter) getRecordsPerHostedZoneMetrics(client *route53.Route53
 
 			if err != nil {
 				errChan <- fmt.Errorf("Could not get Limits for hosted zone with ID '%s' and name '%s'. Error was: %s", *hostedZone.Id, *hostedZone.Name, err.Error())
-				AwsExporterMetrics.IncrementErrors()
+				awsclient.AwsExporterMetrics.IncrementErrors()
 				return
 			}
 			level.Info(e.logger).Log("msg", fmt.Sprintf("Currently at hosted zone: %d / %d", i, len(hostedZones)))
@@ -126,19 +126,19 @@ func (e *Route53Exporter) CollectLoop() {
 		level.Info(e.logger).Log("msg", "Got all zones")
 		if err != nil {
 			level.Error(e.logger).Log("msg", "Could not retrieve the list of hosted zones", "error", err.Error())
-			AwsExporterMetrics.IncrementErrors()
+			awsclient.AwsExporterMetrics.IncrementErrors()
 		}
 
 		err = e.getHostedZonesPerAccountMetrics(client, hostedZones, ctx)
 		if err != nil {
 			level.Error(e.logger).Log("msg", "Could not get limits for hosted zone", "error", err.Error())
-			AwsExporterMetrics.IncrementErrors()
+			awsclient.AwsExporterMetrics.IncrementErrors()
 		}
 
 		errs := e.getRecordsPerHostedZoneMetrics(route53Svc, hostedZones, ctx)
 		for _, err = range errs {
 			level.Error(e.logger).Log("msg", "Could not get limits for hosted zone", "error", err.Error())
-			AwsExporterMetrics.IncrementErrors()
+			awsclient.AwsExporterMetrics.IncrementErrors()
 		}
 
 		level.Info(e.logger).Log("msg", "Route53 metrics Updated")

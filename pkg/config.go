@@ -13,6 +13,7 @@ import (
 type BaseConfig struct {
 	Enabled  bool           `yaml:"enabled"`
 	Interval *time.Duration `yaml:"interval"`
+	Timeout  *time.Duration `yaml:"timeout"`
 	CacheTTL *time.Duration `yaml:"cache_ttl"`
 }
 
@@ -23,20 +24,17 @@ type RDSConfig struct {
 
 type VPCConfig struct {
 	BaseConfig `yaml:"base,inline"`
-	Timeout    *time.Duration `yaml:"timeout"`
-	Regions    []string       `yaml:"regions"`
+	Regions    []string `yaml:"regions"`
 }
 
 type Route53Config struct {
 	BaseConfig `yaml:"base,inline"`
-	Timeout    *time.Duration `yaml:"timeout"`
-	Region     string         `yaml:"region"` // Use only a single Region for now, as the current metric is global
+	Region     string `yaml:"region"` // Use only a single Region for now, as the current metric is global
 }
 
 type EC2Config struct {
 	BaseConfig `yaml:"base,inline"`
-	Timeout    *time.Duration `yaml:"timeout"`
-	Regions    []string       `yaml:"regions"`
+	Regions    []string `yaml:"regions"`
 }
 
 type Config struct {
@@ -81,6 +79,9 @@ func LoadExporterConfiguration(logger log.Logger, configFile string) (*Config, e
 		config.EC2Config.Interval = durationPtr(15 * time.Second)
 	}
 
+	if config.RdsConfig.Timeout == nil {
+		config.RdsConfig.Timeout = durationPtr(10 * time.Second)
+	}
 	if config.VpcConfig.Timeout == nil {
 		config.VpcConfig.Timeout = durationPtr(10 * time.Second)
 	}
