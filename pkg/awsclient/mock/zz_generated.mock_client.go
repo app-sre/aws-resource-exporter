@@ -141,6 +141,64 @@ func (mr *MockClientMockRecorder) DescribePendingMaintenanceActionsPagesWithCont
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribePendingMaintenanceActionsPagesWithContext", reflect.TypeOf((*MockClient)(nil).DescribePendingMaintenanceActionsPagesWithContext), varargs...)
 }
 
+// DescribeRouteTablesPagesWithContext mocks base method.
+func (m *MockClient) DescribeRouteTablesPagesWithContext(ctx context.Context, input *ec2.DescribeRouteTablesInput, fn func(*ec2.DescribeRouteTablesOutput, bool) bool, opts ...request.Option) error {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, input, fn}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "DescribeRouteTablesPagesWithContext", varargs...)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DescribeRouteTablesPagesWithContext indicates an expected call of DescribeRouteTablesPagesWithContext.
+func (mr *MockClientMockRecorder) DescribeRouteTablesPagesWithContext(ctx, input, fn interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, input, fn}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeRouteTablesPagesWithContext", reflect.TypeOf((*MockClient)(nil).DescribeRouteTablesPagesWithContext), varargs...)
+}
+
+// DescribeRouteTablesWithContext mocks base method.
+func (m *MockClient) DescribeRouteTablesWithContext(ctx context.Context, input *ec2.DescribeRouteTablesInput, opts ...request.Option) (*ec2.DescribeRouteTablesOutput, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, input}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "DescribeRouteTablesWithContext", varargs...)
+	ret0, _ := ret[0].(*ec2.DescribeRouteTablesOutput)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DescribeRouteTablesWithContext indicates an expected call of DescribeRouteTablesWithContext.
+func (mr *MockClientMockRecorder) DescribeRouteTablesWithContext(ctx, input interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, input}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeRouteTablesWithContext", reflect.TypeOf((*MockClient)(nil).DescribeRouteTablesWithContext), varargs...)
+}
+
+// DescribeSubnetsPagesWithContext mocks base method.
+func (m *MockClient) DescribeSubnetsPagesWithContext(ctx context.Context, input *ec2.DescribeSubnetsInput, fn func(*ec2.DescribeSubnetsOutput, bool) bool, opts ...request.Option) error {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, input, fn}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "DescribeSubnetsPagesWithContext", varargs...)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DescribeSubnetsPagesWithContext indicates an expected call of DescribeSubnetsPagesWithContext.
+func (mr *MockClientMockRecorder) DescribeSubnetsPagesWithContext(ctx, input, fn interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, input, fn}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeSubnetsPagesWithContext", reflect.TypeOf((*MockClient)(nil).DescribeSubnetsPagesWithContext), varargs...)
+}
+
 // DescribeTransitGatewaysWithContext mocks base method.
 func (m *MockClient) DescribeTransitGatewaysWithContext(ctx aws.Context, input *ec2.DescribeTransitGatewaysInput, opts ...request.Option) (*ec2.DescribeTransitGatewaysOutput, error) {
 	m.ctrl.T.Helper()
@@ -159,6 +217,64 @@ func (mr *MockClientMockRecorder) DescribeTransitGatewaysWithContext(ctx, input 
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]interface{}{ctx, input}, opts...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeTransitGatewaysWithContext", reflect.TypeOf((*MockClient)(nil).DescribeTransitGatewaysWithContext), varargs...)
+}
+
+// DescribeVpcEndpointsPagesWithContext mocks base method.
+func (m *MockClient) DescribeVpcEndpointsPagesWithContext(ctx context.Context, input *ec2.DescribeVpcEndpointsInput, fn func(*ec2.DescribeVpcEndpointsOutput, bool) bool, opts ...request.Option) error {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, input, fn}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "DescribeVpcEndpointsPagesWithContext", varargs...)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DescribeVpcEndpointsPagesWithContext indicates an expected call of DescribeVpcEndpointsPagesWithContext.
+func (mr *MockClientMockRecorder) DescribeVpcEndpointsPagesWithContext(ctx, input, fn interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, input, fn}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeVpcEndpointsPagesWithContext", reflect.TypeOf((*MockClient)(nil).DescribeVpcEndpointsPagesWithContext), varargs...)
+}
+
+// DescribeVpcsPagesWithContext mocks base method.
+func (m *MockClient) DescribeVpcsPagesWithContext(ctx context.Context, input *ec2.DescribeVpcsInput, fn func(*ec2.DescribeVpcsOutput, bool) bool, opts ...request.Option) error {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, input, fn}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "DescribeVpcsPagesWithContext", varargs...)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DescribeVpcsPagesWithContext indicates an expected call of DescribeVpcsPagesWithContext.
+func (mr *MockClientMockRecorder) DescribeVpcsPagesWithContext(ctx, input, fn interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, input, fn}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeVpcsPagesWithContext", reflect.TypeOf((*MockClient)(nil).DescribeVpcsPagesWithContext), varargs...)
+}
+
+// DescribeVpcsWithContext mocks base method.
+func (m *MockClient) DescribeVpcsWithContext(ctx context.Context, input *ec2.DescribeVpcsInput, opts ...request.Option) (*ec2.DescribeVpcsOutput, error) {
+	m.ctrl.T.Helper()
+	varargs := []interface{}{ctx, input}
+	for _, a := range opts {
+		varargs = append(varargs, a)
+	}
+	ret := m.ctrl.Call(m, "DescribeVpcsWithContext", varargs...)
+	ret0, _ := ret[0].(*ec2.DescribeVpcsOutput)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DescribeVpcsWithContext indicates an expected call of DescribeVpcsWithContext.
+func (mr *MockClientMockRecorder) DescribeVpcsWithContext(ctx, input interface{}, opts ...interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	varargs := append([]interface{}{ctx, input}, opts...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeVpcsWithContext", reflect.TypeOf((*MockClient)(nil).DescribeVpcsWithContext), varargs...)
 }
 
 // GetServiceQuotaWithContext mocks base method.
