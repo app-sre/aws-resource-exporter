@@ -31,6 +31,14 @@ type Client interface {
 	DescribePendingMaintenanceActionsAll(ctx context.Context) ([]*rds.ResourcePendingMaintenanceActions, error)
 	DescribeDBInstancesAll(ctx context.Context) ([]*rds.DBInstance, error)
 
+	// VPC
+	DescribeRouteTablesWithContext(ctx context.Context, input *ec2.DescribeRouteTablesInput, opts ...request.Option) (*ec2.DescribeRouteTablesOutput, error)
+	DescribeVpcsWithContext(ctx context.Context, input *ec2.DescribeVpcsInput, opts ...request.Option) (*ec2.DescribeVpcsOutput, error)
+	DescribeVpcsPagesWithContext(ctx context.Context, input *ec2.DescribeVpcsInput, fn func(*ec2.DescribeVpcsOutput, bool) bool, opts ...request.Option) error
+	DescribeSubnetsPagesWithContext(ctx context.Context, input *ec2.DescribeSubnetsInput, fn func(*ec2.DescribeSubnetsOutput, bool) bool, opts ...request.Option) error
+	DescribeVpcEndpointsPagesWithContext(ctx context.Context, input *ec2.DescribeVpcEndpointsInput, fn func(*ec2.DescribeVpcEndpointsOutput, bool) bool, opts ...request.Option) error
+	DescribeRouteTablesPagesWithContext(ctx context.Context, input *ec2.DescribeRouteTablesInput, fn func(*ec2.DescribeRouteTablesOutput, bool) bool, opts ...request.Option) error
+
 	// Service Quota
 	GetServiceQuotaWithContext(ctx aws.Context, input *servicequotas.GetServiceQuotaInput, opts ...request.Option) (*servicequotas.GetServiceQuotaOutput, error)
 }
@@ -113,6 +121,47 @@ func (c *awsClient) DescribeDBInstancesAll(ctx context.Context) ([]*rds.DBInstan
 		return nil, err
 	}
 	return instances, nil
+}
+
+// VPC Functions
+func (c *awsClient) DescribeRouteTablesWithContext(ctx context.Context, input *ec2.DescribeRouteTablesInput, opts ...request.Option) (*ec2.DescribeRouteTablesOutput, error) {
+	return c.ec2Client.DescribeRouteTablesWithContext(ctx, input, opts...)
+}
+
+func (c *awsClient) DescribeVpcsWithContext(ctx context.Context, input *ec2.DescribeVpcsInput, opts ...request.Option) (*ec2.DescribeVpcsOutput, error) {
+	return c.ec2Client.DescribeVpcsWithContext(ctx, input, opts...)
+}
+
+func (c *awsClient) DescribeVpcsPagesWithContext(ctx context.Context, input *ec2.DescribeVpcsInput, fn func(*ec2.DescribeVpcsOutput, bool) bool, opts ...request.Option) error {
+	err := c.ec2Client.DescribeVpcsPagesWithContext(ctx, input, fn, opts...)
+	if err != nil {
+		AwsExporterMetrics.IncrementErrors()
+	}
+	return err
+}
+
+func (c *awsClient) DescribeSubnetsPagesWithContext(ctx context.Context, input *ec2.DescribeSubnetsInput, fn func(*ec2.DescribeSubnetsOutput, bool) bool, opts ...request.Option) error {
+	err := c.ec2Client.DescribeSubnetsPagesWithContext(ctx, input, fn, opts...)
+	if err != nil {
+		AwsExporterMetrics.IncrementErrors()
+	}
+	return err
+}
+
+func (c *awsClient) DescribeVpcEndpointsPagesWithContext(ctx context.Context, input *ec2.DescribeVpcEndpointsInput, fn func(*ec2.DescribeVpcEndpointsOutput, bool) bool, opts ...request.Option) error {
+	err := c.ec2Client.DescribeVpcEndpointsPagesWithContext(ctx, input, fn, opts...)
+	if err != nil {
+		AwsExporterMetrics.IncrementErrors()
+	}
+	return err
+}
+
+func (c *awsClient) DescribeRouteTablesPagesWithContext(ctx context.Context, input *ec2.DescribeRouteTablesInput, fn func(*ec2.DescribeRouteTablesOutput, bool) bool, opts ...request.Option) error {
+	err := c.ec2Client.DescribeRouteTablesPagesWithContext(ctx, input, fn, opts...)
+	if err != nil {
+		AwsExporterMetrics.IncrementErrors()
+	}
+	return err
 }
 
 func NewClientFromSession(sess *session.Session) Client {
