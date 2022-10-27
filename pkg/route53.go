@@ -240,6 +240,13 @@ func createListHostedZonesWithContext(maxItems string) *route53.ListHostedZonesI
 	}
 }
 
+func createGetHostedZoneLimitWithContext(hostedZoneId, limitType string) *route53.GetHostedZoneLimitInput {
+	return &route53.GetHostedZoneLimitInput{
+		HostedZoneId: aws.String(hostedZoneId),
+		Type:         aws.String(limitType),
+	}
+}
+
 func getHostedZoneValueWithContext(client awsclient.Client, hostedZoneId string, limitType string, ctx context.Context) (int64, error) {
 	sqOutput, err := client.GetHostedZoneLimitWithContext(ctx, createGetHostedZoneLimitInput(hostedZoneId, limitType))
 
