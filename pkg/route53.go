@@ -61,7 +61,7 @@ func NewRoute53Exporter(sess *session.Session, logger log.Logger, config Route53
 	return exporter
 }
 
-func (e *Route53Exporter) getRecordsPerHostedZoneMetrics(client *route53.Route53, hostedZones []*route53.HostedZone, ctx context.Context) []error {
+func (e *Route53Exporter) getRecordsPerHostedZoneMetrics(client awsclient.Client, hostedZones []*route53.HostedZone, ctx context.Context) []error {
 	errChan := make(chan error, len(hostedZones))
 	errs := []error{}
 
@@ -113,7 +113,6 @@ func (e *Route53Exporter) getHostedZonesPerAccountMetrics(client awsclient.Clien
 
 // CollectLoop runs indefinitely to collect the route53 metrics in a cache. Metrics are only written into the cache once all have been collected to ensure that we don't have a partial collect.
 func (e *Route53Exporter) CollectLoop() {
-	route53Svc := route53.New(e.sess)
 	client := awsclient.NewClientFromSession(e.sess)
 
 	for {
@@ -121,7 +120,7 @@ func (e *Route53Exporter) CollectLoop() {
 		e.Cancel = ctxCancelFunc
 		level.Info(e.logger).Log("msg", "Updating Route53 metrics...")
 
-		hostedZones, err := getAllHostedZones(route53Svc, ctx, e.logger)
+		hostedZones, err := getAllHostedZones(client, ctx, e.logger)
 
 		level.Info(e.logger).Log("msg", "Got all zones")
 		if err != nil {
@@ -135,7 +134,7 @@ func (e *Route53Exporter) CollectLoop() {
 			awsclient.AwsExporterMetrics.IncrementErrors()
 		}
 
-		errs := e.getRecordsPerHostedZoneMetrics(route53Svc, hostedZones, ctx)
+		errs := e.getRecordsPerHostedZoneMetrics(client, hostedZones, ctx)
 		for _, err = range errs {
 			level.Error(e.logger).Log("msg", "Could not get limits for hosted zone", "error", err.Error())
 			awsclient.AwsExporterMetrics.IncrementErrors()
@@ -161,7 +160,7 @@ func (e *Route53Exporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- e.LastUpdateTime
 }
 
-func getAllHostedZones(client *route53.Route53, ctx context.Context, logger log.Logger) ([]*route53.HostedZone, error) {
+func getAllHostedZones(client awsclient.Client, ctx context.Context, logger log.Logger) ([]*route53.HostedZone, error) {
 	result := []*route53.HostedZone{}
 
 	listZonesInput := route53.ListHostedZonesInput{}
@@ -184,7 +183,7 @@ func getAllHostedZones(client *route53.Route53, ctx context.Context, logger log.
 	return result, nil
 }
 
-func ListHostedZonesWithBackoff(client *route53.Route53, ctx context.Context, input *route53.ListHostedZonesInput, maxTries int, logger log.Logger) (*route53.ListHostedZonesOutput, error) {
+func ListHostedZonesWithBackoff(client awsclient.Client, ctx context.Context, input *route53.ListHostedZonesInput, maxTries int, logger log.Logger) (*route53.ListHostedZonesOutput, error) {
 	var listHostedZonesOut *route53.ListHostedZonesOutput
 	var err error
 
@@ -203,7 +202,7 @@ func ListHostedZonesWithBackoff(client *route53.Route53, ctx context.Context, in
 	return nil, err
 }
 
-func GetHostedZoneLimitWithBackoff(client *route53.Route53, ctx context.Context, hostedZoneId *string, maxTries int, logger log.Logger) (*route53.GetHostedZoneLimitOutput, error) {
+func GetHostedZoneLimitWithBackoff(client awsclient.Client, ctx context.Context, hostedZoneId *string, maxTries int, logger log.Logger) (*route53.GetHostedZoneLimitOutput, error) {
 	hostedZoneLimitInput := &route53.GetHostedZoneLimitInput{
 		HostedZoneId: hostedZoneId,
 		Type:         aws.String(route53.HostedZoneLimitTypeMaxRrsetsByZone),
@@ -226,6 +225,36 @@ func GetHostedZoneLimitWithBackoff(client *route53.Route53, ctx context.Context,
 
 	}
 	return nil, err
+}
+
+func createGetHostedZoneLimitInput(hostedZoneId, limitType string) *route53.GetHostedZoneLimitInput {
+	return &route53.GetHostedZoneLimitInput{
+		HostedZoneId: aws.String(hostedZoneId),
+		Type:         aws.String(limitType),
+	}
+}
+
+func createListHostedZonesWithContext(maxItems string) *route53.ListHostedZonesInput {
+	return &route53.ListHostedZonesInput{
+		MaxItems: aws.String(maxItems),
+	}
+}
+
+func createGetHostedZoneLimitWithContext(hostedZoneId, limitType string) *route53.GetHostedZoneLimitInput {
+	return &route53.GetHostedZoneLimitInput{
+		HostedZoneId: aws.String(hostedZoneId),
+		Type:         aws.String(limitType),
+	}
+}
+
+func getHostedZoneValueWithContext(client awsclient.Client, hostedZoneId string, limitType string, ctx context.Context) (int64, error) {
+	sqOutput, err := client.GetHostedZoneLimitWithContext(ctx, createGetHostedZoneLimitInput(hostedZoneId, limitType))
+
+	if err != nil {
+		return 0, err
+	}
+
+	return *sqOutput.Limit.Value, nil
 }
 
 // isThrottlingError returns true if the error given is an instance of awserr.Error and the error code matches the constant errorCodeThrottling. It's not compared against route53.ErrCodeThrottlingException as this does not match what the api is returning.
