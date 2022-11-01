@@ -72,8 +72,6 @@ func TestGetHostedZoneLimitWithBackoff(t *testing.T) {
 	}
 
 	actualResult, actualErr := GetHostedZoneLimitWithBackoff(mockClient, ctx, hostedZoneLimitInput.HostedZoneId, maxRetries, logger)
-	print(actualResult)
-	print(actualErr)
 	assert.Nil(t, actualErr)
 	assert.Equal(t, "route53", *actualResult.Limit.Type)
 
