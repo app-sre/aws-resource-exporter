@@ -2,6 +2,7 @@ package pkg
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
@@ -143,6 +144,10 @@ func getQuotaValueWithContext(client awsclient.Client, serviceCode string, quota
 
 	if err != nil {
 		return 0, err
+	}
+
+	if sqOutput.Quota == nil || sqOutput.Quota.Value == nil {
+		return 0, fmt.Errorf("quota value not found for servicecode %s and quotacode %s", serviceCode, quotaCode)
 	}
 
 	return *sqOutput.Quota.Value, nil
