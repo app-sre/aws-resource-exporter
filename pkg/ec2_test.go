@@ -45,3 +45,20 @@ func TestGetQuotaValueWithContext(t *testing.T) {
 	assert.Nil(t, err)
 	assert.Equal(t, quotaValue, 123.0)
 }
+
+func TestGetQuotaValueWithContextError(t *testing.T) {
+	ctx := context.TODO()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient := mock.NewMockClient(ctrl)
+
+	mockClient.EXPECT().GetServiceQuotaWithContext(ctx,
+		createGetServiceQuotaInput(ec2ServiceCode, transitGatewayPerAccountQuotaCode)).Return(
+		&servicequotas.GetServiceQuotaOutput{Quota: &servicequotas.ServiceQuota{Value: nil}}, nil,
+	)
+
+	quotaValue, err := getQuotaValueWithContext(mockClient, ec2ServiceCode, transitGatewayPerAccountQuotaCode, ctx)
+	assert.NotNil(t, err)
+	assert.Equal(t, quotaValue, 0.0)
+}
