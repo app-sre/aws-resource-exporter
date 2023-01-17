@@ -75,6 +75,11 @@ func setupCollectors(logger log.Logger, configFile string) ([]prometheus.Collect
 			vpcSessions = append(vpcSessions, sess)
 		}
 		vpcExporter := pkg.NewVPCExporter(vpcSessions, logger, config.VpcConfig, awsAccountId)
+
+		roleARN := os.Getenv("ROLE_ARN")
+		sessionName := os.Getenv("SESSION_NAME")
+		pkg.TakeRole(sess, roleARN, sessionName, logger)
+
 		collectors = append(collectors, vpcExporter)
 		go vpcExporter.CollectLoop()
 	}
