@@ -1,7 +1,6 @@
 package pkg
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -10,7 +9,6 @@ import (
 	"github.com/go-kit/kit/log/level"
 )
 
-// func TakeRole(sess *session.Session, roleARN, sessionName string) (*sts.AssumeRoleOutput, error) {
 func TakeRole(sess *session.Session, roleARN, sessionName string, logger log.Logger) {
 	stsClient := sts.New(sess)
 
@@ -23,16 +21,15 @@ func TakeRole(sess *session.Session, roleARN, sessionName string, logger log.Log
 	}
 
 	if err := os.Setenv("AWS_ACCESS_KEY_ID", *result.Credentials.AccessKeyId); err != nil {
-		fmt.Printf("Couldn't set AWS_ACCESS_KEY_ID environment variable. Err: %v", err)
+		level.Error(logger).Log("msg", "Couldn't set AWS_ACCESS_KEY_ID environment variable.", "Err:", err)
 	}
 
 	if err := os.Setenv("AWS_SECRET_ACCESS_KEY", *result.Credentials.SecretAccessKey); err != nil {
-		fmt.Printf("Couldn't set AWS_SECRET_ACCESS_KEY environment variable. Err: %v", err)
+		level.Error(logger).Log("msg", "Couldn't set AWS_SECRET_ACCESS_KEY environment variable.", "Err:", err)
 	}
 
 	if err := os.Setenv("AWS_SESSION_TOKEN", *result.Credentials.SessionToken); err != nil {
-		fmt.Printf("Couldn't set AWS_SESSION_TOKEN environment variable. Err: %v", err)
+		level.Error(logger).Log("msg", "Couldn't set AWS_SESSION_TOKEN environment variable.", "Err:", err)
 	}
 
-	return
 }
