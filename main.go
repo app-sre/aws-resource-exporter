@@ -69,6 +69,11 @@ func setupCollectors(logger log.Logger, configFile string) ([]prometheus.Collect
 	if err != nil {
 		return collectors, err
 	}
+	var client awsclient.Client
+	err = pkg.TakeRole(client, roleARN, sessionName, logger)
+	if err != nil {
+		return nil, err
+	}
 	var vpcSessions []*session.Session
 	if config.VpcConfig.Enabled {
 		for _, region := range config.VpcConfig.Regions {
@@ -77,12 +82,6 @@ func setupCollectors(logger log.Logger, configFile string) ([]prometheus.Collect
 			vpcSessions = append(vpcSessions, sess)
 		}
 		vpcExporter := pkg.NewVPCExporter(vpcSessions, logger, config.VpcConfig, awsAccountId)
-
-		var client awsclient.Client
-		err := pkg.TakeRole(client, roleARN, sessionName, logger)
-		if err != nil {
-			return nil, err
-		}
 
 		collectors = append(collectors, vpcExporter)
 		go vpcExporter.CollectLoop()
