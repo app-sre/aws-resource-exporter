@@ -69,11 +69,14 @@ func setupCollectors(logger log.Logger, configFile string) ([]prometheus.Collect
 	if err != nil {
 		return collectors, err
 	}
-	var client awsclient.Client
-	err = pkg.TakeRole(client, roleARN, sessionName, logger)
-	if err != nil {
-		return nil, err
+	if pkg.LookUpEnvVar(roleARN) && pkg.LookUpEnvVar(sessionName) {
+		var client awsclient.Sts
+		err = pkg.AssumeRole(client, roleARN, sessionName, logger)
+		if err != nil {
+			return nil, err
+		}
 	}
+
 	var vpcSessions []*session.Session
 	if config.VpcConfig.Enabled {
 		for _, region := range config.VpcConfig.Regions {

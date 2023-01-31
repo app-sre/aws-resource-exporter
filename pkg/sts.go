@@ -8,7 +8,7 @@ import (
 	"github.com/go-kit/kit/log"
 )
 
-func TakeRole(client awsclient.Client, roleARN, sessionName string, logger log.Logger) error {
+func AssumeRole(client awsclient.Sts, roleARN, sessionName string, logger log.Logger) error {
 	roleInput := sts.AssumeRoleInput{
 		RoleArn:         &roleARN,
 		RoleSessionName: &sessionName,
@@ -31,4 +31,9 @@ func TakeRole(client awsclient.Client, roleARN, sessionName string, logger log.L
 		return err
 	}
 	return nil
+}
+
+func LookUpEnvVar(key string) bool {
+	_, ok := os.LookupEnv(key)
+	return ok
 }

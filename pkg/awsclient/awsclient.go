@@ -41,8 +41,9 @@ type Client interface {
 	//route53
 	ListHostedZonesWithContext(ctx context.Context, input *route53.ListHostedZonesInput, opts ...request.Option) (*route53.ListHostedZonesOutput, error)
 	GetHostedZoneLimitWithContext(ctx context.Context, input *route53.GetHostedZoneLimitInput, opts ...request.Option) (*route53.GetHostedZoneLimitOutput, error)
+}
 
-	//sts
+type Sts interface {
 	AssumeRole(input *sts.AssumeRoleInput) (*sts.AssumeRoleOutput, error)
 }
 
@@ -51,7 +52,10 @@ type awsClient struct {
 	rdsClient           rds.RDS
 	serviceQuotasClient servicequotasiface.ServiceQuotasAPI
 	route53Client       route53iface.Route53API
-	stsClient           stsiface.STSAPI
+}
+
+type awsSts struct {
+	sts stsiface.STSAPI
 }
 
 func (c *awsClient) DescribeTransitGatewaysWithContext(ctx aws.Context, input *ec2.DescribeTransitGatewaysInput, opts ...request.Option) (*ec2.DescribeTransitGatewaysOutput, error) {
@@ -136,8 +140,8 @@ func (c *awsClient) GetHostedZoneLimitWithContext(ctx context.Context, input *ro
 	return c.route53Client.GetHostedZoneLimitWithContext(ctx, input, opts...)
 }
 
-func (c *awsClient) AssumeRole(input *sts.AssumeRoleInput) (*sts.AssumeRoleOutput, error) {
-	return c.stsClient.AssumeRole(input)
+func (s *awsSts) AssumeRole(input *sts.AssumeRoleInput) (*sts.AssumeRoleOutput, error) {
+	return s.sts.AssumeRole(input)
 }
 
 func NewClientFromSession(sess *session.Session) Client {
@@ -146,6 +150,11 @@ func NewClientFromSession(sess *session.Session) Client {
 		serviceQuotasClient: servicequotas.New(sess),
 		rdsClient:           *rds.New(sess),
 		route53Client:       route53.New(sess),
-		stsClient:           sts.New(sess),
+	}
+}
+
+func NewClientForSTS(sess *session.Session) Sts {
+	return &awsSts{
+		sts: sts.New(sess),
 	}
 }
