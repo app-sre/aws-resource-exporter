@@ -210,6 +210,14 @@ var DBMaxConnections = map[string]map[string]int64{
 		"default.postgres13": 5000,
 		"default.postgres14": 5000,
 	},
+	"db.m6i.2xlarge": map[string]int64{
+		"default":            3410,
+		"default.postgres10": 3410,
+		"default.postgres11": 3410,
+		"default.postgres12": 3410,
+		"default.postgres13": 3410,
+		"default.postgres14": 3410,
+	},
 }
 
 var AllocatedStorage *prometheus.Desc = prometheus.NewDesc(
