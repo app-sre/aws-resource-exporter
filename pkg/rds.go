@@ -218,6 +218,44 @@ var DBMaxConnections = map[string]map[string]int64{
 		"default.postgres13": 3410,
 		"default.postgres14": 3410,
 	},
+	"db.m7g.large": map[string]int64{
+		"default":            901,
+		"default.postgres12": 901,
+		"default.postgres13": 901,
+		"default.postgres14": 901,
+	},
+	"db.m7g.xlarge": map[string]int64{
+		"default":            1705,
+		"default.postgres10": 1705,
+		"default.postgres11": 1705,
+		"default.postgres12": 1705,
+		"default.postgres13": 1705,
+		"default.postgres14": 1705,
+	},
+	"db.m7g.2xlarge": map[string]int64{
+		"default":            3410,
+		"default.postgres10": 3410,
+		"default.postgres11": 3410,
+		"default.postgres12": 3410,
+		"default.postgres13": 3410,
+		"default.postgres14": 3410,
+	},
+	"db.m7g.4xlarge": map[string]int64{
+		"default":            5000,
+		"default.postgres10": 5000,
+		"default.postgres11": 5000,
+		"default.postgres12": 5000,
+		"default.postgres13": 5000,
+		"default.postgres14": 5000,
+	},
+	"db.m7g.8xlarge": map[string]int64{
+		"default":            5000,
+		"default.postgres10": 5000,
+		"default.postgres11": 5000,
+		"default.postgres12": 5000,
+		"default.postgres13": 5000,
+		"default.postgres14": 5000,
+	},
 }
 
 var AllocatedStorage *prometheus.Desc = prometheus.NewDesc(
