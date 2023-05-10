@@ -70,7 +70,7 @@ func setupCollectors(logger log.Logger, configFile string) ([]prometheus.Collect
 		return collectors, err
 	}
 	if pkg.LookUpEnvVar(roleARN) && pkg.LookUpEnvVar(sessionName) {
-		var client awsclient.Sts
+		client := sts.New(sess)
 		err = pkg.AssumeRole(client, roleARN, sessionName, logger)
 		if err != nil {
 			return nil, err
