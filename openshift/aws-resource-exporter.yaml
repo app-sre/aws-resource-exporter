@@ -52,6 +52,10 @@ objects:
             value: ${AWS_REGION}
           - name: AWS_RESOURCE_EXPORTER_CONFIG_FILE
             value: /etc/aws-resource-exporter/aws-resource-exporter-config.yaml
+          - name: ROLE_ARN
+            valueFrom:
+              secretKeyRef:
+                name: ${SECRET_NAME}
           - name: SESSION_NAME
             value: ${SESSION_NAME}
           volumeMounts:

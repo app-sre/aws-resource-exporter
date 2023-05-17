@@ -152,9 +152,3 @@ func NewClientFromSession(sess *session.Session) Client {
 		route53Client:       route53.New(sess),
 	}
 }
-
-func NewClientForSTS(sess *session.Session) Sts {
-	return &awsSts{
-		sts: sts.New(sess),
-	}
-}
