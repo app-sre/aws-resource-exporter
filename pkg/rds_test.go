@@ -88,7 +88,7 @@ func TestAddAllInstanceMetrics(t *testing.T) {
 	assert.Len(t, x.cache.GetAllMetrics(), 0)
 
 	x.addAllInstanceMetrics(0, createTestDBInstances())
-	assert.Len(t, x.cache.GetAllMetrics(), 9)
+	assert.Len(t, x.cache.GetAllMetrics(), 10)
 }
 
 func TestAddAllPendingMaintenancesMetrics(t *testing.T) {
