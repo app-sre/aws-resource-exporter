@@ -25,6 +25,7 @@ func createTestDBInstances() []*rds.DBInstance {
 			PubliclyAccessible:   aws.Bool(false),
 			StorageEncrypted:     aws.Bool(false),
 			AllocatedStorage:     aws.Int64(1024),
+			MaxAllocatedStorage:  aws.Int64(1024),
 			DBInstanceStatus:     aws.String("on fire"),
 			Engine:               aws.String("SQL"),
 			EngineVersion:        aws.String("1000"),
