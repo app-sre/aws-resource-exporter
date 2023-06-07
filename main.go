@@ -71,11 +71,13 @@ func setupCollectors(logger log.Logger, configFile string) ([]prometheus.Collect
 	}
 	if pkg.LookUpEnvVar(roleARN) && pkg.LookUpEnvVar(sessionName) {
 		client := sts.New(sess)
-		result, err := pkg.AssumeRole(client, roleARN, sessionName, logger)
+		err = pkg.AssumeRole(client, roleARN, sessionName, logger)
 		if err != nil {
 			return nil, err
 		}
-		awsAccountId = *result.AssumedRoleUser.AssumedRoleId
+		start_index := strings.Index(roleARN, "::") + 2
+		end_index := strings.LastIndex(roleARN, ":")
+		awsAccountId = roleARN[start_index:end_index]
 	}
 
 	var vpcSessions []*session.Session
