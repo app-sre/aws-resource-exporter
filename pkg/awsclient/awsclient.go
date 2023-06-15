@@ -11,6 +11,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/route53/route53iface"
 	"github.com/aws/aws-sdk-go/service/servicequotas"
 	"github.com/aws/aws-sdk-go/service/servicequotas/servicequotasiface"
+	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -41,11 +43,19 @@ type Client interface {
 	GetHostedZoneLimitWithContext(ctx context.Context, input *route53.GetHostedZoneLimitInput, opts ...request.Option) (*route53.GetHostedZoneLimitOutput, error)
 }
 
+type Sts interface {
+	AssumeRole(input *sts.AssumeRoleInput) (*sts.AssumeRoleOutput, error)
+}
+
 type awsClient struct {
 	ec2Client           ec2iface.EC2API
 	rdsClient           rds.RDS
 	serviceQuotasClient servicequotasiface.ServiceQuotasAPI
 	route53Client       route53iface.Route53API
+}
+
+type awsSts struct {
+	sts stsiface.STSAPI
 }
 
 func (c *awsClient) DescribeTransitGatewaysWithContext(ctx aws.Context, input *ec2.DescribeTransitGatewaysInput, opts ...request.Option) (*ec2.DescribeTransitGatewaysOutput, error) {
@@ -128,6 +138,10 @@ func (c *awsClient) ListHostedZonesWithContext(ctx context.Context, input *route
 
 func (c *awsClient) GetHostedZoneLimitWithContext(ctx context.Context, input *route53.GetHostedZoneLimitInput, opts ...request.Option) (*route53.GetHostedZoneLimitOutput, error) {
 	return c.route53Client.GetHostedZoneLimitWithContext(ctx, input, opts...)
+}
+
+func (s *awsSts) AssumeRole(input *sts.AssumeRoleInput) (*sts.AssumeRoleOutput, error) {
+	return s.sts.AssumeRole(input)
 }
 
 func NewClientFromSession(sess *session.Session) Client {
