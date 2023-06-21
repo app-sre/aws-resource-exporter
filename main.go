@@ -69,7 +69,7 @@ func setupCollectors(logger log.Logger, configFile string) ([]prometheus.Collect
 	if err != nil {
 		return collectors, err
 	}
-	if pkg.LookUpEnvVar(roleARN) && pkg.LookUpEnvVar(sessionName) {
+	if pkg.LookUpEnvVar("ROLE_ARN") && pkg.LookUpEnvVar("SESSION_NAME") {
 		client := sts.New(sess)
 		err = pkg.AssumeRole(client, roleARN, sessionName, logger)
 		if err != nil {
