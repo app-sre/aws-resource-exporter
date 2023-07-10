@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -65,19 +66,26 @@ func setupCollectors(logger log.Logger, configFile string) ([]prometheus.Collect
 	sessionName := os.Getenv("SESSION_NAME")
 	awsConfig := aws.NewConfig().WithRegion("us-east-1")
 	sess := session.Must(session.NewSession(awsConfig))
+	durationSeconds := os.Getenv("TOKEN_DURATION")
+	convertedDurationSeconds, err := strconv.ParseInt(durationSeconds, 10, 64)
+	if err != nil {
+		return nil, err
+	}
 	awsAccountId, err := getAwsAccountNumber(logger, sess)
 	if err != nil {
 		return collectors, err
 	}
 	if pkg.LookUpEnvVar("ROLE_ARN") && pkg.LookUpEnvVar("SESSION_NAME") {
 		client := sts.New(sess)
-		err = pkg.AssumeRole(client, roleARN, sessionName, logger)
+		aws_credentials := sts.Credentials{}
+		err = pkg.AssumeRole(client, roleARN, sessionName, convertedDurationSeconds, logger)
 		if err != nil {
 			return nil, err
 		}
 		start_index := strings.Index(roleARN, "::") + 2
 		end_index := strings.LastIndex(roleARN, ":")
 		awsAccountId = roleARN[start_index:end_index]
+		go pkg.RefreshToken(client, &aws_credentials, roleARN, sessionName, convertedDurationSeconds, logger)
 	}
 
 	var vpcSessions []*session.Session

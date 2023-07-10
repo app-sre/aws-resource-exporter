@@ -58,6 +58,8 @@ objects:
                 name: ${SECRET_NAME}
                 key: role_arn
                 optional: true
+          - name: TOKEN_DURATION
+            value: ${TOKEN_DURATION}
           - name: SESSION_NAME
             value: ${SESSION_NAME}
           volumeMounts:
@@ -144,3 +146,5 @@ parameters:
       timeout: 60s
 - name: SESSION_NAME
   value: TestSessionName
+- name: TOKEN_DURATION
+  value: 60

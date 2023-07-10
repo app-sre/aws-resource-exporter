@@ -20,6 +20,7 @@ func TestTakeRoleSTS(t *testing.T) {
 	assumeRoleInput := &sts.AssumeRoleInput{
 		RoleArn:         aws.String("arn:aws:iam::123456789012:role/example"),
 		RoleSessionName: aws.String("session-name"),
+		DurationSeconds: aws.Int64(60),
 	}
 	assumeRoleOutput := &sts.AssumeRoleOutput{
 		Credentials: &sts.Credentials{
@@ -29,7 +30,7 @@ func TestTakeRoleSTS(t *testing.T) {
 		},
 	}
 	mockSvc.EXPECT().AssumeRole(assumeRoleInput).Return(assumeRoleOutput, nil)
-	err := AssumeRole(mockSvc, "arn:aws:iam::123456789012:role/example", "session-name", nil)
+	err := AssumeRole(mockSvc, "arn:aws:iam::123456789012:role/example", "session-name", 60, nil)
 	assert.NoError(t, err)
 	assert.Equal(t, "access-key-id", os.Getenv("AWS_ACCESS_KEY_ID"))
 	assert.Equal(t, "secret-access-key", os.Getenv("AWS_SECRET_ACCESS_KEY"))
