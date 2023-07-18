@@ -123,6 +123,15 @@ var DBMaxConnections = map[string]map[string]int64{
 		"default.postgres13": 5000,
 		"default.postgres14": 5000,
 	},
+	"db.m5d.large": {
+		"default":            830,
+		"default.postgres10": 830,
+		"default.postgres11": 830,
+		"default.postgres12": 830,
+		"default.postgres13": 830,
+		"default.postgres14": 830,
+		"default.postgres15": 830,
+	},
 	"db.r4.large": map[string]int64{
 		"default":          1301,
 		"default.mysql5.7": 1301,
