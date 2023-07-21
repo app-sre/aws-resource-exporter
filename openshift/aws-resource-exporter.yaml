@@ -57,11 +57,11 @@ objects:
               mountPath: /etc/aws-resource-exporter/
           resources:
             limits:
-              cpu: 100m
-              memory: 150Mi
+              cpu: ${CPU_LIMITS}
+              memory: ${MEMORY_LIMITS}
             requests:
-              cpu: 10m
-              memory: 50Mi
+              cpu: ${CPU_REQUESTS}
+              memory: ${MEMORY_REQUESTS}
           readinessProbe:
             failureThreshold: 3
             periodSeconds: 10
@@ -122,6 +122,14 @@ parameters:
   value: us-east-1
 - name: CONFIGMAP_NAME
   value: aws-resource-exporter-config
+- name: CPU_LIMITS
+  value: 200m
+- name: CPU_REQUESTS
+  value: 200m
+- name: MEMORY_LIMITS
+  value: 150Mi
+- name: MEMORY_REQUESTS
+  value: 150Mi
 - name: AWS_RESOURCE_EXPORTER_CONFIGURATION
   value: |
     default:
