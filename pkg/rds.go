@@ -123,7 +123,7 @@ var DBMaxConnections = map[string]map[string]int64{
 		"default.postgres13": 5000,
 		"default.postgres14": 5000,
 	},
-	"db.m5d.large": {
+	"db.m5d.large": map[string]int64{
 		"default":            830,
 		"default.postgres10": 830,
 		"default.postgres11": 830,
@@ -510,11 +510,17 @@ func (e *RDSExporter) addAllInstanceMetrics(sessionIndex int, instances []*rds.D
 		if instance.LatestRestorableTime != nil {
 			restoreTime = float64(instance.LatestRestorableTime.Unix())
 		}
+
+		var MaxAllocatedStorageValue = 0.0
+		if instance.MaxAllocatedStorage != nil {
+			MaxAllocatedStorageValue = float64(*instance.MaxAllocatedStorage*1024*1024*1024)
+		}
+
 		e.cache.AddMetric(prometheus.MustNewConstMetric(LatestRestorableTime, prometheus.CounterValue, restoreTime, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier))
 
 		e.cache.AddMetric(prometheus.MustNewConstMetric(MaxConnections, prometheus.GaugeValue, float64(maxConnections), e.getRegion(sessionIndex), *instance.DBInstanceIdentifier))
 		e.cache.AddMetric(prometheus.MustNewConstMetric(AllocatedStorage, prometheus.GaugeValue, float64(*instance.AllocatedStorage*1024*1024*1024), e.getRegion(sessionIndex), *instance.DBInstanceIdentifier))
-		e.cache.AddMetric(prometheus.MustNewConstMetric(MaxAllocatedStorage, prometheus.GaugeValue, float64(*instance.MaxAllocatedStorage*1024*1024*1024), e.getRegion(sessionIndex), *instance.DBInstanceIdentifier))
+		e.cache.AddMetric(prometheus.MustNewConstMetric(MaxAllocatedStorage, prometheus.GaugeValue, MaxAllocatedStorageValue, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier))
 		e.cache.AddMetric(prometheus.MustNewConstMetric(DBInstanceStatus, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.DBInstanceStatus))
 		e.cache.AddMetric(prometheus.MustNewConstMetric(EngineVersion, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion))
 		e.cache.AddMetric(prometheus.MustNewConstMetric(DBInstanceClass, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.DBInstanceClass))
