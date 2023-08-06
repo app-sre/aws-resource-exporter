@@ -25,6 +25,7 @@ func createTestDBInstances() []*rds.DBInstance {
 			PubliclyAccessible:   aws.Bool(false),
 			StorageEncrypted:     aws.Bool(false),
 			AllocatedStorage:     aws.Int64(1024),
+			MaxAllocatedStorage:  aws.Int64(1024),
 			DBInstanceStatus:     aws.String("on fire"),
 			Engine:               aws.String("SQL"),
 			EngineVersion:        aws.String("1000"),
@@ -87,7 +88,7 @@ func TestAddAllInstanceMetrics(t *testing.T) {
 	assert.Len(t, x.cache.GetAllMetrics(), 0)
 
 	x.addAllInstanceMetrics(0, createTestDBInstances())
-	assert.Len(t, x.cache.GetAllMetrics(), 9)
+	assert.Len(t, x.cache.GetAllMetrics(), 10)
 }
 
 func TestAddAllPendingMaintenancesMetrics(t *testing.T) {

@@ -123,6 +123,15 @@ var DBMaxConnections = map[string]map[string]int64{
 		"default.postgres13": 5000,
 		"default.postgres14": 5000,
 	},
+	"db.m5d.large": map[string]int64{
+		"default":            830,
+		"default.postgres10": 830,
+		"default.postgres11": 830,
+		"default.postgres12": 830,
+		"default.postgres13": 830,
+		"default.postgres14": 830,
+		"default.postgres15": 830,
+	},
 	"db.r4.large": map[string]int64{
 		"default":          1301,
 		"default.mysql5.7": 1301,
@@ -261,6 +270,12 @@ var DBMaxConnections = map[string]map[string]int64{
 var AllocatedStorage *prometheus.Desc = prometheus.NewDesc(
 	prometheus.BuildFQName(namespace, "", "rds_allocatedstorage"),
 	"The amount of allocated storage in bytes.",
+	[]string{"aws_region", "dbinstance_identifier"},
+	nil,
+)
+var MaxAllocatedStorage *prometheus.Desc = prometheus.NewDesc(
+	prometheus.BuildFQName(namespace, "", "rds_maxallocatedstorage"),
+	"The amount of max allocated storage for RDS storage autoscaling in bytes.",
 	[]string{"aws_region", "dbinstance_identifier"},
 	nil,
 )
@@ -495,10 +510,17 @@ func (e *RDSExporter) addAllInstanceMetrics(sessionIndex int, instances []*rds.D
 		if instance.LatestRestorableTime != nil {
 			restoreTime = float64(instance.LatestRestorableTime.Unix())
 		}
+
+		var maxAllocatedStorageValue = 0.0
+		if instance.MaxAllocatedStorage != nil {
+			maxAllocatedStorageValue = float64(*instance.MaxAllocatedStorage*1024*1024*1024)
+		}
+
 		e.cache.AddMetric(prometheus.MustNewConstMetric(LatestRestorableTime, prometheus.CounterValue, restoreTime, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier))
 
 		e.cache.AddMetric(prometheus.MustNewConstMetric(MaxConnections, prometheus.GaugeValue, float64(maxConnections), e.getRegion(sessionIndex), *instance.DBInstanceIdentifier))
 		e.cache.AddMetric(prometheus.MustNewConstMetric(AllocatedStorage, prometheus.GaugeValue, float64(*instance.AllocatedStorage*1024*1024*1024), e.getRegion(sessionIndex), *instance.DBInstanceIdentifier))
+		e.cache.AddMetric(prometheus.MustNewConstMetric(MaxAllocatedStorage, prometheus.GaugeValue, maxAllocatedStorageValue, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier))
 		e.cache.AddMetric(prometheus.MustNewConstMetric(DBInstanceStatus, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.DBInstanceStatus))
 		e.cache.AddMetric(prometheus.MustNewConstMetric(EngineVersion, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion))
 		e.cache.AddMetric(prometheus.MustNewConstMetric(DBInstanceClass, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.DBInstanceClass))
@@ -551,6 +573,7 @@ func (e *RDSExporter) addAllPendingMaintenancesMetrics(ctx context.Context, sess
 // Describe is used by the Prometheus client to return a description of the metrics
 func (e *RDSExporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- AllocatedStorage
+	ch <- MaxAllocatedStorage
 	ch <- DBInstanceClass
 	ch <- DBInstanceStatus
 	ch <- EngineVersion
