@@ -12,6 +12,7 @@ objects:
   metadata:
     annotations:
       ignore-check.kube-linter.io/minimum-three-replicas: "multiple replicas is multiple cost"
+      ignore-check.kube-linter.io/unset-cpu-requirements: "no cpu limits"
     labels:
       app: ${NAME}
     name: ${NAME}
@@ -57,7 +58,6 @@ objects:
               mountPath: /etc/aws-resource-exporter/
           resources:
             limits:
-              cpu: ${CPU_LIMITS}
               memory: ${MEMORY_LIMITS}
             requests:
               cpu: ${CPU_REQUESTS}
@@ -122,10 +122,8 @@ parameters:
   value: us-east-1
 - name: CONFIGMAP_NAME
   value: aws-resource-exporter-config
-- name: CPU_LIMITS
-  value: 200m
 - name: CPU_REQUESTS
-  value: 200m
+  value: 50m
 - name: MEMORY_LIMITS
   value: 150Mi
 - name: MEMORY_REQUESTS
