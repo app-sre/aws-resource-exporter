@@ -246,6 +246,14 @@ var DBMaxConnections = map[string]map[string]int64{
 		"default.postgres13": 3410,
 		"default.postgres14": 3410,
 	},
+	"db.r6i.16xlarge": map[string]int64{
+		"default":            5000,
+		"default.postgres10": 5000,
+		"default.postgres11": 5000,
+		"default.postgres12": 5000,
+		"default.postgres13": 5000,
+		"default.postgres14": 5000,
+	},
 	"db.m7g.large": map[string]int64{
 		"default":            901,
 		"default.postgres12": 901,
