@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
 	"time"
@@ -61,12 +62,32 @@ func setupCollectors(logger log.Logger, configFile string) ([]prometheus.Collect
 	level.Info(logger).Log("msg", "Configuring route53 with region", "region", config.Route53Config.Region)
 	level.Info(logger).Log("msg", "Will VPC metrics be gathered?", "vpc-enabled", config.VpcConfig.Enabled)
 	// Create a single session here, because we need the accountid, before we create the other configs
+	roleARN := os.Getenv("ROLE_ARN")
+	sessionName := os.Getenv("SESSION_NAME")
 	awsConfig := aws.NewConfig().WithRegion("us-east-1")
 	sess := session.Must(session.NewSession(awsConfig))
+	durationSeconds := os.Getenv("TOKEN_DURATION")
+	convertedDurationSeconds, err := strconv.ParseInt(durationSeconds, 10, 64)
+	if err != nil {
+		return nil, err
+	}
 	awsAccountId, err := getAwsAccountNumber(logger, sess)
 	if err != nil {
 		return collectors, err
 	}
+	if pkg.LookUpEnvVar("ROLE_ARN") && pkg.LookUpEnvVar("SESSION_NAME") {
+		client := sts.New(sess)
+		aws_credentials := sts.Credentials{}
+		err = pkg.AssumeRole(client, roleARN, sessionName, convertedDurationSeconds, logger)
+		if err != nil {
+			return nil, err
+		}
+		start_index := strings.Index(roleARN, "::") + 2
+		end_index := strings.LastIndex(roleARN, ":")
+		awsAccountId = roleARN[start_index:end_index]
+		go pkg.RefreshToken(client, &aws_credentials, roleARN, sessionName, convertedDurationSeconds, logger)
+	}
+
 	var vpcSessions []*session.Session
 	if config.VpcConfig.Enabled {
 		for _, region := range config.VpcConfig.Regions {

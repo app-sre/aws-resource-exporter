@@ -53,6 +53,16 @@ objects:
             value: ${AWS_REGION}
           - name: AWS_RESOURCE_EXPORTER_CONFIG_FILE
             value: /etc/aws-resource-exporter/aws-resource-exporter-config.yaml
+          - name: ROLE_ARN
+            valueFrom:
+              secretKeyRef:
+                name: ${SECRET_NAME}
+                key: role_arn
+                optional: true
+          - name: TOKEN_DURATION
+            value: ${TOKEN_DURATION}
+          - name: SESSION_NAME
+            value: ${SESSION_NAME}
           volumeMounts:
             - name: exporter-configuration
               mountPath: /etc/aws-resource-exporter/
@@ -140,3 +150,7 @@ parameters:
     route53:
       regions: ""
       timeout: 60s
+- name: SESSION_NAME
+  value: TestSessionName
+- name: TOKEN_DURATION
+  value: 60
