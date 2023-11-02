@@ -298,7 +298,7 @@ var DBMaxConnections = map[string]map[string]int64{
 	},
 }
 
-var eolMap = make(map[string]map[string]EOLInfo)
+// var eolMap = make(map[string]map[string]EOLInfo)
 
 var AllocatedStorage *prometheus.Desc = prometheus.NewDesc(
 	prometheus.BuildFQName(namespace, "", "rds_allocatedstorage"),
@@ -389,6 +389,7 @@ var EOLStatus *prometheus.Desc = prometheus.NewDesc(
 type RDSExporter struct {
 	sessions []*session.Session
 	svcs     []awsclient.Client
+	eolInfos []EOLInfo
 
 	workers        int
 	logsMetricsTTL int
@@ -432,6 +433,7 @@ func NewRDSExporter(sessions []*session.Session, logger log.Logger, config RDSCo
 		cache:          *NewMetricsCache(*config.CacheTTL),
 		interval:       *config.Interval,
 		timeout:        *config.Timeout,
+		eolInfos:       config.EOLInfos,
 	}
 
 }
@@ -502,7 +504,17 @@ func (e *RDSExporter) addAllLogMetrics(ctx context.Context, sessionIndex int, in
 	wg.Wait()
 }
 
-func (e *RDSExporter) addAllInstanceMetrics(sessionIndex int, instances []*rds.DBInstance, config RDSConfig) {
+func (e *RDSExporter) addAllInstanceMetrics(sessionIndex int, instances []*rds.DBInstance, eolInfos []EOLInfo) {
+	var eolMap = make(map[string]map[string]EOLInfo)
+
+	//Creates map of EOLInfo from config
+	for _, eolinfo := range eolInfos {
+		if _, ok := eolMap[eolinfo.Engine]; !ok {
+			eolMap[eolinfo.Engine] = make(map[string]EOLInfo)
+		}
+		eolMap[eolinfo.Engine][eolinfo.Version] = eolinfo
+	}
+
 	for _, instance := range instances {
 		var maxConnections int64
 		if valmap, ok := DBMaxConnections[*instance.DBInstanceClass]; ok {
@@ -534,24 +546,16 @@ func (e *RDSExporter) addAllInstanceMetrics(sessionIndex int, instances []*rds.D
 			e.cache.AddMetric(prometheus.MustNewConstMetric(MaxConnectionsMappingError, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.DBInstanceClass))
 		}
 
-		//Creates map of EOLInfo from config
-		for _, eolinfo := range config.EOLInfos {
-			if _, ok := eolMap[eolinfo.Engine]; !ok {
-				eolMap[eolinfo.Engine] = make(map[string]EOLInfo)
-			}
-			eolMap[eolinfo.Engine][eolinfo.Version] = eolinfo
-		}
-
 		//Gets EOL for engine and version
 		if eolInfo, ok := eolMap[*instance.Engine][*instance.EngineVersion]; ok {
 			level.Info(e.logger).Log("msg", fmt.Sprintf("EOL for Engine %s, Version %s: %s\n", *instance.Engine, *instance.EngineVersion, eolInfo.EOL))
 			e.cache.AddMetric(prometheus.MustNewConstMetric(EOLDate, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion, eolInfo.EOL))
 			eolStatus, err := getEOLStatus(eolInfo.EOL)
 			if err != nil {
-				level.Info(e.logger).Log("msg", fmt.Sprintf("Could not get days to EOL"))
+				level.Info(e.logger).Log("msg", fmt.Sprintf("Could not get days to EOL for Engine %s, Version %s\n", *instance.Engine, *instance.EngineVersion))
 				//Add empty eol status?
 			}
-			level.Info(e.logger).Log("msg", fmt.Sprintf("EOL Status: %d\n", eolStatus))
+			level.Info(e.logger).Log("msg", fmt.Sprintf("EOL Status: %s\n", eolStatus))
 			e.cache.AddMetric(prometheus.MustNewConstMetric(EOLDate, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion, eolStatus))
 		} else {
 			//Add empty EOL value?
@@ -676,7 +680,7 @@ func (e *RDSExporter) CollectLoop() {
 			wg.Add(3)
 
 			go func() {
-				e.addAllInstanceMetrics(i, instances)
+				e.addAllInstanceMetrics(i, instances, e.eolInfos)
 				wg.Done()
 			}()
 			go func() {
