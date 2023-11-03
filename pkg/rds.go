@@ -298,8 +298,6 @@ var DBMaxConnections = map[string]map[string]int64{
 	},
 }
 
-// var eolMap = make(map[string]map[string]EOLInfo)
-
 var AllocatedStorage *prometheus.Desc = prometheus.NewDesc(
 	prometheus.BuildFQName(namespace, "", "rds_allocatedstorage"),
 	"The amount of allocated storage in bytes.",
@@ -375,13 +373,13 @@ var LogsAmount *prometheus.Desc = prometheus.NewDesc(
 var EOLDate *prometheus.Desc = prometheus.NewDesc(
 	prometheus.BuildFQName(namespace, "", "rds_eol"),
 	"The EOL date for the DB engine type and version.",
-	[]string{"aws_region", "dbinstance_identifier", "engine", "engine_version"},
+	[]string{"aws_region", "dbinstance_identifier", "engine", "engine_version", "eol_date"},
 	nil,
 )
 var EOLStatus *prometheus.Desc = prometheus.NewDesc(
 	prometheus.BuildFQName(namespace, "", "rds_eolstatus"),
 	"The status of the EOL date for the DB engine type and version.",
-	[]string{"aws_region", "dbinstance_identifier", "engine", "engine_version"},
+	[]string{"aws_region", "dbinstance_identifier", "engine", "engine_version", "eol_status"},
 	nil,
 )
 
@@ -556,7 +554,7 @@ func (e *RDSExporter) addAllInstanceMetrics(sessionIndex int, instances []*rds.D
 				//Add empty eol status?
 			}
 			level.Info(e.logger).Log("msg", fmt.Sprintf("EOL Status: %s\n", eolStatus))
-			e.cache.AddMetric(prometheus.MustNewConstMetric(EOLDate, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion, eolStatus))
+			e.cache.AddMetric(prometheus.MustNewConstMetric(EOLStatus, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion, eolStatus))
 		} else {
 			//Add empty EOL value?
 			level.Info(e.logger).Log("msg", fmt.Sprintf("EOL not found for Engine %s, Version %s\n", *instance.Engine, *instance.EngineVersion))
@@ -589,8 +587,8 @@ func (e *RDSExporter) addAllInstanceMetrics(sessionIndex int, instances []*rds.D
 
 }
 
-func getEOLStatus(eolInfo string) (string, error) {
-	eolDate, err := time.Parse("2006-01-02", eolInfo)
+func getEOLStatus(eol string) (string, error) {
+	eolDate, err := time.Parse("2006-01-02", eol)
 	if err != nil {
 		return "", err
 	}
