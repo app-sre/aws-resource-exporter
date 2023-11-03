@@ -85,8 +85,9 @@ func TestAddAllInstanceMetrics(t *testing.T) {
 
 	var instances = []*rds.DBInstance{}
 
+	//No match
 	eolInfos := []EOLInfo{
-		{Engine: "SQL", Version: "1000", EOL: "2023-12-01"},
+		{Engine: "engine", Version: "123", EOL: "2023-12-01"},
 	}
 
 	x.addAllInstanceMetrics(0, instances, eolInfos)
