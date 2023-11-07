@@ -503,14 +503,12 @@ func (e *RDSExporter) addAllLogMetrics(ctx context.Context, sessionIndex int, in
 }
 
 func (e *RDSExporter) addAllInstanceMetrics(sessionIndex int, instances []*rds.DBInstance, eolInfos []EOLInfo) {
-	var eolMap = make(map[string]map[string]EOLInfo)
+	// eolMap keys EOLInfo by engine and version
+	var eolMap = make(map[EOLKey]EOLInfo)
 
-	//Creates map of EOLInfo from config
+	// Fill eolMap with EOLInfo indexed by engine and version
 	for _, eolinfo := range eolInfos {
-		if _, ok := eolMap[eolinfo.Engine]; !ok {
-			eolMap[eolinfo.Engine] = make(map[string]EOLInfo)
-		}
-		eolMap[eolinfo.Engine][eolinfo.Version] = eolinfo
+		eolMap[EOLKey{Engine: eolinfo.Engine, Version: eolinfo.Version}] = eolinfo
 	}
 
 	for _, instance := range instances {
@@ -545,18 +543,16 @@ func (e *RDSExporter) addAllInstanceMetrics(sessionIndex int, instances []*rds.D
 		}
 
 		//Gets EOL for engine and version
-		if eolInfo, ok := eolMap[*instance.Engine][*instance.EngineVersion]; ok {
+		if eolInfo, ok := eolMap[EOLKey{Engine: *instance.Engine, Version: *instance.EngineVersion}]; ok {
 			level.Info(e.logger).Log("msg", fmt.Sprintf("EOL for Engine %s, Version %s: %s\n", *instance.Engine, *instance.EngineVersion, eolInfo.EOL))
 			e.cache.AddMetric(prometheus.MustNewConstMetric(EOLDate, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion, eolInfo.EOL))
 			eolStatus, err := getEOLStatus(eolInfo.EOL)
 			if err != nil {
-				level.Info(e.logger).Log("msg", fmt.Sprintf("Could not get days to EOL for Engine %s, Version %s\n", *instance.Engine, *instance.EngineVersion))
-				//Add empty eol status?
+				level.Error(e.logger).Log("msg", fmt.Sprintf("Could not get days to EOL for Engine %s, Version %s\n", *instance.Engine, *instance.EngineVersion))
 			}
 			level.Info(e.logger).Log("msg", fmt.Sprintf("EOL Status: %s\n", eolStatus))
 			e.cache.AddMetric(prometheus.MustNewConstMetric(EOLStatus, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion, eolStatus))
 		} else {
-			//Add empty EOL value?
 			level.Info(e.logger).Log("msg", fmt.Sprintf("EOL not found for Engine %s, Version %s\n", *instance.Engine, *instance.EngineVersion))
 		}
 
@@ -587,6 +583,7 @@ func (e *RDSExporter) addAllInstanceMetrics(sessionIndex int, instances []*rds.D
 
 }
 
+// Determines status from the number of days until EOL
 func getEOLStatus(eol string) (string, error) {
 	eolDate, err := time.Parse("2006-01-02", eol)
 	if err != nil {

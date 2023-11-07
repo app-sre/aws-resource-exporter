@@ -29,6 +29,11 @@ type EOLInfo struct {
 	Version string `yaml:"version"`
 }
 
+type EOLKey struct {
+	Engine  string
+	Version string
+}
+
 type VPCConfig struct {
 	BaseConfig `yaml:"base,inline"`
 	Regions    []string `yaml:"regions"`

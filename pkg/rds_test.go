@@ -108,7 +108,6 @@ func TestAddAllInstanceMetricsWithEOLMatch(t *testing.T) {
 		{Engine: "SQL", Version: "1000", EOL: "2023-12-01"},
 	}
 
-	// Invoke the function to add metrics
 	x.addAllInstanceMetrics(0, createTestDBInstances(), eolInfos)
 
 	// Retrieve the EOLDate metric value from the cache
@@ -117,7 +116,6 @@ func TestAddAllInstanceMetricsWithEOLMatch(t *testing.T) {
 		t.Fatalf("Error retrieving EOLDate metric value: %v", err)
 	}
 
-	// Define the expected EOLDate value
 	expectedEOLDate := "2023-12-01"
 
 	// Compare the actual EOLDate value to the expected value
