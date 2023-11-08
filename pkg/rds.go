@@ -503,7 +503,6 @@ func (e *RDSExporter) addAllLogMetrics(ctx context.Context, sessionIndex int, in
 }
 
 func (e *RDSExporter) addAllInstanceMetrics(sessionIndex int, instances []*rds.DBInstance, eolInfos []EOLInfo) {
-	// eolMap keys EOLInfo by engine and version
 	var eolMap = make(map[EOLKey]EOLInfo)
 
 	// Fill eolMap with EOLInfo indexed by engine and version
@@ -546,12 +545,14 @@ func (e *RDSExporter) addAllInstanceMetrics(sessionIndex int, instances []*rds.D
 		if eolInfo, ok := eolMap[EOLKey{Engine: *instance.Engine, Version: *instance.EngineVersion}]; ok {
 			level.Info(e.logger).Log("msg", fmt.Sprintf("EOL for Engine %s, Version %s: %s\n", *instance.Engine, *instance.EngineVersion, eolInfo.EOL))
 			e.cache.AddMetric(prometheus.MustNewConstMetric(EOLDate, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion, eolInfo.EOL))
+			// Gets status for EOL
 			eolStatus, err := getEOLStatus(eolInfo.EOL)
 			if err != nil {
-				level.Error(e.logger).Log("msg", fmt.Sprintf("Could not get days to EOL for Engine %s, Version %s\n", *instance.Engine, *instance.EngineVersion))
+				level.Error(e.logger).Log("msg", fmt.Sprintf("Could not get days to EOL for Engine %s, Version %s: %s\n", *instance.Engine, *instance.EngineVersion, err.Error()))
+			} else {
+				level.Info(e.logger).Log("msg", fmt.Sprintf("EOL Status: %s\n", eolStatus))
+				e.cache.AddMetric(prometheus.MustNewConstMetric(EOLStatus, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion, eolStatus))
 			}
-			level.Info(e.logger).Log("msg", fmt.Sprintf("EOL Status: %s\n", eolStatus))
-			e.cache.AddMetric(prometheus.MustNewConstMetric(EOLStatus, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion, eolStatus))
 		} else {
 			level.Info(e.logger).Log("msg", fmt.Sprintf("EOL not found for Engine %s, Version %s\n", *instance.Engine, *instance.EngineVersion))
 		}
@@ -580,7 +581,6 @@ func (e *RDSExporter) addAllInstanceMetrics(sessionIndex int, instances []*rds.D
 		e.cache.AddMetric(prometheus.MustNewConstMetric(EngineVersion, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion))
 		e.cache.AddMetric(prometheus.MustNewConstMetric(DBInstanceClass, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.DBInstanceClass))
 	}
-
 }
 
 // Determines status from the number of days until EOL
