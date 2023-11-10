@@ -200,6 +200,10 @@ var DBMaxConnections = map[string]map[string]int64{
 		"default":          43690,
 		"default.mysql5.7": 43690,
 	},
+	"db.r5.24xlarge": map[string]int64{
+		"default":          16000,
+		"default.mysql5.7": 16000,
+	},
 	"db.m6g.large": map[string]int64{
 		"default":            901,
 		"default.postgres12": 901,
