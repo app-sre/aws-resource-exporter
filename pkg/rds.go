@@ -370,16 +370,10 @@ var LogsAmount *prometheus.Desc = prometheus.NewDesc(
 	[]string{"aws_region", "dbinstance_identifier"},
 	nil,
 )
-var EOLDate *prometheus.Desc = prometheus.NewDesc(
-	prometheus.BuildFQName(namespace, "", "rds_eol"),
-	"The EOL date for the DB engine type and version.",
-	[]string{"aws_region", "dbinstance_identifier", "engine", "engine_version", "eol_date"},
-	nil,
-)
-var EOLStatus *prometheus.Desc = prometheus.NewDesc(
-	prometheus.BuildFQName(namespace, "", "rds_eolstatus"),
-	"The status of the EOL date for the DB engine type and version.",
-	[]string{"aws_region", "dbinstance_identifier", "engine", "engine_version", "eol_status"},
+var EOLInfos *prometheus.Desc = prometheus.NewDesc(
+	prometheus.BuildFQName(namespace, "", "rds_eol_info"),
+	"The EOL date and status for the DB engine type and version.",
+	[]string{"aws_region", "dbinstance_identifier", "engine", "engine_version", "eol_date", "eol_status"},
 	nil,
 )
 
@@ -543,15 +537,11 @@ func (e *RDSExporter) addAllInstanceMetrics(sessionIndex int, instances []*rds.D
 
 		//Gets EOL for engine and version
 		if eolInfo, ok := eolMap[EOLKey{Engine: *instance.Engine, Version: *instance.EngineVersion}]; ok {
-			level.Info(e.logger).Log("msg", fmt.Sprintf("EOL for Engine %s, Version %s: %s\n", *instance.Engine, *instance.EngineVersion, eolInfo.EOL))
-			e.cache.AddMetric(prometheus.MustNewConstMetric(EOLDate, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion, eolInfo.EOL))
-			// Gets status for EOL
 			eolStatus, err := getEOLStatus(eolInfo.EOL)
 			if err != nil {
 				level.Error(e.logger).Log("msg", fmt.Sprintf("Could not get days to EOL for Engine %s, Version %s: %s\n", *instance.Engine, *instance.EngineVersion, err.Error()))
 			} else {
-				level.Info(e.logger).Log("msg", fmt.Sprintf("EOL Status: %s\n", eolStatus))
-				e.cache.AddMetric(prometheus.MustNewConstMetric(EOLStatus, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion, eolStatus))
+				e.cache.AddMetric(prometheus.MustNewConstMetric(EOLInfos, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion, eolInfo.EOL, eolStatus))
 			}
 		} else {
 			level.Info(e.logger).Log("msg", fmt.Sprintf("EOL not found for Engine %s, Version %s\n", *instance.Engine, *instance.EngineVersion))
@@ -657,8 +647,8 @@ func (e *RDSExporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- PendingMaintenanceActions
 	ch <- PubliclyAccessible
 	ch <- StorageEncrypted
-	ch <- EOLDate
-	ch <- EOLStatus
+	ch <- EOLInfos
+
 }
 
 func (e *RDSExporter) CollectLoop() {

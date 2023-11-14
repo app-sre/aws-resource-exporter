@@ -105,20 +105,25 @@ func TestAddAllInstanceMetricsWithEOLMatch(t *testing.T) {
 	}
 
 	eolInfos := []EOLInfo{
-		{Engine: "SQL", Version: "1000", EOL: "2023-12-01"},
+		{Engine: "SQL", Version: "1000", EOL: "2000-12-01"},
 	}
 
 	x.addAllInstanceMetrics(0, createTestDBInstances(), eolInfos)
 
-	eolDateMetricValue, err := getEOLDateMetricValue(&x)
+	eolDateMetricValue, eolStatusMetricValue, err := getEOLInfosMetricValue(&x)
 	if err != nil {
 		t.Errorf("Error retrieving EOLDate metric value: %v", err)
 	}
 
-	expectedEOLDate := "2023-12-01"
+	expectedEOLDate := "2000-12-01"
+	expectedEOLStatus := "red"
 
 	if eolDateMetricValue != expectedEOLDate {
 		t.Errorf("EOLDate metric has an unexpected value. Expected: %s, Actual: %s", expectedEOLDate, eolDateMetricValue)
+	}
+
+	if eolStatusMetricValue != expectedEOLStatus {
+		t.Errorf("EOLStatus metric has an unexpected value. Expected: %s, Actual: %s", expectedEOLStatus, eolStatusMetricValue)
 	}
 }
 
@@ -135,56 +140,43 @@ func TestAddAllInstanceMetricsWithGetEOLStatusError(t *testing.T) {
 
 	x.addAllInstanceMetrics(0, createTestDBInstances(), eolInfos)
 
-	_, err := getEOLStatusMetricValue(&x)
+	eolDate, eolStatus, err := getEOLInfosMetricValue(&x)
+
 	if err == nil {
-		t.Error("Expected an error from getEOLStatusMetricValue but got none")
-	} else {
-		t.Logf("Expected error received from getEOLStatusMetricValue: %v", err)
+		t.Errorf("Expected an error from getEOLInfosMetricValue but got none")
+	}
+	if eolDate != "" || eolStatus != "" {
+		t.Errorf("Expected eolDate and eolStatus to be empty, got eolDate: %s, eolStatus: %s", eolDate, eolStatus)
 	}
 }
 
-// Helper function to retrieve the EOLDate metric value from the cache
-func getEOLDateMetricValue(x *RDSExporter) (string, error) {
+// Helper function to retrieve the EOLInfos metric values from the cache
+func getEOLInfosMetricValue(x *RDSExporter) (string, string, error) {
 	metrics := x.cache.GetAllMetrics()
-	metricDescription := EOLDate.String()
+	metricDescription := EOLInfos.String()
 
 	for _, metric := range metrics {
 		if metric.Desc().String() == metricDescription {
 			dto := &dto.Metric{}
 			if err := metric.Write(dto); err != nil {
-				return "", err
+				return "", "", err
 			}
+			var eolDate, eolStatus string
 			for _, label := range dto.GetLabel() {
-				if label.GetName() == "eol_date" {
-					return label.GetValue(), nil
+				switch label.GetName() {
+				case "eol_date":
+					eolDate = label.GetValue()
+				case "eol_status":
+					eolStatus = label.GetValue()
 				}
 			}
-			return "", fmt.Errorf("eol_date label not found for EOLDate metric")
+			if eolDate == "" || eolStatus == "" {
+				return "", "", fmt.Errorf("eol_date or eol_status label not found for EOLInfos metric")
+			}
+			return eolDate, eolStatus, nil
 		}
 	}
-	return "", fmt.Errorf("EOLDate metric not found")
-}
-
-// Helper function to retrieve the EOLStatus metric value from the cache
-func getEOLStatusMetricValue(x *RDSExporter) (string, error) {
-	metrics := x.cache.GetAllMetrics()
-	metricDescription := EOLStatus.String()
-
-	for _, metric := range metrics {
-		if metric.Desc().String() == metricDescription {
-			dto := &dto.Metric{}
-			if err := metric.Write(dto); err != nil {
-				return "", err
-			}
-			for _, label := range dto.GetLabel() {
-				if label.GetName() == "eol_status" {
-					return label.GetValue(), nil
-				}
-			}
-			return "", fmt.Errorf("eol_status label not found for EOLStatus metric")
-		}
-	}
-	return "", fmt.Errorf("EOLStatus metric not found")
+	return "", "", fmt.Errorf("EOLInfos metric not found")
 }
 
 func TestGetEOLStatus(t *testing.T) {
