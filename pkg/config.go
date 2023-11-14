@@ -19,7 +19,19 @@ type BaseConfig struct {
 
 type RDSConfig struct {
 	BaseConfig `yaml:"base,inline"`
-	Regions    []string `yaml:"regions"`
+	Regions    []string  `yaml:"regions"`
+	EOLInfos   []EOLInfo `yaml:"eol_info"`
+}
+
+type EOLInfo struct {
+	Engine  string `yaml:"engine"`
+	EOL     string `yaml:"eol"`
+	Version string `yaml:"version"`
+}
+
+type EOLKey struct {
+	Engine  string
+	Version string
 }
 
 type VPCConfig struct {
@@ -91,5 +103,6 @@ func LoadExporterConfiguration(logger log.Logger, configFile string) (*Config, e
 	if config.EC2Config.Timeout == nil {
 		config.EC2Config.Timeout = durationPtr(10 * time.Second)
 	}
+
 	return &config, nil
 }

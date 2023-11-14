@@ -370,11 +370,24 @@ var LogsAmount *prometheus.Desc = prometheus.NewDesc(
 	[]string{"aws_region", "dbinstance_identifier"},
 	nil,
 )
+var EOLDate *prometheus.Desc = prometheus.NewDesc(
+	prometheus.BuildFQName(namespace, "", "rds_eol"),
+	"The EOL date for the DB engine type and version.",
+	[]string{"aws_region", "dbinstance_identifier", "engine", "engine_version", "eol_date"},
+	nil,
+)
+var EOLStatus *prometheus.Desc = prometheus.NewDesc(
+	prometheus.BuildFQName(namespace, "", "rds_eolstatus"),
+	"The status of the EOL date for the DB engine type and version.",
+	[]string{"aws_region", "dbinstance_identifier", "engine", "engine_version", "eol_status"},
+	nil,
+)
 
 // RDSExporter defines an instance of the RDS Exporter
 type RDSExporter struct {
 	sessions []*session.Session
 	svcs     []awsclient.Client
+	eolInfos []EOLInfo
 
 	workers        int
 	logsMetricsTTL int
@@ -418,7 +431,9 @@ func NewRDSExporter(sessions []*session.Session, logger log.Logger, config RDSCo
 		cache:          *NewMetricsCache(*config.CacheTTL),
 		interval:       *config.Interval,
 		timeout:        *config.Timeout,
+		eolInfos:       config.EOLInfos,
 	}
+
 }
 
 func (e *RDSExporter) getRegion(sessionIndex int) string {
@@ -487,7 +502,14 @@ func (e *RDSExporter) addAllLogMetrics(ctx context.Context, sessionIndex int, in
 	wg.Wait()
 }
 
-func (e *RDSExporter) addAllInstanceMetrics(sessionIndex int, instances []*rds.DBInstance) {
+func (e *RDSExporter) addAllInstanceMetrics(sessionIndex int, instances []*rds.DBInstance, eolInfos []EOLInfo) {
+	var eolMap = make(map[EOLKey]EOLInfo)
+
+	// Fill eolMap with EOLInfo indexed by engine and version
+	for _, eolinfo := range eolInfos {
+		eolMap[EOLKey{Engine: eolinfo.Engine, Version: eolinfo.Version}] = eolinfo
+	}
+
 	for _, instance := range instances {
 		var maxConnections int64
 		if valmap, ok := DBMaxConnections[*instance.DBInstanceClass]; ok {
@@ -519,6 +541,22 @@ func (e *RDSExporter) addAllInstanceMetrics(sessionIndex int, instances []*rds.D
 			e.cache.AddMetric(prometheus.MustNewConstMetric(MaxConnectionsMappingError, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.DBInstanceClass))
 		}
 
+		//Gets EOL for engine and version
+		if eolInfo, ok := eolMap[EOLKey{Engine: *instance.Engine, Version: *instance.EngineVersion}]; ok {
+			level.Info(e.logger).Log("msg", fmt.Sprintf("EOL for Engine %s, Version %s: %s\n", *instance.Engine, *instance.EngineVersion, eolInfo.EOL))
+			e.cache.AddMetric(prometheus.MustNewConstMetric(EOLDate, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion, eolInfo.EOL))
+			// Gets status for EOL
+			eolStatus, err := getEOLStatus(eolInfo.EOL)
+			if err != nil {
+				level.Error(e.logger).Log("msg", fmt.Sprintf("Could not get days to EOL for Engine %s, Version %s: %s\n", *instance.Engine, *instance.EngineVersion, err.Error()))
+			} else {
+				level.Info(e.logger).Log("msg", fmt.Sprintf("EOL Status: %s\n", eolStatus))
+				e.cache.AddMetric(prometheus.MustNewConstMetric(EOLStatus, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion, eolStatus))
+			}
+		} else {
+			level.Info(e.logger).Log("msg", fmt.Sprintf("EOL not found for Engine %s, Version %s\n", *instance.Engine, *instance.EngineVersion))
+		}
+
 		var public = 0.0
 		if *instance.PubliclyAccessible {
 			public = 1.0
@@ -543,6 +581,25 @@ func (e *RDSExporter) addAllInstanceMetrics(sessionIndex int, instances []*rds.D
 		e.cache.AddMetric(prometheus.MustNewConstMetric(EngineVersion, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion))
 		e.cache.AddMetric(prometheus.MustNewConstMetric(DBInstanceClass, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.DBInstanceClass))
 	}
+}
+
+// Determines status from the number of days until EOL
+func getEOLStatus(eol string) (string, error) {
+	eolDate, err := time.Parse("2006-01-02", eol)
+	if err != nil {
+		return "", err
+	}
+	currentDate := time.Now()
+	daysToEOL := int(eolDate.Sub(currentDate).Hours() / 24)
+	eolStatus := ""
+	if daysToEOL < 90 {
+		eolStatus = "red"
+	} else if daysToEOL < 180 {
+		eolStatus = "yellow"
+	} else {
+		eolStatus = "green"
+	}
+	return eolStatus, nil
 }
 
 func (e *RDSExporter) addAllPendingMaintenancesMetrics(ctx context.Context, sessionIndex int, instances []*rds.DBInstance) {
@@ -600,6 +657,8 @@ func (e *RDSExporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- PendingMaintenanceActions
 	ch <- PubliclyAccessible
 	ch <- StorageEncrypted
+	ch <- EOLDate
+	ch <- EOLStatus
 }
 
 func (e *RDSExporter) CollectLoop() {
@@ -616,7 +675,7 @@ func (e *RDSExporter) CollectLoop() {
 			wg.Add(3)
 
 			go func() {
-				e.addAllInstanceMetrics(i, instances)
+				e.addAllInstanceMetrics(i, instances, e.eolInfos)
 				wg.Done()
 			}()
 			go func() {
