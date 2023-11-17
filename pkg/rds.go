@@ -323,7 +323,7 @@ var DBInstanceStatus *prometheus.Desc = prometheus.NewDesc(
 var EngineVersion *prometheus.Desc = prometheus.NewDesc(
 	prometheus.BuildFQName(namespace, "", "rds_engineversion"),
 	"The DB engine type and version.",
-	[]string{"aws_region", "dbinstance_identifier", "engine", "engine_version"},
+	[]string{"aws_region", "dbinstance_identifier", "engine", "engine_version", "aws_account_id"},
 	nil,
 )
 var LatestRestorableTime *prometheus.Desc = prometheus.NewDesc(
@@ -383,9 +383,10 @@ var EOLInfos *prometheus.Desc = prometheus.NewDesc(
 
 // RDSExporter defines an instance of the RDS Exporter
 type RDSExporter struct {
-	sessions []*session.Session
-	svcs     []awsclient.Client
-	eolInfos []EOLInfo
+	sessions     []*session.Session
+	svcs         []awsclient.Client
+	eolInfos     []EOLInfo
+	awsAccountId string
 
 	workers        int
 	logsMetricsTTL int
@@ -397,7 +398,7 @@ type RDSExporter struct {
 }
 
 // NewRDSExporter creates a new RDSExporter instance
-func NewRDSExporter(sessions []*session.Session, logger log.Logger, config RDSConfig) *RDSExporter {
+func NewRDSExporter(sessions []*session.Session, logger log.Logger, config RDSConfig, awsAccountId string) *RDSExporter {
 	level.Info(logger).Log("msg", "Initializing RDS exporter")
 
 	workers, _ := GetEnvIntValue(RDS_LOGS_METRICS_WORKERS)
@@ -430,6 +431,7 @@ func NewRDSExporter(sessions []*session.Session, logger log.Logger, config RDSCo
 		interval:       *config.Interval,
 		timeout:        *config.Timeout,
 		eolInfos:       config.EOLInfos,
+		awsAccountId:   awsAccountId,
 	}
 
 }
@@ -572,7 +574,7 @@ func (e *RDSExporter) addAllInstanceMetrics(sessionIndex int, instances []*rds.D
 		e.cache.AddMetric(prometheus.MustNewConstMetric(MaxConnections, prometheus.GaugeValue, float64(maxConnections), e.getRegion(sessionIndex), *instance.DBInstanceIdentifier))
 		e.cache.AddMetric(prometheus.MustNewConstMetric(AllocatedStorage, prometheus.GaugeValue, float64(*instance.AllocatedStorage*1024*1024*1024), e.getRegion(sessionIndex), *instance.DBInstanceIdentifier))
 		e.cache.AddMetric(prometheus.MustNewConstMetric(DBInstanceStatus, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.DBInstanceStatus))
-		e.cache.AddMetric(prometheus.MustNewConstMetric(EngineVersion, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion))
+		e.cache.AddMetric(prometheus.MustNewConstMetric(EngineVersion, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion, e.awsAccountId))
 		e.cache.AddMetric(prometheus.MustNewConstMetric(DBInstanceClass, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.DBInstanceClass))
 	}
 }

@@ -13,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/go-kit/kit/log"
 	"github.com/golang/mock/gomock"
+	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 )
@@ -110,20 +111,20 @@ func TestAddAllInstanceMetricsWithEOLMatch(t *testing.T) {
 
 	x.addAllInstanceMetrics(0, createTestDBInstances(), eolInfos)
 
-	eolDateMetricValue, eolStatusMetricValue, err := getEOLInfosMetricValue(&x)
+	labels, err := getMetricLabels(&x, EOLInfos, "eol_date", "eol_status")
 	if err != nil {
-		t.Errorf("Error retrieving EOLDate metric value: %v", err)
+		t.Errorf("Error retrieving EOL labels: %v", err)
 	}
 
 	expectedEOLDate := "2000-12-01"
 	expectedEOLStatus := "red"
 
-	if eolDateMetricValue != expectedEOLDate {
-		t.Errorf("EOLDate metric has an unexpected value. Expected: %s, Actual: %s", expectedEOLDate, eolDateMetricValue)
+	if eolDate, ok := labels["eol_date"]; !ok || eolDate != expectedEOLDate {
+		t.Errorf("EOLDate metric has an unexpected value. Expected: %s, Actual: %s", expectedEOLDate, eolDate)
 	}
 
-	if eolStatusMetricValue != expectedEOLStatus {
-		t.Errorf("EOLStatus metric has an unexpected value. Expected: %s, Actual: %s", expectedEOLStatus, eolStatusMetricValue)
+	if eolStatus, ok := labels["eol_status"]; !ok || eolStatus != expectedEOLStatus {
+		t.Errorf("EOLStatus metric has an unexpected value. Expected: %s, Actual: %s", expectedEOLStatus, eolStatus)
 	}
 }
 
@@ -140,43 +141,14 @@ func TestAddAllInstanceMetricsWithGetEOLStatusError(t *testing.T) {
 
 	x.addAllInstanceMetrics(0, createTestDBInstances(), eolInfos)
 
-	eolDate, eolStatus, err := getEOLInfosMetricValue(&x)
+	labels, err := getMetricLabels(&x, EOLInfos, "eol_date", "eol_status")
 
 	if err == nil {
-		t.Errorf("Expected an error from getEOLInfosMetricValue but got none")
+		t.Errorf("Expected an error from getMetricLabels but got none")
 	}
-	if eolDate != "" || eolStatus != "" {
-		t.Errorf("Expected eolDate and eolStatus to be empty, got eolDate: %s, eolStatus: %s", eolDate, eolStatus)
+	if len(labels) > 0 {
+		t.Errorf("Expected no labels to be returned, got: %v", labels)
 	}
-}
-
-// Helper function to retrieve the EOLInfos metric values from the cache
-func getEOLInfosMetricValue(x *RDSExporter) (string, string, error) {
-	metrics := x.cache.GetAllMetrics()
-	metricDescription := EOLInfos.String()
-
-	for _, metric := range metrics {
-		if metric.Desc().String() == metricDescription {
-			dto := &dto.Metric{}
-			if err := metric.Write(dto); err != nil {
-				return "", "", err
-			}
-			var eolDate, eolStatus string
-			for _, label := range dto.GetLabel() {
-				switch label.GetName() {
-				case "eol_date":
-					eolDate = label.GetValue()
-				case "eol_status":
-					eolStatus = label.GetValue()
-				}
-			}
-			if eolDate == "" || eolStatus == "" {
-				return "", "", fmt.Errorf("eol_date or eol_status label not found for EOLInfos metric")
-			}
-			return eolDate, eolStatus, nil
-		}
-	}
-	return "", "", fmt.Errorf("EOLInfos metric not found")
 }
 
 func TestGetEOLStatus(t *testing.T) {
@@ -213,6 +185,57 @@ func TestGetEOLStatus(t *testing.T) {
 		t.Errorf("Expected status '%s', but got '%s'", expectedStatus, status)
 	}
 
+}
+
+func TestEngineVersionMetricIncludesAWSAccountId(t *testing.T) {
+	x := RDSExporter{
+		sessions:     []*session.Session{session.New(&aws.Config{Region: aws.String("foo")})},
+		cache:        *NewMetricsCache(10 * time.Second),
+		logger:       log.NewNopLogger(),
+		awsAccountId: "1234567890",
+	}
+
+	x.addAllInstanceMetrics(0, createTestDBInstances(), nil)
+
+	labels, err := getMetricLabels(&x, EngineVersion, "aws_account_id")
+	if err != nil {
+		t.Fatalf("Failed to get metric labels: %v", err)
+	}
+
+	if accountId, ok := labels["aws_account_id"]; !ok || accountId != "1234567890" {
+		t.Errorf("aws_account_id label has an unexpected value. Expected: %s, Actual: %s", "1234567890", accountId)
+	}
+}
+
+// Helper function to retrieve metric values from the cache
+func getMetricLabels(x *RDSExporter, metricDesc *prometheus.Desc, labelNames ...string) (map[string]string, error) {
+	metricDescription := metricDesc.String()
+	metrics := x.cache.GetAllMetrics()
+
+	for _, metric := range metrics {
+		if metric.Desc().String() == metricDescription {
+			dtoMetric := &dto.Metric{}
+			if err := metric.Write(dtoMetric); err != nil {
+				return nil, err
+			}
+
+			labelValues := make(map[string]string)
+			for _, label := range dtoMetric.GetLabel() {
+				for _, labelName := range labelNames {
+					if label.GetName() == labelName {
+						labelValues[labelName] = label.GetValue()
+					}
+				}
+			}
+
+			if len(labelValues) != len(labelNames) {
+				return nil, fmt.Errorf("not all requested labels found in metric")
+			}
+
+			return labelValues, nil
+		}
+	}
+	return nil, fmt.Errorf("metric not found")
 }
 
 func TestAddAllPendingMaintenancesMetrics(t *testing.T) {

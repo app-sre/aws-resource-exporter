@@ -86,7 +86,7 @@ func setupCollectors(logger log.Logger, configFile string) ([]prometheus.Collect
 			sess := session.Must(session.NewSession(config))
 			rdsSessions = append(rdsSessions, sess)
 		}
-		rdsExporter := pkg.NewRDSExporter(rdsSessions, logger, config.RdsConfig)
+		rdsExporter := pkg.NewRDSExporter(rdsSessions, logger, config.RdsConfig, awsAccountId)
 		collectors = append(collectors, rdsExporter)
 		go rdsExporter.CollectLoop()
 	}
