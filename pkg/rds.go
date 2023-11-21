@@ -42,6 +42,7 @@ var metricsProxy = NewMetricProxy()
 // that is hard to parse and process in code and it contains a variable whose value is unknown to us (DBInstanceClassMemory)
 // AWS has no means to return the actual `max_connections` value.
 // For Aurora see: https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/AuroraMySQL.Managing.Performance.html
+// For MySQL: {DBInstanceClassMemory/12582880} --> Memory (in GiB) * 1024 * 1024 * 1024 / 12582880
 var DBMaxConnections = map[string]map[string]int64{
 	"db.t2.micro": map[string]int64{
 		"default": 87,
@@ -162,6 +163,11 @@ var DBMaxConnections = map[string]map[string]int64{
 	"db.r4.4xlarge": map[string]int64{
 		"default":          10410,
 		"default.mysql5.7": 10410,
+	},
+	// 244 * 1024 * 1024 * 1024 / 12582880
+	"db.r4.8xlarge": map[string]int64{
+		"default":          20820,
+		"default.mysql5.7": 20820,
 	},
 	"db.r5.large": map[string]int64{
 		"default":            1802,
