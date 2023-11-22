@@ -34,11 +34,345 @@ data:
       "editable": true,
       "fiscalYearStartMonth": 0,
       "graphTooltip": 0,
-      "id": 470,
-      "iteration": 1658838816913,
       "links": [],
       "liveNow": false,
       "panels": [
+        {
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 0
+          },
+          "id": 8,
+          "panels": [],
+          "title": "RDS",
+          "type": "row"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "Shows the number of RDS Instances categorized by their End-of-Life (EOL) status.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "green"
+                },
+                "properties": [
+                  {
+                    "id": "displayName",
+                    "value": "Green: >180 days to EOL"
+                  },
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "green",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "red"
+                },
+                "properties": [
+                  {
+                    "id": "displayName",
+                    "value": "Red: <90 Days to EOL"
+                  },
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "red",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "yellow"
+                },
+                "properties": [
+                  {
+                    "id": "displayName",
+                    "value": "Yellow: <180 Days to EOL"
+                  },
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "yellow",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 5,
+            "x": 0,
+            "y": 1
+          },
+          "id": 6,
+          "options": {
+            "displayMode": "gradient",
+            "minVizHeight": 10,
+            "minVizWidth": 0,
+            "orientation": "horizontal",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showUnfilled": true
+          },
+          "pluginVersion": "9.3.8",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "expr": "count(aws_resources_exporter_rds_eol_info) by (eol_status)",
+              "legendFormat": "__auto",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "EOL Status Distribution of RDS Instances",
+          "transformations": [
+            {
+              "id": "joinByField",
+              "options": {
+                "byField": "Time",
+                "mode": "outer"
+              }
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {},
+                "indexByName": {
+                  "Time": 3,
+                  "green": 2,
+                  "red": 0,
+                  "yellow": 1
+                },
+                "renameByName": {}
+              }
+            }
+          ],
+          "type": "bargauge"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${datasource}"
+          },
+          "description": "",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "fixedColor": "text",
+                "mode": "fixed"
+              },
+              "custom": {
+                "align": "auto",
+                "displayMode": "color-text",
+                "filterable": false,
+                "inspect": false
+              },
+              "mappings": [
+                {
+                  "options": {
+                    "green": {
+                      "color": "green",
+                      "index": 2
+                    },
+                    "red": {
+                      "color": "red",
+                      "index": 1
+                    },
+                    "yellow": {
+                      "color": "yellow",
+                      "index": 0
+                    }
+                  },
+                  "type": "value"
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "text",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 19,
+            "x": 5,
+            "y": 1
+          },
+          "id": 10,
+          "options": {
+            "footer": {
+              "enablePagination": false,
+              "fields": "",
+              "reducer": [
+                "sum"
+              ],
+              "show": false
+            },
+            "showHeader": true,
+            "sortBy": [
+              {
+                "desc": false,
+                "displayName": "dbinstance_identifier"
+              }
+            ]
+          },
+          "pluginVersion": "9.3.8",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${datasource}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "aws_resources_exporter_rds_eol_info",
+              "format": "table",
+              "hide": false,
+              "instant": false,
+              "legendFormat": "__auto",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "RDS Version and EOL Status",
+          "transformations": [
+            {
+              "id": "groupBy",
+              "options": {
+                "fields": {
+                  "dbinstance_identifier": {
+                    "aggregations": [],
+                    "operation": "groupby"
+                  },
+                  "engine": {
+                    "aggregations": [],
+                    "operation": "groupby"
+                  },
+                  "engine_version": {
+                    "aggregations": [],
+                    "operation": "groupby"
+                  },
+                  "eol_date": {
+                    "aggregations": [],
+                    "operation": "groupby"
+                  },
+                  "eol_status": {
+                    "aggregations": [],
+                    "operation": "groupby"
+                  }
+                }
+              }
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {},
+                "indexByName": {},
+                "renameByName": {
+                  "dbinstance_identifier": "Instance",
+                  "engine": "Engine",
+                  "engine_version": "Engine Version",
+                  "eol_date": "EOL Date",
+                  "eol_status": "EOL Status"
+                }
+              }
+            }
+          ],
+          "type": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "PD776AFABBE26000A"
+          },
+          "description": "List of all RDS EOL alerts currently firing",
+          "gridPos": {
+            "h": 8,
+            "w": 24,
+            "x": 0,
+            "y": 8
+          },
+          "id": 12,
+          "options": {
+            "alertInstanceLabelFilter": "",
+            "alertName": "RDSEOLStatus",
+            "dashboardAlerts": false,
+            "groupBy": [],
+            "groupMode": "default",
+            "maxItems": 100,
+            "sortOrder": 1,
+            "stateFilter": {
+              "error": false,
+              "firing": true,
+              "noData": false,
+              "normal": false,
+              "pending": false
+            },
+            "viewMode": "list"
+          },
+          "title": "RDS EOL Alerts",
+          "type": "alertlist"
+        },
+        {
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 16
+          },
+          "id": 4,
+          "title": "Route53",
+          "type": "row"
+        },
         {
           "datasource": {
             "type": "prometheus",
@@ -50,6 +384,8 @@ data:
                 "mode": "palette-classic"
               },
               "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
                 "axisLabel": "",
                 "axisPlacement": "auto",
                 "barAlignment": 0,
@@ -95,17 +431,18 @@ data:
             "overrides": []
           },
           "gridPos": {
-            "h": 9,
-            "w": 12,
+            "h": 8,
+            "w": 24,
             "x": 0,
-            "y": 0
+            "y": 17
           },
           "id": 2,
           "options": {
             "legend": {
               "calcs": [],
               "displayMode": "list",
-              "placement": "bottom"
+              "placement": "bottom",
+              "showLegend": true
             },
             "tooltip": {
               "mode": "single",
@@ -141,7 +478,7 @@ data:
           "type": "timeseries"
         }
       ],
-      "schemaVersion": 36,
+      "schemaVersion": 37,
       "style": "dark",
       "tags": [],
       "templating": {
@@ -175,6 +512,6 @@ data:
       "timezone": "",
       "title": "AWS Resource Exporter",
       "uid": "4EIL66R4k",
-      "version": 6,
+      "version": 7,
       "weekStart": ""
     }
