@@ -2,7 +2,6 @@ package pkg
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	"github.com/app-sre/aws-resource-exporter/pkg/awsclient"
@@ -57,8 +56,8 @@ func (e *ElastiCacheExporter) getRegion(sessionIndex int) string {
 	return *e.sessions[sessionIndex].Config.Region
 }
 
-// Gets ElastiCache info and adds it to metrics cache
-func (e *ElastiCacheExporter) getElastiCacheInfo(sessionIndex int, clusters []*elasticache.CacheCluster) {
+// Adds ElastiCache info to metrics cache
+func (e *ElastiCacheExporter) addMetricFromElastiCacheInfo(sessionIndex int, clusters []*elasticache.CacheCluster) {
 	region := e.getRegion(sessionIndex)
 
 	for _, cluster := range clusters {
@@ -89,16 +88,7 @@ func (e *ElastiCacheExporter) CollectLoop() {
 				level.Error(e.logger).Log("msg", "Call to DescribeCacheClustersAll failed", "region", *e.sessions[i].Config.Region, "err", err)
 				continue
 			}
-
-			wg := sync.WaitGroup{}
-			wg.Add(3)
-
-			go func(sessionIndex int, clusters []*elasticache.CacheCluster) {
-				defer wg.Done()
-				e.getElastiCacheInfo(sessionIndex, clusters)
-			}(i, clusters)
-
-			wg.Wait()
+			e.addMetricFromElastiCacheInfo(i, clusters)
 		}
 		level.Info(e.logger).Log("msg", "ElastiCache metrics updated")
 

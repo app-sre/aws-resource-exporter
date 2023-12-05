@@ -21,7 +21,7 @@ func createTestCacheClusters() []*elasticache.CacheCluster {
 	}
 }
 
-func TestGetElastiCacheInfo(t *testing.T) {
+func TestAddMetricFromElastiCacheInfo(t *testing.T) {
 	x := ElastiCacheExporter{
 		sessions: []*session.Session{session.New(&aws.Config{Region: aws.String("foo")})},
 		cache:    *NewMetricsCache(10 * time.Second),
@@ -30,9 +30,9 @@ func TestGetElastiCacheInfo(t *testing.T) {
 
 	var clusters = []*elasticache.CacheCluster{}
 
-	x.getElastiCacheInfo(0, clusters)
+	x.addMetricFromElastiCacheInfo(0, clusters)
 	assert.Len(t, x.cache.GetAllMetrics(), 0)
 
-	x.getElastiCacheInfo(0, createTestCacheClusters())
+	x.addMetricFromElastiCacheInfo(0, createTestCacheClusters())
 	assert.Len(t, x.cache.GetAllMetrics(), 1)
 }
