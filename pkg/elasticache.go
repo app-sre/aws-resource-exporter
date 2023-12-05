@@ -33,6 +33,7 @@ type ElastiCacheExporter struct {
 	interval time.Duration
 }
 
+// NewElastiCacheExporter creates a new ElastiCacheExporter instance
 func NewElastiCacheExporter(sessions []*session.Session, logger log.Logger, config ElastiCacheConfig, awsAccountId string) *ElastiCacheExporter {
 	level.Info(logger).Log("msg", "Initializing ElastiCache exporter")
 
@@ -56,6 +57,7 @@ func (e *ElastiCacheExporter) getRegion(sessionIndex int) string {
 	return *e.sessions[sessionIndex].Config.Region
 }
 
+// Gets ElastiCache info and adds it to metrics cache
 func (e *ElastiCacheExporter) getElastiCacheInfo(sessionIndex int, clusters []*elasticache.CacheCluster) {
 	region := e.getRegion(sessionIndex)
 
@@ -64,12 +66,7 @@ func (e *ElastiCacheExporter) getElastiCacheInfo(sessionIndex int, clusters []*e
 		engine := aws.StringValue(cluster.Engine)
 		engineVersion := aws.StringValue(cluster.EngineVersion)
 
-		e.cache.AddMetric(prometheus.MustNewConstMetric(
-			RedisVersion,
-			prometheus.GaugeValue,
-			1, //verify
-			region, cacheName, engine, engineVersion, e.awsAccountId,
-		))
+		e.cache.AddMetric(prometheus.MustNewConstMetric(RedisVersion, prometheus.GaugeValue, 1, region, cacheName, engine, engineVersion, e.awsAccountId))
 	}
 }
 
