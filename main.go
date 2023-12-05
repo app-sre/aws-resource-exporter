@@ -110,6 +110,18 @@ func setupCollectors(logger log.Logger, configFile string) ([]prometheus.Collect
 		collectors = append(collectors, r53Exporter)
 		go r53Exporter.CollectLoop()
 	}
+	level.Info(logger).Log("msg", "Will ElastiCache metrics be gathered?", "elasticache-enabled", config.ElastiCacheConfig.Enabled)
+	var elasticacheSessions []*session.Session
+	if config.ElastiCacheConfig.Enabled {
+		for _, region := range config.RdsConfig.Regions {
+			config := aws.NewConfig().WithRegion(region)
+			sess := session.Must(session.NewSession(config))
+			elasticacheSessions = append(elasticacheSessions, sess)
+		}
+		elasticacheExporter := pkg.NewElastiCacheExporter(elasticacheSessions, logger, config.ElastiCacheConfig, awsAccountId)
+		collectors = append(collectors, elasticacheExporter)
+		go elasticacheExporter.CollectLoop()
+	}
 
 	return collectors, nil
 }

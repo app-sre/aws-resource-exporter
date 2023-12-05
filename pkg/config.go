@@ -49,11 +49,17 @@ type EC2Config struct {
 	Regions    []string `yaml:"regions"`
 }
 
+type ElastiCacheConfig struct {
+	BaseConfig `yaml:"base,inline"`
+	Regions    []string `yaml:"regions"`
+}
+
 type Config struct {
-	RdsConfig     RDSConfig     `yaml:"rds"`
-	VpcConfig     VPCConfig     `yaml:"vpc"`
-	Route53Config Route53Config `yaml:"route53"`
-	EC2Config     EC2Config     `yaml:"ec2"`
+	RdsConfig         RDSConfig         `yaml:"rds"`
+	VpcConfig         VPCConfig         `yaml:"vpc"`
+	Route53Config     Route53Config     `yaml:"route53"`
+	EC2Config         EC2Config         `yaml:"ec2"`
+	ElastiCacheConfig ElastiCacheConfig `yaml:"elasticache"`
 }
 
 func LoadExporterConfiguration(logger log.Logger, configFile string) (*Config, error) {
@@ -77,6 +83,9 @@ func LoadExporterConfiguration(logger log.Logger, configFile string) (*Config, e
 	if config.EC2Config.CacheTTL == nil {
 		config.EC2Config.CacheTTL = durationPtr(35 * time.Second)
 	}
+	if config.ElastiCacheConfig.CacheTTL == nil {
+		config.EC2Config.CacheTTL = durationPtr(35 * time.Second)
+	}
 
 	if config.RdsConfig.Interval == nil {
 		config.RdsConfig.Interval = durationPtr(15 * time.Second)
@@ -90,6 +99,9 @@ func LoadExporterConfiguration(logger log.Logger, configFile string) (*Config, e
 	if config.EC2Config.Interval == nil {
 		config.EC2Config.Interval = durationPtr(15 * time.Second)
 	}
+	if config.ElastiCacheConfig.Interval == nil {
+		config.EC2Config.Interval = durationPtr(15 * time.Second)
+	}
 
 	if config.RdsConfig.Timeout == nil {
 		config.RdsConfig.Timeout = durationPtr(10 * time.Second)
@@ -101,6 +113,9 @@ func LoadExporterConfiguration(logger log.Logger, configFile string) (*Config, e
 		config.Route53Config.Timeout = durationPtr(10 * time.Second)
 	}
 	if config.EC2Config.Timeout == nil {
+		config.EC2Config.Timeout = durationPtr(10 * time.Second)
+	}
+	if config.ElastiCacheConfig.Timeout == nil {
 		config.EC2Config.Timeout = durationPtr(10 * time.Second)
 	}
 
