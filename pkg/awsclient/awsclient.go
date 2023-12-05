@@ -16,6 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
+	"github.com/aws/aws-sdk-go/service/elasticache"
 )
 
 //go:generate mockgen -source=./awsclient.go -destination=./mock/zz_generated.mock_client.go -package=mock
@@ -39,6 +40,9 @@ type Client interface {
 	//route53
 	ListHostedZonesWithContext(ctx context.Context, input *route53.ListHostedZonesInput, opts ...request.Option) (*route53.ListHostedZonesOutput, error)
 	GetHostedZoneLimitWithContext(ctx context.Context, input *route53.GetHostedZoneLimitInput, opts ...request.Option) (*route53.GetHostedZoneLimitOutput, error)
+
+	// ElastiCache
+	DescribeCacheClustersAll(ctx context.Context) ([]*elasticache.CacheCluster, error)
 }
 
 type awsClient struct {
@@ -46,6 +50,7 @@ type awsClient struct {
 	rdsClient           rds.RDS
 	serviceQuotasClient servicequotasiface.ServiceQuotasAPI
 	route53Client       route53iface.Route53API
+	elasticacheClient   elasticache.ElastiCache
 }
 
 func (c *awsClient) DescribeTransitGatewaysWithContext(ctx aws.Context, input *ec2.DescribeTransitGatewaysInput, opts ...request.Option) (*ec2.DescribeTransitGatewaysOutput, error) {
@@ -130,11 +135,32 @@ func (c *awsClient) GetHostedZoneLimitWithContext(ctx context.Context, input *ro
 	return c.route53Client.GetHostedZoneLimitWithContext(ctx, input, opts...)
 }
 
+func (c *awsClient) DescribeCacheClustersAll(ctx context.Context) ([]*elasticache.CacheCluster, error) {
+	input := &elasticache.DescribeCacheClustersInput{}
+
+	var clusters []*elasticache.CacheCluster
+	err := c.DescribeCacheClustersPagesWithContext(ctx, input, func(dco *elasticache.DescribeCacheClustersOutput, more bool) bool {
+		AwsExporterMetrics.IncrementRequests()
+		clusters = append(clusters, dco.CacheClusters...)
+		return more
+	})
+	if err != nil {
+		AwsExporterMetrics.IncrementErrors()
+		return nil, err
+	}
+	return clusters, nil
+}
+
+func (c *awsClient) DescribeCacheClustersPagesWithContext(ctx aws.Context, input *elasticache.DescribeCacheClustersInput, fn func(*elasticache.DescribeCacheClustersOutput, bool) bool, opts ...request.Option) error {
+	return c.elasticacheClient.DescribeCacheClustersPagesWithContext(ctx, input, fn, opts...)
+}
+
 func NewClientFromSession(sess *session.Session) Client {
 	return &awsClient{
 		ec2Client:           ec2.New(sess),
 		serviceQuotasClient: servicequotas.New(sess),
 		rdsClient:           *rds.New(sess),
 		route53Client:       route53.New(sess),
+		elasticacheClient:   *elasticache.New(sess),
 	}
 }
