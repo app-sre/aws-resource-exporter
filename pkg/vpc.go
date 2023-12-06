@@ -2,6 +2,7 @@ package pkg
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -153,7 +154,12 @@ func (e *VPCExporter) GetQuotaValue(client *servicequotas.ServiceQuotas, service
 	if err != nil {
 		return 0, err
 	}
-
+	// It seems sometimes the returned Quota contains a nil value - probablye because the Value is "Required: No"
+	// https://docs.aws.amazon.com/servicequotas/2019-06-24/apireference/API_ServiceQuota.html#servicequotas-Type-ServiceQuota-Value
+	if sqOutput.Quota == nil {
+		level.Error(e.logger).Log("msg", "VPC Quota was nil", "quota-code", quotaCode)
+		return 0, errors.New("VPC Quota was nil")
+	}
 	return *sqOutput.Quota.Value, nil
 }
 
