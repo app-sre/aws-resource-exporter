@@ -59,6 +59,7 @@ func setupCollectors(logger log.Logger, configFile string) ([]prometheus.Collect
 	level.Info(logger).Log("msg", "Configuring rds with regions", "regions", strings.Join(config.RdsConfig.Regions, ","))
 	level.Info(logger).Log("msg", "Configuring ec2 with regions", "regions", strings.Join(config.EC2Config.Regions, ","))
 	level.Info(logger).Log("msg", "Configuring route53 with region", "region", config.Route53Config.Region)
+	level.Info(logger).Log("msg", "Configuring ec2 with regions", "regions", strings.Join(config.ElastiCacheConfig.Regions, ","))
 	level.Info(logger).Log("msg", "Will VPC metrics be gathered?", "vpc-enabled", config.VpcConfig.Enabled)
 	// Create a single session here, because we need the accountid, before we create the other configs
 	awsConfig := aws.NewConfig().WithRegion("us-east-1")
@@ -113,7 +114,7 @@ func setupCollectors(logger log.Logger, configFile string) ([]prometheus.Collect
 	level.Info(logger).Log("msg", "Will ElastiCache metrics be gathered?", "elasticache-enabled", config.ElastiCacheConfig.Enabled)
 	var elasticacheSessions []*session.Session
 	if config.ElastiCacheConfig.Enabled {
-		for _, region := range config.RdsConfig.Regions {
+		for _, region := range config.ElastiCacheConfig.Regions {
 			config := aws.NewConfig().WithRegion(region)
 			sess := session.Must(session.NewSession(config))
 			elasticacheSessions = append(elasticacheSessions, sess)
