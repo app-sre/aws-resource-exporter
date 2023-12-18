@@ -84,7 +84,7 @@ func LoadExporterConfiguration(logger log.Logger, configFile string) (*Config, e
 		config.EC2Config.CacheTTL = durationPtr(35 * time.Second)
 	}
 	if config.ElastiCacheConfig.CacheTTL == nil {
-		config.EC2Config.CacheTTL = durationPtr(35 * time.Second)
+		config.ElastiCacheConfig.CacheTTL = durationPtr(35 * time.Second)
 	}
 
 	if config.RdsConfig.Interval == nil {
@@ -100,7 +100,7 @@ func LoadExporterConfiguration(logger log.Logger, configFile string) (*Config, e
 		config.EC2Config.Interval = durationPtr(15 * time.Second)
 	}
 	if config.ElastiCacheConfig.Interval == nil {
-		config.EC2Config.Interval = durationPtr(15 * time.Second)
+		config.ElastiCacheConfig.Interval = durationPtr(15 * time.Second)
 	}
 
 	if config.RdsConfig.Timeout == nil {
@@ -116,7 +116,7 @@ func LoadExporterConfiguration(logger log.Logger, configFile string) (*Config, e
 		config.EC2Config.Timeout = durationPtr(10 * time.Second)
 	}
 	if config.ElastiCacheConfig.Timeout == nil {
-		config.EC2Config.Timeout = durationPtr(10 * time.Second)
+		config.ElastiCacheConfig.Timeout = durationPtr(10 * time.Second)
 	}
 
 	return &config, nil
