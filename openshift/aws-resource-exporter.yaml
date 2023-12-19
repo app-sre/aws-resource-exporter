@@ -120,6 +120,7 @@ parameters:
   value: aws-resource-exporter
 - name: AWS_REGION
   value: us-east-1
+  description: if in GovCloud, use us-gov-east-1/us-gov-west-1
 - name: CONFIGMAP_NAME
   value: aws-resource-exporter-config
 - name: CPU_REQUESTS
