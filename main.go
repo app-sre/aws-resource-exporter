@@ -61,8 +61,14 @@ func setupCollectors(logger log.Logger, configFile string) ([]prometheus.Collect
 	level.Info(logger).Log("msg", "Configuring route53 with region", "region", config.Route53Config.Region)
 	level.Info(logger).Log("msg", "Configuring elasticache with regions", "regions", strings.Join(config.ElastiCacheConfig.Regions, ","))
 	level.Info(logger).Log("msg", "Will VPC metrics be gathered?", "vpc-enabled", config.VpcConfig.Enabled)
+
+	sessionRegion := "us-east-1"
+	if sr := os.Getenv("AWS_REGION"); sr != "" {
+		sessionRegion = sr
+	}
+
 	// Create a single session here, because we need the accountid, before we create the other configs
-	awsConfig := aws.NewConfig().WithRegion("us-east-1")
+	awsConfig := aws.NewConfig().WithRegion(sessionRegion)
 	sess := session.Must(session.NewSession(awsConfig))
 	awsAccountId, err := getAwsAccountNumber(logger, sess)
 	if err != nil {
