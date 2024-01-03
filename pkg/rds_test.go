@@ -99,10 +99,17 @@ func TestAddAllInstanceMetrics(t *testing.T) {
 }
 
 func TestAddAllInstanceMetricsWithEOLMatch(t *testing.T) {
+	thresholds := []Threshold{
+		{Name: "red", Threshold: 90},
+		{Name: "yellow", Threshold: 180},
+		{Name: "green", Threshold: 365},
+	}
+
 	x := RDSExporter{
-		sessions: []*session.Session{session.New(&aws.Config{Region: aws.String("foo")})},
-		cache:    *NewMetricsCache(10 * time.Second),
-		logger:   log.NewNopLogger(),
+		sessions:   []*session.Session{session.New(&aws.Config{Region: aws.String("foo")})},
+		cache:      *NewMetricsCache(10 * time.Second),
+		logger:     log.NewNopLogger(),
+		thresholds: thresholds,
 	}
 
 	eolInfos := []EOLInfo{
@@ -152,10 +159,22 @@ func TestAddAllInstanceMetricsWithGetEOLStatusError(t *testing.T) {
 }
 
 func TestGetEOLStatus(t *testing.T) {
+	x := RDSExporter{
+		sessions: []*session.Session{session.New(&aws.Config{Region: aws.String("foo")})},
+		cache:    *NewMetricsCache(10 * time.Second),
+		logger:   log.NewNopLogger(),
+	}
+
+	thresholds := []Threshold{
+		{Name: "red", Threshold: 90},
+		{Name: "yellow", Threshold: 180},
+		{Name: "green", Threshold: 365},
+	}
+
 	// EOL date is within 90 days
 	eol := time.Now().Add(2 * 24 * time.Hour).Format("2006-01-02")
 	expectedStatus := "red"
-	status, err := getEOLStatus(eol)
+	status, err := x.getEOLStatus(eol, thresholds)
 	if err != nil {
 		t.Errorf("Expected no error, but got an error: %v", err)
 	}
@@ -166,7 +185,7 @@ func TestGetEOLStatus(t *testing.T) {
 	// EOL date is within 180 days
 	eol = time.Now().Add(120 * 24 * time.Hour).Format("2006-01-02")
 	expectedStatus = "yellow"
-	status, err = getEOLStatus(eol)
+	status, err = x.getEOLStatus(eol, thresholds)
 	if err != nil {
 		t.Errorf("Expected no error, but got an error: %v", err)
 	}
@@ -177,7 +196,7 @@ func TestGetEOLStatus(t *testing.T) {
 	// EOL date is more than 180 days
 	eol = time.Now().Add(200 * 24 * time.Hour).Format("2006-01-02")
 	expectedStatus = "green"
-	status, err = getEOLStatus(eol)
+	status, err = x.getEOLStatus(eol, thresholds)
 	if err != nil {
 		t.Errorf("Expected no error, but got an error: %v", err)
 	}
