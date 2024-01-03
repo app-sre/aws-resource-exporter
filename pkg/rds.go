@@ -392,7 +392,7 @@ type RDSExporter struct {
 	sessions     []*session.Session
 	svcs         []awsclient.Client
 	eolInfos     []EOLInfo
-	thresholds   []Threshold
+	thresholds   []Thresholds
 	awsAccountId string
 
 	workers        int
@@ -588,7 +588,7 @@ func (e *RDSExporter) addAllInstanceMetrics(sessionIndex int, instances []*rds.D
 }
 
 // Determines status from the number of days until EOL
-func (e *RDSExporter) getEOLStatus(eol string, thresholds []Threshold) (string, error) {
+func (e *RDSExporter) getEOLStatus(eol string, thresholds []Thresholds) (string, error) {
 	eolDate, err := time.Parse("2006-01-02", eol)
 	if err != nil {
 		return "", err

@@ -99,7 +99,7 @@ func TestAddAllInstanceMetrics(t *testing.T) {
 }
 
 func TestAddAllInstanceMetricsWithEOLMatch(t *testing.T) {
-	thresholds := []Threshold{
+	thresholds := []Thresholds{
 		{Name: "red", Threshold: 90},
 		{Name: "yellow", Threshold: 180},
 		{Name: "green", Threshold: 365},
@@ -165,7 +165,7 @@ func TestGetEOLStatus(t *testing.T) {
 		logger:   log.NewNopLogger(),
 	}
 
-	thresholds := []Threshold{
+	thresholds := []Thresholds{
 		{Name: "red", Threshold: 90},
 		{Name: "yellow", Threshold: 180},
 		{Name: "green", Threshold: 365},
