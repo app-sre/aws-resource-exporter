@@ -17,7 +17,7 @@ import (
 var RedisVersion *prometheus.Desc = prometheus.NewDesc(
 	prometheus.BuildFQName(namespace, "", "elasticache_redisversion"),
 	"The ElastiCache engine type and version.",
-	[]string{"aws_region", "cache_name", "engine", "engine_version", "aws_account_id"},
+	[]string{"aws_region", "replication_group_id", "engine", "engine_version", "aws_account_id"},
 	nil,
 )
 
@@ -61,11 +61,11 @@ func (e *ElastiCacheExporter) addMetricFromElastiCacheInfo(sessionIndex int, clu
 	region := e.getRegion(sessionIndex)
 
 	for _, cluster := range clusters {
-		cacheName := aws.StringValue(cluster.CacheClusterId)
+		replicationGroupId := aws.StringValue(cluster.ReplicationGroupId)
 		engine := aws.StringValue(cluster.Engine)
 		engineVersion := aws.StringValue(cluster.EngineVersion)
 
-		e.cache.AddMetric(prometheus.MustNewConstMetric(RedisVersion, prometheus.GaugeValue, 1, region, cacheName, engine, engineVersion, e.awsAccountId))
+		e.cache.AddMetric(prometheus.MustNewConstMetric(RedisVersion, prometheus.GaugeValue, 1, region, replicationGroupId, engine, engineVersion, e.awsAccountId))
 	}
 }
 
