@@ -99,10 +99,10 @@ func TestAddAllInstanceMetrics(t *testing.T) {
 }
 
 func TestAddAllInstanceMetricsWithEOLMatch(t *testing.T) {
-	thresholds := []Thresholds{
-		{Name: "red", Threshold: 90},
-		{Name: "yellow", Threshold: 180},
-		{Name: "green", Threshold: 365},
+	thresholds := []Threshold{
+		{Name: "red", Days: 90},
+		{Name: "yellow", Days: 180},
+		{Name: "green", Days: 365},
 	}
 
 	x := RDSExporter{
@@ -165,10 +165,10 @@ func TestGetEOLStatus(t *testing.T) {
 		logger:   log.NewNopLogger(),
 	}
 
-	thresholds := []Thresholds{
-		{Name: "red", Threshold: 90},
-		{Name: "yellow", Threshold: 180},
-		{Name: "green", Threshold: 365},
+	thresholds := []Threshold{
+		{Name: "red", Days: 90},
+		{Name: "yellow", Days: 180},
+		{Name: "green", Days: 365},
 	}
 
 	// EOL date is within 90 days
@@ -204,6 +204,16 @@ func TestGetEOLStatus(t *testing.T) {
 		t.Errorf("Expected status '%s', but got '%s'", expectedStatus, status)
 	}
 
+	//EOL date exceeds highest threshold
+	eol = time.Now().Add(400 * 24 * time.Hour).Format("2006-01-02")
+	expectedStatus = "green"
+	status, err = x.getEOLStatus(eol, thresholds)
+	if err != nil {
+		t.Errorf("Expected no error, but got an error: %v", err)
+	}
+	if status != expectedStatus {
+		t.Errorf("Expected status '%s', but got '%s'", expectedStatus, status)
+	}
 }
 
 func TestEngineVersionMetricIncludesAWSAccountId(t *testing.T) {

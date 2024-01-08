@@ -3,6 +3,7 @@ package pkg
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -392,7 +393,7 @@ type RDSExporter struct {
 	sessions     []*session.Session
 	svcs         []awsclient.Client
 	eolInfos     []EOLInfo
-	thresholds   []Thresholds
+	thresholds   []Threshold
 	awsAccountId string
 
 	workers        int
@@ -588,28 +589,27 @@ func (e *RDSExporter) addAllInstanceMetrics(sessionIndex int, instances []*rds.D
 }
 
 // Determines status from the number of days until EOL
-func (e *RDSExporter) getEOLStatus(eol string, thresholds []Thresholds) (string, error) {
+func (e *RDSExporter) getEOLStatus(eol string, thresholds []Threshold) (string, error) {
 	eolDate, err := time.Parse("2006-01-02", eol)
 	if err != nil {
 		return "", err
 	}
-	highestThreshold := 0
-	highestThresholdName := ""
+
 	currentDate := time.Now()
 	daysToEOL := int(eolDate.Sub(currentDate).Hours() / 24)
 
+	sort.Slice(thresholds, func(i, j int) bool {
+		return thresholds[i].Days < thresholds[j].Days
+	})
+
 	for _, threshold := range thresholds {
-		if daysToEOL < threshold.Threshold {
+		if daysToEOL < threshold.Days {
 			return threshold.Name, nil
-		}
-		if threshold.Threshold > highestThreshold {
-			highestThreshold = threshold.Threshold
-			highestThresholdName = threshold.Name
 		}
 	}
 
-	if daysToEOL >= highestThreshold {
-		return highestThresholdName, nil
+	if daysToEOL > thresholds[len(thresholds)-1].Days {
+		return thresholds[len(thresholds)-1].Name, nil
 	}
 
 	level.Info(e.logger).Log("msg", fmt.Sprintf("Could not get threshold for EOL date %s\n", eolDate))

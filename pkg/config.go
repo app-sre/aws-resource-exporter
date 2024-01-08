@@ -19,14 +19,14 @@ type BaseConfig struct {
 
 type RDSConfig struct {
 	BaseConfig `yaml:"base,inline"`
-	Regions    []string     `yaml:"regions"`
-	EOLInfos   []EOLInfo    `yaml:"eol_info"`
-	Thresholds []Thresholds `yaml:"thresholds"`
+	Regions    []string    `yaml:"regions"`
+	EOLInfos   []EOLInfo   `yaml:"eol_info"`
+	Thresholds []Threshold `yaml:"thresholds"`
 }
 
-type Thresholds struct {
-	Name      string `yaml:"name"`
-	Threshold int    `yaml:"threshold"`
+type Threshold struct {
+	Name string `yaml:"name"`
+	Days int    `yaml:"days"`
 }
 
 type EOLInfo struct {
@@ -127,10 +127,10 @@ func LoadExporterConfiguration(logger log.Logger, configFile string) (*Config, e
 
 	// Setting defaults when threshold is not defined to ease the transition from hardcoded thresholds
 	if len(config.RdsConfig.Thresholds) == 0 {
-		config.RdsConfig.Thresholds = []Thresholds{
-			{Name: "red", Threshold: 90},
-			{Name: "yellow", Threshold: 180},
-			{Name: "green", Threshold: 365},
+		config.RdsConfig.Thresholds = []Threshold{
+			{Name: "red", Days: 90},
+			{Name: "yellow", Days: 180},
+			{Name: "green", Days: 365},
 		}
 	}
 
