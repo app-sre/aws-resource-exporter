@@ -61,7 +61,7 @@ func (e *ElastiCacheExporter) addMetricFromElastiCacheInfo(sessionIndex int, clu
 	region := e.getRegion(sessionIndex)
 
 	for _, cluster := range clusters {
-		cacheName := aws.StringValue(cluster.CacheClusterId)
+		cacheName := aws.StringValue(cluster.ReplicationGroupId)
 		engine := aws.StringValue(cluster.Engine)
 		engineVersion := aws.StringValue(cluster.EngineVersion)
 
