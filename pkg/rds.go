@@ -2,7 +2,9 @@ package pkg
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -392,6 +394,7 @@ type RDSExporter struct {
 	sessions     []*session.Session
 	svcs         []awsclient.Client
 	eolInfos     []EOLInfo
+	thresholds   []Threshold
 	awsAccountId string
 
 	workers        int
@@ -437,6 +440,7 @@ func NewRDSExporter(sessions []*session.Session, logger log.Logger, config RDSCo
 		interval:       *config.Interval,
 		timeout:        *config.Timeout,
 		eolInfos:       config.EOLInfos,
+		thresholds:     config.Thresholds,
 		awsAccountId:   awsAccountId,
 	}
 
@@ -549,7 +553,7 @@ func (e *RDSExporter) addAllInstanceMetrics(sessionIndex int, instances []*rds.D
 
 		//Gets EOL for engine and version
 		if eolInfo, ok := eolMap[EOLKey{Engine: *instance.Engine, Version: *instance.EngineVersion}]; ok {
-			eolStatus, err := getEOLStatus(eolInfo.EOL)
+			eolStatus, err := e.getEOLStatus(eolInfo.EOL, e.thresholds)
 			if err != nil {
 				level.Error(e.logger).Log("msg", fmt.Sprintf("Could not get days to EOL for Engine %s, Version %s: %s\n", *instance.Engine, *instance.EngineVersion, err.Error()))
 			} else {
@@ -586,22 +590,29 @@ func (e *RDSExporter) addAllInstanceMetrics(sessionIndex int, instances []*rds.D
 }
 
 // Determines status from the number of days until EOL
-func getEOLStatus(eol string) (string, error) {
+func (e *RDSExporter) getEOLStatus(eol string, thresholds []Threshold) (string, error) {
 	eolDate, err := time.Parse("2006-01-02", eol)
 	if err != nil {
 		return "", err
 	}
+
+	if len(thresholds) == 0 {
+		return "", errors.New("thresholds slice is empty")
+	}
+
 	currentDate := time.Now()
 	daysToEOL := int(eolDate.Sub(currentDate).Hours() / 24)
-	eolStatus := ""
-	if daysToEOL < 90 {
-		eolStatus = "red"
-	} else if daysToEOL < 180 {
-		eolStatus = "yellow"
-	} else {
-		eolStatus = "green"
+
+	sort.Slice(thresholds, func(i, j int) bool {
+		return thresholds[i].Days < thresholds[j].Days
+	})
+
+	for _, threshold := range thresholds {
+		if daysToEOL <= threshold.Days {
+			return threshold.Name, nil
+		}
 	}
-	return eolStatus, nil
+	return thresholds[len(thresholds)-1].Name, nil
 }
 
 func (e *RDSExporter) addAllPendingMaintenancesMetrics(ctx context.Context, sessionIndex int, instances []*rds.DBInstance) {
