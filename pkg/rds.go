@@ -2,6 +2,7 @@ package pkg
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -595,6 +596,10 @@ func (e *RDSExporter) getEOLStatus(eol string, thresholds []Threshold) (string, 
 		return "", err
 	}
 
+	if len(thresholds) == 0 {
+		return "", errors.New("thresholds slice is empty")
+	}
+
 	currentDate := time.Now()
 	daysToEOL := int(eolDate.Sub(currentDate).Hours() / 24)
 
@@ -603,17 +608,11 @@ func (e *RDSExporter) getEOLStatus(eol string, thresholds []Threshold) (string, 
 	})
 
 	for _, threshold := range thresholds {
-		if daysToEOL < threshold.Days {
+		if daysToEOL <= threshold.Days {
 			return threshold.Name, nil
 		}
 	}
-
-	if daysToEOL > thresholds[len(thresholds)-1].Days {
-		return thresholds[len(thresholds)-1].Name, nil
-	}
-
-	level.Info(e.logger).Log("msg", fmt.Sprintf("Could not get threshold for EOL date %s\n", eolDate))
-	return "", nil
+	return thresholds[len(thresholds)-1].Name, nil
 }
 
 func (e *RDSExporter) addAllPendingMaintenancesMetrics(ctx context.Context, sessionIndex int, instances []*rds.DBInstance) {

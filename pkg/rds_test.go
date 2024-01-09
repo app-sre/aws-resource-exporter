@@ -214,6 +214,17 @@ func TestGetEOLStatus(t *testing.T) {
 	if status != expectedStatus {
 		t.Errorf("Expected status '%s', but got '%s'", expectedStatus, status)
 	}
+
+	//Thresholds is empty
+	eol = time.Now().Add(30 * 24 * time.Hour).Format("2006-01-02")
+	emptyThresholds := []Threshold{}
+	status, err = x.getEOLStatus(eol, emptyThresholds)
+	if err == nil {
+		t.Errorf("Expected an error for empty thresholds, but got none")
+	}
+	if status != "" {
+		t.Errorf("Expected no status for empty thresholds, but got '%s'", status)
+	}
 }
 
 func TestEngineVersionMetricIncludesAWSAccountId(t *testing.T) {
