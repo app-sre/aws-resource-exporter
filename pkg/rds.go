@@ -555,12 +555,12 @@ func (e *RDSExporter) addAllInstanceMetrics(sessionIndex int, instances []*rds.D
 		if eolInfo, ok := eolMap[EOLKey{Engine: *instance.Engine, Version: *instance.EngineVersion}]; ok {
 			eolStatus, err := e.getEOLStatus(eolInfo.EOL, e.thresholds)
 			if err != nil {
-				level.Error(e.logger).Log("msg", fmt.Sprintf("Could not get days to EOL for Engine %s, Version %s: %s\n", *instance.Engine, *instance.EngineVersion, err.Error()))
+				level.Error(e.logger).Log("msg", fmt.Sprintf("Could not get days to RDS EOL for Engine %s, Version %s: %s\n", *instance.Engine, *instance.EngineVersion, err.Error()))
 			} else {
 				e.cache.AddMetric(prometheus.MustNewConstMetric(EOLInfos, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion, eolInfo.EOL, eolStatus))
 			}
 		} else {
-			level.Info(e.logger).Log("msg", fmt.Sprintf("EOL not found for Engine %s, Version %s\n", *instance.Engine, *instance.EngineVersion))
+			level.Info(e.logger).Log("msg", fmt.Sprintf("RDS EOL not found for Engine %s, Version %s\n", *instance.Engine, *instance.EngineVersion))
 		}
 
 		var public = 0.0

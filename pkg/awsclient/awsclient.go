@@ -17,6 +17,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	"github.com/aws/aws-sdk-go/service/elasticache"
+	"github.com/aws/aws-sdk-go/service/kafka"
 )
 
 //go:generate mockgen -source=./awsclient.go -destination=./mock/zz_generated.mock_client.go -package=mock
@@ -43,6 +44,9 @@ type Client interface {
 
 	// ElastiCache
 	DescribeCacheClustersAll(ctx context.Context) ([]*elasticache.CacheCluster, error)
+
+	// MSK
+	ListClustersAll(ctx context.Context) ([]*kafka.ClusterInfo, error)
 }
 
 type awsClient struct {
@@ -51,6 +55,7 @@ type awsClient struct {
 	serviceQuotasClient servicequotasiface.ServiceQuotasAPI
 	route53Client       route53iface.Route53API
 	elasticacheClient   elasticache.ElastiCache
+	mskClient           kafka.Kafka
 }
 
 func (c *awsClient) DescribeTransitGatewaysWithContext(ctx aws.Context, input *ec2.DescribeTransitGatewaysInput, opts ...request.Option) (*ec2.DescribeTransitGatewaysOutput, error) {
@@ -155,6 +160,28 @@ func (c *awsClient) DescribeCacheClustersPagesWithContext(ctx aws.Context, input
 	return c.elasticacheClient.DescribeCacheClustersPagesWithContext(ctx, input, fn, opts...)
 }
 
+func (c *awsClient) ListClustersPagesWithContext(ctx context.Context, input *kafka.ListClustersInput, fn func(*kafka.ListClustersOutput, bool) bool, opts ...request.Option) error {
+	return c.mskClient.ListClustersPagesWithContext(ctx, input, fn, opts...)
+}
+
+func (c *awsClient) ListClustersAll(ctx context.Context) ([]*kafka.ClusterInfo, error) {
+	input := &kafka.ListClustersInput{}
+
+	var clusters []*kafka.ClusterInfo
+	err := c.mskClient.ListClustersPagesWithContext(ctx, input, func(lco *kafka.ListClustersOutput, lastPage bool) bool {
+		AwsExporterMetrics.IncrementRequests()
+		clusters = append(clusters, lco.ClusterInfoList...)
+		return true
+	})
+
+	if err != nil {
+		AwsExporterMetrics.IncrementErrors()
+		return nil, err
+	}
+
+	return clusters, nil
+}
+
 func NewClientFromSession(sess *session.Session) Client {
 	return &awsClient{
 		ec2Client:           ec2.New(sess),
@@ -162,5 +189,6 @@ func NewClientFromSession(sess *session.Session) Client {
 		rdsClient:           *rds.New(sess),
 		route53Client:       route53.New(sess),
 		elasticacheClient:   *elasticache.New(sess),
+		mskClient:           *kafka.New(sess),
 	}
 }
