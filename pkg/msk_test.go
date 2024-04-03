@@ -42,7 +42,7 @@ func TestAddAllMSKMetricsWithEOLMatch(t *testing.T) {
 		{Version: "1000", EOL: "2000-12-01"},
 	}
 
-	e.addMSKInfo(0, createTestClusters(), mskInfos)
+	e.addMetricFromMSKInfo(0, createTestClusters(), mskInfos)
 
 	labels, err := getMSKMetricLabels(&e, MSKInfos, "eol_date", "eol_status")
 	if err != nil {

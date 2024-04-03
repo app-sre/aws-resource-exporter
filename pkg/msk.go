@@ -61,7 +61,7 @@ func (e *MSKExporter) getRegion(sessionIndex int) string {
 	return *e.sessions[sessionIndex].Config.Region
 }
 
-func (e *MSKExporter) addMSKInfo(sessionIndex int, clusters []*kafka.ClusterInfo, mskInfos []MSKInfo) {
+func (e *MSKExporter) addMetricFromMSKInfo(sessionIndex int, clusters []*kafka.ClusterInfo, mskInfos []MSKInfo) {
 	region := e.getRegion(sessionIndex)
 
 	eolMap := make(map[string]string)
@@ -130,7 +130,7 @@ func (e *MSKExporter) CollectLoop() {
 				level.Error(e.logger).Log("msg", "Call to ListClustersAll failed", "region", *e.sessions[i].Config.Region, "err", err)
 				continue
 			}
-			e.addMSKInfo(i, clusters, e.mskInfos)
+			e.addMetricFromMSKInfo(i, clusters, e.mskInfos)
 		}
 		level.Info(e.logger).Log("msg", "MSK metrics updated")
 
