@@ -2,8 +2,6 @@ package pkg
 
 import (
 	"context"
-	"errors"
-	"sort"
 	"time"
 
 	"github.com/app-sre/aws-resource-exporter/pkg/awsclient"
@@ -74,7 +72,7 @@ func (e *MSKExporter) addMetricFromMSKInfo(sessionIndex int, clusters []*kafka.C
 		mskVersion := aws.StringValue(cluster.CurrentBrokerSoftwareInfo.KafkaVersion)
 
 		if eolDate, found := eolMap[mskVersion]; found {
-			eolStatus, err := e.getEOLStatus(eolDate, e.thresholds)
+			eolStatus, err := GetEOLStatus(eolDate, e.thresholds)
 			if err != nil {
 				level.Error(e.logger).Log("msg", "Error determining MSK EOL status", "version", mskVersion, "error", err)
 			}
@@ -83,32 +81,6 @@ func (e *MSKExporter) addMetricFromMSKInfo(sessionIndex int, clusters []*kafka.C
 			level.Error(e.logger).Log("msg", "EOL information not found for MSK version", "version", mskVersion)
 		}
 	}
-}
-
-// Determines status from the number of days until EOL
-func (e *MSKExporter) getEOLStatus(eol string, thresholds []Threshold) (string, error) {
-	eolDate, err := time.Parse("2006-01-02", eol)
-	if err != nil {
-		return "", err
-	}
-
-	if len(thresholds) == 0 {
-		return "", errors.New("thresholds slice is empty")
-	}
-
-	currentDate := time.Now()
-	daysToEOL := int(eolDate.Sub(currentDate).Hours() / 24)
-
-	sort.Slice(thresholds, func(i, j int) bool {
-		return thresholds[i].Days < thresholds[j].Days
-	})
-
-	for _, threshold := range thresholds {
-		if daysToEOL <= threshold.Days {
-			return threshold.Name, nil
-		}
-	}
-	return thresholds[len(thresholds)-1].Name, nil
 }
 
 func (e *MSKExporter) Describe(ch chan<- *prometheus.Desc) {
