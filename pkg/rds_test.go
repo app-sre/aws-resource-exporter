@@ -159,12 +159,6 @@ func TestAddAllInstanceMetricsWithGetEOLStatusError(t *testing.T) {
 }
 
 func TestGetEOLStatus(t *testing.T) {
-	x := RDSExporter{
-		sessions: []*session.Session{session.New(&aws.Config{Region: aws.String("foo")})},
-		cache:    *NewMetricsCache(10 * time.Second),
-		logger:   log.NewNopLogger(),
-	}
-
 	thresholds := []Threshold{
 		{Name: "red", Days: 90},
 		{Name: "yellow", Days: 180},
@@ -174,7 +168,7 @@ func TestGetEOLStatus(t *testing.T) {
 	// EOL date is within 90 days
 	eol := time.Now().Add(2 * 24 * time.Hour).Format("2006-01-02")
 	expectedStatus := "red"
-	status, err := x.getEOLStatus(eol, thresholds)
+	status, err := GetEOLStatus(eol, thresholds)
 	if err != nil {
 		t.Errorf("Expected no error, but got an error: %v", err)
 	}
@@ -185,7 +179,7 @@ func TestGetEOLStatus(t *testing.T) {
 	// EOL date is within 180 days
 	eol = time.Now().Add(120 * 24 * time.Hour).Format("2006-01-02")
 	expectedStatus = "yellow"
-	status, err = x.getEOLStatus(eol, thresholds)
+	status, err = GetEOLStatus(eol, thresholds)
 	if err != nil {
 		t.Errorf("Expected no error, but got an error: %v", err)
 	}
@@ -196,7 +190,7 @@ func TestGetEOLStatus(t *testing.T) {
 	// EOL date is more than 180 days
 	eol = time.Now().Add(200 * 24 * time.Hour).Format("2006-01-02")
 	expectedStatus = "green"
-	status, err = x.getEOLStatus(eol, thresholds)
+	status, err = GetEOLStatus(eol, thresholds)
 	if err != nil {
 		t.Errorf("Expected no error, but got an error: %v", err)
 	}
@@ -207,7 +201,7 @@ func TestGetEOLStatus(t *testing.T) {
 	//EOL date exceeds highest threshold
 	eol = time.Now().Add(400 * 24 * time.Hour).Format("2006-01-02")
 	expectedStatus = "green"
-	status, err = x.getEOLStatus(eol, thresholds)
+	status, err = GetEOLStatus(eol, thresholds)
 	if err != nil {
 		t.Errorf("Expected no error, but got an error: %v", err)
 	}
@@ -218,7 +212,7 @@ func TestGetEOLStatus(t *testing.T) {
 	//Thresholds is empty
 	eol = time.Now().Add(30 * 24 * time.Hour).Format("2006-01-02")
 	emptyThresholds := []Threshold{}
-	status, err = x.getEOLStatus(eol, emptyThresholds)
+	status, err = GetEOLStatus(eol, emptyThresholds)
 	if err == nil {
 		t.Errorf("Expected an error for empty thresholds, but got none")
 	}

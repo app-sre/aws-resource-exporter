@@ -23,7 +23,6 @@ type RDSConfig struct {
 	EOLInfos   []EOLInfo   `yaml:"eol_info"`
 	Thresholds []Threshold `yaml:"thresholds"`
 }
-
 type Threshold struct {
 	Name string `yaml:"name"`
 	Days int    `yaml:"days"`
@@ -59,6 +58,17 @@ type ElastiCacheConfig struct {
 	BaseConfig `yaml:"base,inline"`
 	Regions    []string `yaml:"regions"`
 }
+type MSKConfig struct {
+	BaseConfig `yaml:"base,inline"`
+	Regions    []string    `yaml:"regions"`
+	MSKInfos   []MSKInfo   `yaml:"msk_info"`
+	Thresholds []Threshold `yaml:"thresholds"`
+}
+
+type MSKInfo struct {
+	EOL     string `yaml:"eol"`
+	Version string `yaml:"version"`
+}
 
 type Config struct {
 	RdsConfig         RDSConfig         `yaml:"rds"`
@@ -66,6 +76,7 @@ type Config struct {
 	Route53Config     Route53Config     `yaml:"route53"`
 	EC2Config         EC2Config         `yaml:"ec2"`
 	ElastiCacheConfig ElastiCacheConfig `yaml:"elasticache"`
+	MskConfig         MSKConfig         `yaml:"msk"`
 }
 
 func LoadExporterConfiguration(logger log.Logger, configFile string) (*Config, error) {
@@ -92,6 +103,9 @@ func LoadExporterConfiguration(logger log.Logger, configFile string) (*Config, e
 	if config.ElastiCacheConfig.CacheTTL == nil {
 		config.ElastiCacheConfig.CacheTTL = durationPtr(35 * time.Second)
 	}
+	if config.MskConfig.CacheTTL == nil {
+		config.MskConfig.CacheTTL = durationPtr(35 * time.Second)
+	}
 
 	if config.RdsConfig.Interval == nil {
 		config.RdsConfig.Interval = durationPtr(15 * time.Second)
@@ -108,6 +122,9 @@ func LoadExporterConfiguration(logger log.Logger, configFile string) (*Config, e
 	if config.ElastiCacheConfig.Interval == nil {
 		config.ElastiCacheConfig.Interval = durationPtr(15 * time.Second)
 	}
+	if config.MskConfig.Interval == nil {
+		config.MskConfig.Interval = durationPtr(15 * time.Second)
+	}
 
 	if config.RdsConfig.Timeout == nil {
 		config.RdsConfig.Timeout = durationPtr(10 * time.Second)
@@ -123,6 +140,9 @@ func LoadExporterConfiguration(logger log.Logger, configFile string) (*Config, e
 	}
 	if config.ElastiCacheConfig.Timeout == nil {
 		config.ElastiCacheConfig.Timeout = durationPtr(10 * time.Second)
+	}
+	if config.MskConfig.Timeout == nil {
+		config.MskConfig.Timeout = durationPtr(10 * time.Second)
 	}
 
 	// Setting defaults when threshold is not defined to ease the transition from hardcoded thresholds

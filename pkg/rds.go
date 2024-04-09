@@ -2,9 +2,7 @@ package pkg
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -553,14 +551,14 @@ func (e *RDSExporter) addAllInstanceMetrics(sessionIndex int, instances []*rds.D
 
 		//Gets EOL for engine and version
 		if eolInfo, ok := eolMap[EOLKey{Engine: *instance.Engine, Version: *instance.EngineVersion}]; ok {
-			eolStatus, err := e.getEOLStatus(eolInfo.EOL, e.thresholds)
+			eolStatus, err := GetEOLStatus(eolInfo.EOL, e.thresholds)
 			if err != nil {
-				level.Error(e.logger).Log("msg", fmt.Sprintf("Could not get days to EOL for Engine %s, Version %s: %s\n", *instance.Engine, *instance.EngineVersion, err.Error()))
+				level.Error(e.logger).Log("msg", fmt.Sprintf("Could not get days to RDS EOL for Engine %s, Version %s: %s\n", *instance.Engine, *instance.EngineVersion, err.Error()))
 			} else {
 				e.cache.AddMetric(prometheus.MustNewConstMetric(EOLInfos, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion, eolInfo.EOL, eolStatus))
 			}
 		} else {
-			level.Info(e.logger).Log("msg", fmt.Sprintf("EOL not found for Engine %s, Version %s\n", *instance.Engine, *instance.EngineVersion))
+			level.Info(e.logger).Log("msg", fmt.Sprintf("RDS EOL not found for Engine %s, Version %s\n", *instance.Engine, *instance.EngineVersion))
 		}
 
 		var public = 0.0
@@ -587,32 +585,6 @@ func (e *RDSExporter) addAllInstanceMetrics(sessionIndex int, instances []*rds.D
 		e.cache.AddMetric(prometheus.MustNewConstMetric(EngineVersion, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion, e.awsAccountId))
 		e.cache.AddMetric(prometheus.MustNewConstMetric(DBInstanceClass, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.DBInstanceClass))
 	}
-}
-
-// Determines status from the number of days until EOL
-func (e *RDSExporter) getEOLStatus(eol string, thresholds []Threshold) (string, error) {
-	eolDate, err := time.Parse("2006-01-02", eol)
-	if err != nil {
-		return "", err
-	}
-
-	if len(thresholds) == 0 {
-		return "", errors.New("thresholds slice is empty")
-	}
-
-	currentDate := time.Now()
-	daysToEOL := int(eolDate.Sub(currentDate).Hours() / 24)
-
-	sort.Slice(thresholds, func(i, j int) bool {
-		return thresholds[i].Days < thresholds[j].Days
-	})
-
-	for _, threshold := range thresholds {
-		if daysToEOL <= threshold.Days {
-			return threshold.Name, nil
-		}
-	}
-	return thresholds[len(thresholds)-1].Name, nil
 }
 
 func (e *RDSExporter) addAllPendingMaintenancesMetrics(ctx context.Context, sessionIndex int, instances []*rds.DBInstance) {

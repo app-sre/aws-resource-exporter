@@ -12,6 +12,7 @@ import (
 	request "github.com/aws/aws-sdk-go/aws/request"
 	ec2 "github.com/aws/aws-sdk-go/service/ec2"
 	elasticache "github.com/aws/aws-sdk-go/service/elasticache"
+	kafka "github.com/aws/aws-sdk-go/service/kafka"
 	rds "github.com/aws/aws-sdk-go/service/rds"
 	route53 "github.com/aws/aws-sdk-go/service/route53"
 	servicequotas "github.com/aws/aws-sdk-go/service/servicequotas"
@@ -216,6 +217,21 @@ func (mr *MockClientMockRecorder) GetServiceQuotaWithContext(ctx, input interfac
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]interface{}{ctx, input}, opts...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetServiceQuotaWithContext", reflect.TypeOf((*MockClient)(nil).GetServiceQuotaWithContext), varargs...)
+}
+
+// ListClustersAll mocks base method.
+func (m *MockClient) ListClustersAll(ctx context.Context) ([]*kafka.ClusterInfo, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListClustersAll", ctx)
+	ret0, _ := ret[0].([]*kafka.ClusterInfo)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListClustersAll indicates an expected call of ListClustersAll.
+func (mr *MockClientMockRecorder) ListClustersAll(ctx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListClustersAll", reflect.TypeOf((*MockClient)(nil).ListClustersAll), ctx)
 }
 
 // ListHostedZonesWithContext mocks base method.
