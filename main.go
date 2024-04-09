@@ -60,6 +60,7 @@ func setupCollectors(logger log.Logger, configFile string) ([]prometheus.Collect
 	level.Info(logger).Log("msg", "Configuring ec2 with regions", "regions", strings.Join(config.EC2Config.Regions, ","))
 	level.Info(logger).Log("msg", "Configuring route53 with region", "region", config.Route53Config.Region)
 	level.Info(logger).Log("msg", "Configuring elasticache with regions", "regions", strings.Join(config.ElastiCacheConfig.Regions, ","))
+	level.Info(logger).Log("msg", "Configuring msk with regions", "regions", strings.Join(config.MskConfig.Regions, ","))
 	level.Info(logger).Log("msg", "Will VPC metrics be gathered?", "vpc-enabled", config.VpcConfig.Enabled)
 
 	sessionRegion := "us-east-1"
@@ -128,6 +129,18 @@ func setupCollectors(logger log.Logger, configFile string) ([]prometheus.Collect
 		elasticacheExporter := pkg.NewElastiCacheExporter(elasticacheSessions, logger, config.ElastiCacheConfig, awsAccountId)
 		collectors = append(collectors, elasticacheExporter)
 		go elasticacheExporter.CollectLoop()
+	}
+	level.Info(logger).Log("msg", "Will MSK metrics be gathered?", "msk-enabled", config.MskConfig.Enabled)
+	var mskSessions []*session.Session
+	if config.MskConfig.Enabled {
+		for _, region := range config.MskConfig.Regions {
+			config := aws.NewConfig().WithRegion(region)
+			sess := session.Must(session.NewSession(config))
+			mskSessions = append(mskSessions, sess)
+		}
+		mskExporter := pkg.NewMSKExporter(mskSessions, logger, config.MskConfig, awsAccountId)
+		collectors = append(collectors, mskExporter)
+		go mskExporter.CollectLoop()
 	}
 
 	return collectors, nil
