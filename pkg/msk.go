@@ -78,8 +78,8 @@ func (e *MSKExporter) addMetricFromMSKInfo(sessionIndex int, clusters []*kafka.C
 			}
 			e.cache.AddMetric(prometheus.MustNewConstMetric(MSKInfos, prometheus.GaugeValue, 1, region, clusterName, mskVersion, eolDate, eolStatus))
 		} else {
-			level.Info(e.logger).Log("msg", "EOL information not found for MSK version %s, setting status to 'green'", mskVersion)
-			e.cache.AddMetric(prometheus.MustNewConstMetric(MSKInfos, prometheus.GaugeValue, 1, region, clusterName, mskVersion, "no-eol-date", "green"))
+			level.Info(e.logger).Log("msg", "EOL information not found for MSK version %s, setting status to 'unknown'", mskVersion)
+			e.cache.AddMetric(prometheus.MustNewConstMetric(MSKInfos, prometheus.GaugeValue, 1, region, clusterName, mskVersion, "no-eol-date", "unknown"))
 		}
 	}
 }
