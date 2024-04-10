@@ -61,6 +61,43 @@ func TestAddAllMSKMetricsWithEOLMatch(t *testing.T) {
 	}
 }
 
+func TestAddAllMSKMetricsWithoutEOLMatch(t *testing.T) {
+	thresholds := []Threshold{
+		{Name: "red", Days: 90},
+		{Name: "yellow", Days: 180},
+		{Name: "green", Days: 365},
+	}
+
+	e := MSKExporter{
+		sessions:   []*session.Session{session.New(&aws.Config{Region: aws.String("foo")})},
+		cache:      *NewMetricsCache(10 * time.Second),
+		logger:     log.NewNopLogger(),
+		thresholds: thresholds,
+	}
+
+	mskInfos := []MSKInfo{
+		{Version: "2000", EOL: "2000-12-01"},
+	}
+
+	e.addMetricFromMSKInfo(0, createTestClusters(), mskInfos)
+
+	labels, err := getMSKMetricLabels(&e, MSKInfos, "eol_date", "eol_status")
+	if err != nil {
+		t.Errorf("Error retrieving EOL labels: %v", err)
+	}
+
+	expectedEOLDate := "no-eol-date"
+	expectedEOLStatus := "unknown"
+
+	if eolDate, ok := labels["eol_date"]; !ok || eolDate != expectedEOLDate {
+		t.Errorf("EOLDate metric has an unexpected value. Expected: %s, Actual: %s", expectedEOLDate, eolDate)
+	}
+
+	if eolStatus, ok := labels["eol_status"]; !ok || eolStatus != expectedEOLStatus {
+		t.Errorf("EOLStatus metric has an unexpected value. Expected: %s, Actual: %s", expectedEOLStatus, eolStatus)
+	}
+}
+
 func getMSKMetricLabels(x *MSKExporter, metricDesc *prometheus.Desc, labelNames ...string) (map[string]string, error) {
 	metricDescription := metricDesc.String()
 	metrics := x.cache.GetAllMetrics()
