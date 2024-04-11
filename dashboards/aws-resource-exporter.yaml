@@ -344,7 +344,7 @@ data:
           "id": 12,
           "options": {
             "alertInstanceLabelFilter": "",
-            "alertName": "RDSEOLStatus",
+            "alertName": "RDSEOL",
             "dashboardAlerts": false,
             "groupBy": [],
             "groupMode": "default",
@@ -360,6 +360,378 @@ data:
             "viewMode": "list"
           },
           "title": "RDS EOL Alerts",
+          "type": "alertlist"
+        },
+        {
+          "collapsed": false,
+          "gridPos": {
+            "h": 1,
+            "w": 24,
+            "x": 0,
+            "y": 16
+          },
+          "id": 13,
+          "panels": [],
+          "title": "MSK",
+          "type": "row"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_APPSRES07UE1-PROMETHEUS}"
+          },
+          "description": "Shows the number of MSK clusters categorized by their End-of-Life (EOL) status.",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "mode": "palette-classic"
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": [
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "green"
+                },
+                "properties": [
+                  {
+                    "id": "displayName",
+                    "value": "Green: >180 days to EOL"
+                  },
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "green",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "red"
+                },
+                "properties": [
+                  {
+                    "id": "displayName",
+                    "value": "Red: <90 Days to EOL"
+                  },
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "red",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "yellow"
+                },
+                "properties": [
+                  {
+                    "id": "displayName",
+                    "value": "Yellow: <180 Days to EOL"
+                  },
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "yellow",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              },
+              {
+                "matcher": {
+                  "id": "byName",
+                  "options": "unknown"
+                },
+                "properties": [
+                  {
+                    "id": "displayName",
+                    "value": "Unknown: no EOL for version"
+                  },
+                  {
+                    "id": "color",
+                    "value": {
+                      "fixedColor": "blue",
+                      "mode": "fixed"
+                    }
+                  }
+                ]
+              }
+            ]
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 5,
+            "x": 0,
+            "y": 17
+          },
+          "id": 14,
+          "options": {
+            "displayMode": "gradient",
+            "maxVizHeight": 300,
+            "minVizHeight": 10,
+            "minVizWidth": 0,
+            "namePlacement": "auto",
+            "orientation": "horizontal",
+            "reduceOptions": {
+              "calcs": [
+                "lastNotNull"
+              ],
+              "fields": "",
+              "values": false
+            },
+            "showUnfilled": true,
+            "sizing": "auto",
+            "valueMode": "color"
+          },
+          "pluginVersion": "10.4.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_APPSRES07UE1-PROMETHEUS}"
+              },
+              "editorMode": "code",
+              "expr": "count(aws_resources_exporter_msk_eol_info) by (eol_status)",
+              "legendFormat": "__auto",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "EOL Status Distribution of MSK Clusters",
+          "transformations": [
+            {
+              "id": "joinByField",
+              "options": {
+                "byField": "Time",
+                "mode": "outer"
+              }
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {},
+                "indexByName": {
+                  "Time": 3,
+                  "green": 2,
+                  "red": 0,
+                  "yellow": 1
+                },
+                "renameByName": {}
+              }
+            }
+          ],
+          "type": "bargauge"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_APPSRES07UE1-PROMETHEUS}"
+          },
+          "description": "",
+          "fieldConfig": {
+            "defaults": {
+              "color": {
+                "fixedColor": "text",
+                "mode": "fixed"
+              },
+              "custom": {
+                "align": "auto",
+                "cellOptions": {
+                  "type": "color-text"
+                },
+                "filterable": false,
+                "inspect": false
+              },
+              "mappings": [
+                {
+                  "options": {
+                    "green": {
+                      "color": "green",
+                      "index": 2
+                    },
+                    "red": {
+                      "color": "red",
+                      "index": 1
+                    },
+                    "unknown": {
+                      "color": "blue",
+                      "index": 3
+                    },
+                    "yellow": {
+                      "color": "yellow",
+                      "index": 0
+                    }
+                  },
+                  "type": "value"
+                }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "text",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "gridPos": {
+            "h": 7,
+            "w": 19,
+            "x": 5,
+            "y": 17
+          },
+          "id": 15,
+          "options": {
+            "cellHeight": "sm",
+            "footer": {
+              "countRows": false,
+              "enablePagination": false,
+              "fields": "",
+              "reducer": [
+                "sum"
+              ],
+              "show": false
+            },
+            "showHeader": true,
+            "sortBy": [
+              {
+                "desc": false,
+                "displayName": "dbinstance_identifier"
+              }
+            ]
+          },
+          "pluginVersion": "10.4.1",
+          "targets": [
+            {
+              "datasource": {
+                "type": "prometheus",
+                "uid": "${DS_APPSRES07UE1-PROMETHEUS}"
+              },
+              "editorMode": "code",
+              "exemplar": false,
+              "expr": "aws_resources_exporter_msk_eol_info",
+              "format": "table",
+              "hide": false,
+              "instant": false,
+              "legendFormat": "__auto",
+              "range": true,
+              "refId": "A"
+            }
+          ],
+          "title": "MSK Version and EOL Status",
+          "transformations": [
+            {
+              "id": "groupBy",
+              "options": {
+                "fields": {
+                  "cluster_name": {
+                    "aggregations": [],
+                    "operation": "groupby"
+                  },
+                  "dbinstance_identifier": {
+                    "aggregations": [],
+                    "operation": "groupby"
+                  },
+                  "engine": {
+                    "aggregations": [],
+                    "operation": "groupby"
+                  },
+                  "engine_version": {
+                    "aggregations": [],
+                    "operation": "groupby"
+                  },
+                  "eol_date": {
+                    "aggregations": [],
+                    "operation": "groupby"
+                  },
+                  "eol_status": {
+                    "aggregations": [],
+                    "operation": "groupby"
+                  },
+                  "msk_version": {
+                    "aggregations": [],
+                    "operation": "groupby"
+                  }
+                }
+              }
+            },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": {},
+                "includeByName": {},
+                "indexByName": {
+                  "cluster_name": 0,
+                  "eol_date": 2,
+                  "eol_status": 3,
+                  "msk_version": 1
+                },
+                "renameByName": {
+                  "cluster_name": "Cluster",
+                  "dbinstance_identifier": "Instance",
+                  "engine": "Engine",
+                  "engine_version": "Engine Version",
+                  "eol_date": "EOL Date",
+                  "eol_status": "EOL Status",
+                  "msk_version": "Version"
+                }
+              }
+            }
+          ],
+          "type": "table"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${DS_TELEMETER-RECENT-PRODUCTION}"
+          },
+          "description": "List of all MSK EOL alerts currently firing",
+          "gridPos": {
+            "h": 8,
+            "w": 24,
+            "x": 0,
+            "y": 24
+          },
+          "id": 16,
+          "options": {
+            "alertInstanceLabelFilter": "",
+            "alertName": "MSKEOL",
+            "dashboardAlerts": false,
+            "groupBy": [],
+            "groupMode": "default",
+            "maxItems": 100,
+            "sortOrder": 1,
+            "stateFilter": {
+              "error": false,
+              "firing": true,
+              "noData": false,
+              "normal": false,
+              "pending": false
+            },
+            "viewMode": "list"
+          },
+          "title": "MSK EOL Alerts",
           "type": "alertlist"
         },
         {
