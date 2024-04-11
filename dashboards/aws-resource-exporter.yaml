@@ -378,7 +378,7 @@ data:
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_APPSRES07UE1-PROMETHEUS}"
+            "uid": "${datasource}"
           },
           "description": "Shows the number of MSK clusters categorized by their End-of-Life (EOL) status.",
           "fieldConfig": {
@@ -506,7 +506,7 @@ data:
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "${DS_APPSRES07UE1-PROMETHEUS}"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
               "expr": "count(aws_resources_exporter_msk_eol_info) by (eol_status)",
@@ -543,7 +543,7 @@ data:
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_APPSRES07UE1-PROMETHEUS}"
+            "uid": "${datasource}"
           },
           "description": "",
           "fieldConfig": {
@@ -626,7 +626,7 @@ data:
             {
               "datasource": {
                 "type": "prometheus",
-                "uid": "${DS_APPSRES07UE1-PROMETHEUS}"
+                "uid": "${datasource}"
               },
               "editorMode": "code",
               "exemplar": false,
