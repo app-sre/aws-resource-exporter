@@ -332,7 +332,7 @@ data:
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "PD776AFABBE26000A"
+            "uid": "${datasource}"
           },
           "description": "List of all RDS EOL alerts currently firing",
           "gridPos": {
