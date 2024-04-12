@@ -704,7 +704,7 @@ data:
         {
           "datasource": {
             "type": "prometheus",
-            "uid": "${DS_TELEMETER-RECENT-PRODUCTION}"
+            "uid": "${datasource}"
           },
           "description": "List of all MSK EOL alerts currently firing",
           "gridPos": {
@@ -739,7 +739,7 @@ data:
             "h": 1,
             "w": 24,
             "x": 0,
-            "y": 16
+            "y": 32
           },
           "id": 4,
           "title": "Route53",
@@ -806,7 +806,7 @@ data:
             "h": 8,
             "w": 24,
             "x": 0,
-            "y": 17
+            "y": 33
           },
           "id": 2,
           "options": {
