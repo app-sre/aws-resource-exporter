@@ -75,6 +75,18 @@ var DBMaxConnections = map[string]map[string]int64{
 		"default.postgres13": 550,
 		"default.postgres14": 550,
 	},
+	"db.t4g.micro": map[string]int64{
+		"default": 112,
+	},
+	"db.t4g.small": map[string]int64{
+		"default": 225,
+	},
+	"db.t4g.medium": map[string]int64{
+		"default": 450,
+	},
+	"db.t4g.large": map[string]int64{
+		"default": 900,
+	},
 	"db.m3.medium": map[string]int64{
 		"default": 392,
 	},
