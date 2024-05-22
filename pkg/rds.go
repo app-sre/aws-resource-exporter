@@ -136,6 +136,10 @@ var DBMaxConnections = map[string]map[string]int64{
 		"default.postgres13": 5000,
 		"default.postgres14": 5000,
 	},
+	"db.m5.8xlarge": map[string]int64{
+		"default":            5000,
+		"default.postgres12": 5000,
+	},
 	"db.m5.16xlarge": map[string]int64{
 		"default":                 6000,
 		"default.aurora-mysql5.7": 6000,
