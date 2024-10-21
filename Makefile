@@ -2,9 +2,10 @@ NAME				:= aws-resource-exporter
 REPO				:= quay.io/app-sre/$(NAME)
 TAG					:= $(shell git rev-parse --short HEAD)
 
-PKGS				:= $(shell go list ./... | grep -v -E '/vendor/|/test')
+PKGS			:= $(shell go list ./... | grep -v -E '/vendor/|/test')
 FIRST_GOPATH		:= $(firstword $(subst :, ,$(shell go env GOPATH)))
-CONTAINER_ENGINE    ?= $(shell which podman >/dev/null 2>&1 && echo podman || echo docker)
+CONTAINER_ENGINE	?= $(shell which podman >/dev/null 2>&1 && echo podman || echo docker)
+IMAGE_TEST  		:= aws-resource-exporter
 
 ifneq (,$(wildcard $(CURDIR)/.docker))
 	DOCKER_CONF := $(CURDIR)/.docker
@@ -68,3 +69,6 @@ test: vet test-unit
 test-unit:
 	go test -race -short $(PKGS) -count=1
 
+.PHONY: container-test
+container-test:
+	$(CONTAINER_ENGINE) build --target test -t $(IMAGE_TEST) -f Dockerfile .
