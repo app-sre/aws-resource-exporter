@@ -2,9 +2,10 @@ NAME				:= aws-resource-exporter
 REPO				:= quay.io/app-sre/$(NAME)
 TAG					:= $(shell git rev-parse --short HEAD)
 
-PKGS				:= $(shell go list ./... | grep -v -E '/vendor/|/test')
-FIRST_GOPATH		:= $(firstword $(subst :, ,$(shell go env GOPATH)))
+PKGS				:= $(shell $(GO) list ./... | grep -v -E '/vendor/|/test')
+FIRST_GOPATH		:= $(firstword $(subst :, ,$(shell $(GO) env GOPATH)))
 CONTAINER_ENGINE    ?= $(shell which podman >/dev/null 2>&1 && echo podman || echo docker)
+GO					:= PATH=/opt/go/1.23.1/bin:$(PATH) go
 
 ifneq (,$(wildcard $(CURDIR)/.docker))
 	DOCKER_CONF := $(CURDIR)/.docker
@@ -26,7 +27,7 @@ clean:
 
 .PHONY: build
 build:
-	go build -o $(NAME) .
+	$(GO) build -o $(NAME) .
 
 .PHONY: image
 image:
@@ -51,7 +52,7 @@ format: go-fmt
 
 .PHONY: go-fmt
 go-fmt:
-	go fmt $(PKGS)
+	$(GO) fmt $(PKGS)
 
 ###########
 # Testing #
@@ -59,12 +60,12 @@ go-fmt:
 
 .PHONY: vet
 vet:
-	go vet ./...
+	$(GO) vet ./...
 
 .PHONY: test
 test: vet test-unit
 
 .PHONY: test-unit
 test-unit:
-	go test -race -short $(PKGS) -count=1
+	$(GO) test -race -short $(PKGS) -count=1
 
