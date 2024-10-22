@@ -14,9 +14,9 @@ func createTestMetric(fqdn string, value float64) prometheus.Metric {
 }
 
 func TestGetMetricHash(t *testing.T) {
-	assert.Equal(t, "e2a622398e4a7ec5fca21510cc706fe28c1b37da32de620f0620804492890f62", getMetricHash(createTestMetric("foo_bar", 1)))
-	assert.Equal(t, "e2a622398e4a7ec5fca21510cc706fe28c1b37da32de620f0620804492890f62", getMetricHash(createTestMetric("foo_bar", 10)))
-	assert.NotEqual(t, "e2a622398e4a7ec5fca21510cc706fe28c1b37da32de620f0620804492890f62", getMetricHash(createTestMetric("other", 1)))
+	assert.Equal(t, "5e5435705ad2e07a1f989a92f230e6437dec1a12ae4f43fd26f74bcf8fa029cf", getMetricHash(createTestMetric("foo_bar", 1)))
+	assert.Equal(t, "5e5435705ad2e07a1f989a92f230e6437dec1a12ae4f43fd26f74bcf8fa029cf", getMetricHash(createTestMetric("foo_bar", 10)))
+	assert.NotEqual(t, "5e5435705ad2e07a1f989a92f230e6437dec1a12ae4f43fd26f74bcf8fa029cf", getMetricHash(createTestMetric("other", 1)))
 }
 
 func TestSameMetricWithDifferentLabelsDontOverwrite(t *testing.T) {
