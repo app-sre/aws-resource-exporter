@@ -870,7 +870,7 @@ data:
             "query": "prometheus",
             "queryValue": "",
             "refresh": 1,
-            "regex": "appsrep07ue1-prometheus|appsres07ue1-prometheus",
+            "regex": "appsrep07ue1-prometheus|appsres11ue1-prometheus",
             "skipUrlSync": false,
             "type": "datasource"
           }
