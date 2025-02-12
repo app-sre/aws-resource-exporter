@@ -1,0 +1,86 @@
+---
+apiVersion: v1
+kind: Template
+metadata:
+  name: ${EXPORTER_NAME}-acceptance-tests
+objects:
+- apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: ${EXPORTER_NAME}-acceptance-tests
+- apiVersion: batch/v1
+  kind: Job
+  metadata:
+    annotations:
+      ignore-check.kube-linter.io/unset-cpu-requirements: "no cpu limits"
+    name: ${EXPORTER_NAME}-${IMAGE_TAG}-acceptance-tests
+  spec:
+    backoffLimit: 5
+    template:
+      spec:
+        restartPolicy: Never
+        serviceAccountName: ${EXPORTER_NAME}-acceptance-tests
+        containers:
+        - image: ${TEST_IMAGE}:${TEST_IMAGE_TAG}
+          imagePullPolicy: Always
+          name: acceptance-tests
+          env:
+          - name: METRICS_URL
+            value: ${METRICS_URL}
+          - name: METRICS_NAMES
+            value: '${METRICS_NAMES}'
+          - name: METRICS_TIMEOUT
+            value: '${METRICS_TIMEOUT}'
+          - name: EXPORTER_NAME
+            value: ${EXPORTER_NAME}
+          - name: PUSHGATEWAY_URL
+            valueFrom:
+              secretKeyRef:
+                name: ${PUSHGATEWAY_SECRET}
+                key: ${PUSHGATEWAY_SECRET_URL_KEY}
+          - name: PUSHGATEWAY_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: ${PUSHGATEWAY_SECRET}
+                key: ${PUSHGATEWAY_SECRET_USERNAME_KEY}
+          - name: PUSHGATEWAY_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: ${PUSHGATEWAY_SECRET}
+                key: ${PUSHGATEWAY_SECRET_PASSWORD_KEY}
+          resources:
+            requests:
+              memory: ${MEMORY_REQUESTS}
+              cpu: ${CPU_REQUESTS}
+            limits:
+              memory: ${MEMORY_LIMIT}
+parameters:
+- name: TEST_IMAGE
+  value: quay.io/redhat-services-prod/app-sre-tenant/prometheus-exporter-acceptance-tests-main/prometheus-exporter-acceptance-tests-main
+- name: TEST_IMAGE_TAG
+  value: latest
+- name: IMAGE_TAG
+  description: tag of the exporter image to test
+  required: true
+- name: METRICS_URL
+  required: true
+- name: METRICS_NAMES
+  required: true
+- name: METRICS_TIMEOUT
+  value: "30"
+- name: EXPORTER_NAME
+  required: true
+- name: PUSHGATEWAY_SECRET
+  required: true
+- name: PUSHGATEWAY_SECRET_URL_KEY
+  value: server
+- name: PUSHGATEWAY_SECRET_USERNAME_KEY
+  value: username
+- name: PUSHGATEWAY_SECRET_PASSWORD_KEY
+  value: password
+- name: MEMORY_REQUESTS
+  value: 128Mi
+- name: MEMORY_LIMIT
+  value: 512Mi
+- name: CPU_REQUESTS
+  value: 100m
