@@ -48,7 +48,7 @@ var metricsProxy = NewMetricProxy()
 // * postgres: LEAST({DBInstanceClassMemory_in_Bytes / 9531392},5000)
 // * mysql: {DBInstanceClassMemory/12582880} - 50 and round down to the nearest hundreds.
 
-// For Aurora see: https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/AuroraMySQL.Managing.Performance.html
+// For MYSQL Aurora see: https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/AuroraMySQL.Managing.Performance.html
 
 // Attention: use "default" for all Postgres versions (non-aurora)!
 var DBMaxConnections = map[string]map[string]int64{
@@ -325,12 +325,9 @@ var DBMaxConnections = map[string]map[string]int64{
 	},
 	"db.r6i.16xlarge": map[string]int64{
 		// Memory: 512 GiB
-		"default":                   5000,
-		"default.mysql5.7":          43400,
-		"default.mysql8.0":          43400,
-		"default.aurora-postgres14": 6000,
-		"default.aurora-postgres16": 6000,
-		"default.aurora-postgres17": 6000,
+		"default":          5000,
+		"default.mysql5.7": 43400,
+		"default.mysql8.0": 43400,
 	},
 }
 
