@@ -41,318 +41,290 @@ var metricsProxy = NewMetricProxy()
 // This is a dump workaround created because by default the DB Parameter Group `max_connections` is a function
 // that is hard to parse and process in code and it contains a variable whose value is unknown to us (DBInstanceClassMemory)
 // AWS has no means to return the actual `max_connections` value.
+
+// Non Aurora: https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_Limits.html#RDS_Limits.MaxConnections
+// DBInstanceClassMemory in bytes: Memory (in GiB) * 1024 * 1024 * 1024
+// Attention: DBInstanceClassMemory is the real memory available for the DB procoess and not all the instance memory!
+// * postgres: LEAST({DBInstanceClassMemory_in_Bytes / 9531392},5000)
+// * mysql: {DBInstanceClassMemory/12582880} - 50 and round down to the nearest hundreds.
+
 // For Aurora see: https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/AuroraMySQL.Managing.Performance.html
-// For MySQL: {DBInstanceClassMemory/12582880} --> Memory (in GiB) * 1024 * 1024 * 1024 / 12582880
+
+// Attention: use "default" for all Postgres versions (non-aurora)!
 var DBMaxConnections = map[string]map[string]int64{
-	"db.t2.micro": map[string]int64{
-		"default": 87,
-	},
-	"db.t2.small": map[string]int64{
-		"default":          150,
-		"default.mysql5.7": 150,
-	},
+	//
+	// Tx
+	//
 	"db.t3.micro": map[string]int64{
-		"default":            112,
-		"default.postgres10": 112,
-		"default.postgres11": 112,
-		"default.postgres12": 112,
-		"default.postgres13": 112,
-		"default.postgres14": 112,
+		// Memory: 1 GiB
+		"default":          112,
+		"default.mysql5.7": 45,
+		"default.mysql8.0": 45,
 	},
 	"db.t3.small": map[string]int64{
-		"default":            225,
-		"default.postgres10": 225,
-		"default.postgres11": 225,
-		"default.postgres12": 225,
-		"default.postgres13": 225,
-		"default.postgres14": 225,
+		// Memory: 2 GiB
+		"default":          225,
+		"default.mysql5.7": 130,
+		"default.mysql8.0": 130,
 	},
 	"db.t3.medium": map[string]int64{
-		"default":            550,
-		"default.postgres10": 550,
-		"default.postgres11": 550,
-		"default.postgres12": 550,
-		"default.postgres13": 550,
-		"default.postgres14": 550,
+		// Memory: 4 GiB
+		"default":          450,
+		"default.mysql5.7": 300,
+		"default.mysql8.0": 300,
 	},
 	"db.t4g.micro": map[string]int64{
-		"default": 112,
+		// Memory: 1 GiB
+		"default":          112,
+		"default.mysql5.7": 45,
+		"default.mysql8.0": 45,
 	},
 	"db.t4g.small": map[string]int64{
-		"default": 225,
+		// Memory: 2 GiB
+		"default":          225,
+		"default.mysql5.7": 130,
+		"default.mysql8.0": 130,
 	},
 	"db.t4g.medium": map[string]int64{
-		"default": 450,
+		// Memory: 4 GiB
+		"default":          450,
+		"default.mysql5.7": 300,
+		"default.mysql8.0": 300,
 	},
 	"db.t4g.large": map[string]int64{
-		"default": 900,
+		// Memory: 8 GiB
+		"default":          900,
+		"default.mysql5.7": 600,
+		"default.mysql8.0": 600,
 	},
 	"db.t4g.xlarge": map[string]int64{
-		"default":            4000,
-		"default.postgres10": 4000,
-		"default.postgres11": 4000,
-		"default.postgres12": 4000,
-		"default.postgres13": 4000,
-		"default.postgres14": 4000,
+		// Memory: 16 GiB
+		"default":          1800,
+		"default.mysql5.7": 1300,
+		"default.mysql8.0": 1300,
 	},
 	"db.t4g.2xlarge": map[string]int64{
-		"default":            4000,
-		"default.postgres10": 4000,
-		"default.postgres11": 4000,
-		"default.postgres12": 4000,
-		"default.postgres13": 4000,
-		"default.postgres14": 4000,
+		// Memory: 32 GiB
+		"default":          3600,
+		"default.mysql5.7": 2600,
+		"default.mysql8.0": 2600,
 	},
-	"db.m3.medium": map[string]int64{
-		"default": 392,
-	},
-	"db.m3.large": map[string]int64{
-		"default": 801,
-	},
-	"db.m3.2xlarge": map[string]int64{
-		"default": 3379,
-	},
-	"db.m4.large": map[string]int64{
-		"default":            823,
-		"default.postgres10": 823,
-		"default.postgres11": 823,
-		"default.postgres12": 823,
-		"default.postgres13": 823,
-		"default.postgres14": 823,
-	},
+
+	//
+	// M5
+	//
 	"db.m5.large": map[string]int64{
-		"default":            823,
-		"default.postgres10": 823,
-		"default.postgres11": 823,
-		"default.postgres12": 823,
-		"default.postgres13": 823,
-		"default.postgres14": 823,
+		// Memory: 8 GiB
+		"default":          900,
+		"default.mysql5.7": 600,
+		"default.mysql8.0": 600,
 	},
 	"db.m5.xlarge": map[string]int64{
-		"default":            1646,
-		"default.postgres10": 1646,
-		"default.postgres11": 1646,
-		"default.postgres12": 1646,
-		"default.postgres13": 1646,
-		"default.postgres14": 1646,
+		// Memory: 16 GiB
+		"default":          1800,
+		"default.mysql5.7": 1300,
+		"default.mysql8.0": 1300,
 	},
 	"db.m5.2xlarge": map[string]int64{
-		"default":            3429,
-		"default.postgres10": 3429,
-		"default.postgres11": 3429,
-		"default.postgres12": 3429,
-		"default.postgres13": 3429,
-		"default.postgres14": 3429,
+		// Memory: 32 GiB
+		"default":          3600,
+		"default.mysql5.7": 2600,
+		"default.mysql8.0": 2600,
 	},
 	"db.m5.4xlarge": map[string]int64{
-		"default":            5000,
-		"default.postgres10": 5000,
-		"default.postgres11": 5000,
-		"default.postgres12": 5000,
-		"default.postgres13": 5000,
-		"default.postgres14": 5000,
+		// Memory: 64 GiB
+		"default":          5000,
+		"default.mysql5.7": 5300,
+		"default.mysql8.0": 5300,
 	},
 	"db.m5.8xlarge": map[string]int64{
-		"default":            5000,
-		"default.postgres12": 5000,
+		// Memory: 128 GiB
+		"default":          5000,
+		"default.mysql5.7": 10700,
+		"default.mysql8.0": 10700,
 	},
 	"db.m5.16xlarge": map[string]int64{
-		"default":                 6000,
+		// Memory: 256 GiB
+		"default":                 5000,
 		"default.aurora-mysql5.7": 6000,
+		"default.aurora-mysql5.8": 6000,
+		"default.aurora-mysql8.0": 6000,
+		"default.mysql5.7":        21600,
+		"default.mysql8.0":        21600,
 	},
-	"db.m5d.large": map[string]int64{
-		"default":            823,
-		"default.postgres11": 823,
-		"default.postgres12": 823,
-		"default.postgres13": 823,
-		"default.postgres14": 823,
-	},
-	"db.m5d.xlarge": map[string]int64{
-		"default":            1646,
-		"default.postgres11": 1646,
-		"default.postgres12": 1646,
-		"default.postgres13": 1646,
-		"default.postgres14": 1646,
-	},
-	"db.m5d.2xlarge": map[string]int64{
-		"default":            3429,
-		"default.postgres11": 3429,
-		"default.postgres12": 3429,
-		"default.postgres13": 3429,
-		"default.postgres14": 3429,
-	},
-	"db.m5d.4xlarge": map[string]int64{
-		"default":            5000,
-		"default.postgres11": 5000,
-		"default.postgres12": 5000,
-		"default.postgres13": 5000,
-		"default.postgres14": 5000,
-	},
-	"db.r4.large": map[string]int64{
-		"default":          1301,
-		"default.mysql5.7": 1301,
-	},
-	"db.r4.4xlarge": map[string]int64{
-		"default":          10410,
-		"default.mysql5.7": 10410,
-	},
-	// 244 * 1024 * 1024 * 1024 / 12582880
-	"db.r4.8xlarge": map[string]int64{
-		"default":          20820,
-		"default.mysql5.7": 20820,
-	},
-	"db.r5.large": map[string]int64{
-		"default":            1802,
-		"default.postgres10": 1802,
-		"default.postgres11": 1802,
-		"default.postgres12": 1802,
-		"default.postgres13": 1802,
-		"default.postgres14": 1802,
-	},
-	"db.r5.xlarge": map[string]int64{
-		"default":            2730,
-		"default.mysql5.7":   2730,
-		"default.postgres10": 3604,
-		"default.postgres11": 3604,
-		"default.postgres12": 3604,
-		"default.postgres13": 3604,
-		"default.postgres14": 3604,
-	},
-	"db.r5.2xlarge": map[string]int64{
-		"default":                 3000,
-		"default.aurora-mysql5.7": 3000,
-	},
-	"db.r5.4xlarge": map[string]int64{
-		"default":            5000,
-		"default.postgres10": 5000,
-		"default.postgres11": 5000,
-		"default.postgres12": 5000,
-		"default.postgres13": 5000,
-		"default.postgres14": 5000,
-	},
-	"db.r5.8xlarge": map[string]int64{
-		"default":          16000,
-		"default.mysql5.7": 16000,
-	},
-	"db.r5.12xlarge": map[string]int64{
-		"default":          16000,
-		"default.mysql5.7": 16000,
-	},
-	"db.r5.16xlarge": map[string]int64{
-		"default":          16000,
-		"default.mysql5.7": 16000,
-	},
-	"db.r5.24xlarge": map[string]int64{
-		"default":          16000,
-		"default.mysql5.7": 16000,
-	},
+
+	//
+	// M6g
+	//
 	"db.m6g.large": map[string]int64{
-		"default":            901,
-		"default.postgres12": 901,
-		"default.postgres13": 901,
-		"default.postgres14": 901,
+		// Memory: 8 GiB
+		"default":          900,
+		"default.mysql5.7": 600,
+		"default.mysql8.0": 600,
 	},
 	"db.m6g.xlarge": map[string]int64{
-		"default":            1705,
-		"default.postgres10": 1705,
-		"default.postgres11": 1705,
-		"default.postgres12": 1705,
-		"default.postgres13": 1705,
-		"default.postgres14": 1705,
+		// Memory: 16 GiB
+		"default":          1800,
+		"default.mysql5.7": 1300,
+		"default.mysql8.0": 1300,
 	},
 	"db.m6g.2xlarge": map[string]int64{
-		"default":            3410,
-		"default.postgres10": 3410,
-		"default.postgres11": 3410,
-		"default.postgres12": 3410,
-		"default.postgres13": 3410,
-		"default.postgres14": 3410,
+		// Memory: 32 GiB
+		"default":          3600,
+		"default.mysql5.7": 2600,
+		"default.mysql8.0": 2600,
 	},
 	"db.m6g.4xlarge": map[string]int64{
-		"default":            5000,
-		"default.postgres10": 5000,
-		"default.postgres11": 5000,
-		"default.postgres12": 5000,
-		"default.postgres13": 5000,
-		"default.postgres14": 5000,
+		// Memory: 64 GiB
+		"default":          5000,
+		"default.mysql5.7": 5300,
+		"default.mysql8.0": 5300,
 	},
 	"db.m6g.8xlarge": map[string]int64{
-		"default":            5000,
-		"default.postgres10": 5000,
-		"default.postgres11": 5000,
-		"default.postgres12": 5000,
-		"default.postgres13": 5000,
-		"default.postgres14": 5000,
+		// Memory: 128 GiB
+		"default":          5000,
+		"default.mysql5.7": 10700,
+		"default.mysql8.0": 10700,
 	},
-	"db.m6i.2xlarge": map[string]int64{
-		"default":            3410,
-		"default.postgres10": 3410,
-		"default.postgres11": 3410,
-		"default.postgres12": 3410,
-		"default.postgres13": 3410,
-		"default.postgres14": 3410,
+	"db.m6g.12xlarge": map[string]int64{
+		// Memory: 192 GiB
+		"default":          5000,
+		"default.mysql5.7": 16200,
+		"default.mysql8.0": 16200,
 	},
-	"db.r6i.16xlarge": map[string]int64{
-		"default":            5000,
-		"default.postgres10": 5000,
-		"default.postgres11": 5000,
-		"default.postgres12": 5000,
-		"default.postgres13": 5000,
-		"default.postgres14": 5000,
-	},
-	"db.m7g.large": map[string]int64{
-		"default":            901,
-		"default.postgres12": 901,
-		"default.postgres13": 901,
-		"default.postgres14": 901,
-	},
-	"db.m7g.xlarge": map[string]int64{
-		"default":            1705,
-		"default.postgres10": 1705,
-		"default.postgres11": 1705,
-		"default.postgres12": 1705,
-		"default.postgres13": 1705,
-		"default.postgres14": 1705,
-	},
-	"db.m7g.2xlarge": map[string]int64{
-		"default":            3410,
-		"default.postgres10": 3410,
-		"default.postgres11": 3410,
-		"default.postgres12": 3410,
-		"default.postgres13": 3410,
-		"default.postgres14": 3410,
-	},
-	"db.m7g.4xlarge": map[string]int64{
-		"default":            5000,
-		"default.postgres10": 5000,
-		"default.postgres11": 5000,
-		"default.postgres12": 5000,
-		"default.postgres13": 5000,
-		"default.postgres14": 5000,
-	},
-	"db.m7g.8xlarge": map[string]int64{
-		"default":            5000,
-		"default.postgres10": 5000,
-		"default.postgres11": 5000,
-		"default.postgres12": 5000,
-		"default.postgres13": 5000,
-		"default.postgres14": 5000,
-	},
-	"db.m7g.12xlarge": map[string]int64{
-		"default":            16000,
-		"default.postgres10": 16000,
-		"default.postgres11": 16000,
-		"default.postgres12": 16000,
-		"default.postgres13": 16000,
-		"default.postgres14": 16000,
+
+	//
+	// M6gd
+	//
+	"db.m6gd.xlarge": map[string]int64{
+		// Memory: 16 GiB
+		"default":          1800,
+		"default.mysql5.7": 1300,
+		"default.mysql8.0": 1300,
 	},
 	"db.m6gd.2xlarge": map[string]int64{
-		"default":            3449,
-		"default.postgres16": 3449,
+		// Memory: 32 GiB
+		"default":          3600,
+		"default.mysql5.7": 2600,
+		"default.mysql8.0": 2600,
 	},
-	"db.m6gd.xlarge": map[string]int64{
-		"default":            3449,
-		"default.postgres16": 3449,
+
+	//
+	// M6i
+	//
+	"db.m6i.2xlarge": map[string]int64{
+		// Memory: 32 GiB
+		"default":          3600,
+		"default.mysql5.7": 2600,
+		"default.mysql8.0": 2600,
+	},
+
+	//
+	// M7g
+	//
+	"db.m7g.large": map[string]int64{
+		// Memory: 8 GiB
+		"default":          900,
+		"default.mysql5.7": 600,
+		"default.mysql8.0": 600,
+	},
+	"db.m7g.xlarge": map[string]int64{
+		// Memory: 16 GiB
+		"default":          1800,
+		"default.mysql5.7": 1300,
+		"default.mysql8.0": 1300,
+	},
+	"db.m7g.2xlarge": map[string]int64{
+		// Memory: 32 GiB
+		"default":          3600,
+		"default.mysql5.7": 2600,
+		"default.mysql8.0": 2600,
+	},
+	"db.m7g.4xlarge": map[string]int64{
+		// Memory: 64 GiB
+		"default":          5000,
+		"default.mysql5.7": 5300,
+		"default.mysql8.0": 5300,
+	},
+	"db.m7g.8xlarge": map[string]int64{
+		// Memory: 128 GiB
+		"default":          5000,
+		"default.mysql5.7": 10700,
+		"default.mysql8.0": 10700,
+	},
+	"db.m7g.12xlarge": map[string]int64{
+		// Memory: 192 GiB
+		"default":          5000,
+		"default.mysql5.7": 16200,
+		"default.mysql8.0": 16200,
+	},
+
+	//
+	// R5
+	//
+	"db.r5.large": map[string]int64{
+		// Memory: 16 GiB
+		"default":          1800,
+		"default.mysql5.7": 1300,
+		"default.mysql8.0": 1300,
+	},
+	"db.r5.xlarge": map[string]int64{
+		// Memory: 32 GiB
+		"default":          3600,
+		"default.mysql5.7": 2600,
+		"default.mysql8.0": 2600,
+	},
+	"db.r5.2xlarge": map[string]int64{
+		// Memory: 64 GiB
+		"default":                 5000,
+		"default.mysql5.7":        5300,
+		"default.mysql8.0":        5300,
+		"default.aurora-mysql5.7": 3000,
+		"default.aurora-mysql5.8": 3000,
+		"default.aurora-mysql8.0": 3000,
+	},
+	"db.r5.4xlarge": map[string]int64{
+		// Memory: 128 GiB
+		"default":          5000,
+		"default.mysql5.7": 10700,
+		"default.mysql8.0": 10700,
+	},
+	"db.r5.8xlarge": map[string]int64{
+		// Memory: 256 GiB
+		"default":          5000,
+		"default.mysql5.7": 21600,
+		"default.mysql8.0": 21600,
+	},
+	"db.r5.12xlarge": map[string]int64{
+		// Memory: 384 GiB
+		"default":          16000,
+		"default.mysql5.7": 32768,
+		"default.mysql8.0": 32768,
+	},
+	"db.r5.16xlarge": map[string]int64{
+		// Memory: 512 GiB
+		"default":          5000,
+		"default.mysql5.7": 43400,
+		"default.mysql8.0": 43400,
+	},
+	"db.r5.24xlarge": map[string]int64{
+		// Memory: 768 GiB
+		"default":          5000,
+		"default.mysql5.7": 65400,
+		"default.mysql8.0": 65400,
+	},
+
+	//
+	// R6i
+	//
+	"db.r6i.16xlarge": map[string]int64{
+		// Memory: 512 GiB
+		"default":                   5000,
+		"default.mysql5.7":          43400,
+		"default.mysql8.0":          43400,
+		"default.aurora-postgres14": 6000,
+		"default.aurora-postgres16": 6000,
+		"default.aurora-postgres17": 6000,
 	},
 }
 
