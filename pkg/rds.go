@@ -315,9 +315,12 @@ var DBMaxConnections = map[string]map[string]int64{
 	//
 	"db.r6i.16xlarge": map[string]int64{
 		// Memory: 512 GiB
-		"default":          5000,
-		"default.mysql5.7": 43520,
-		"default.mysql8.0": 43520,
+		"default":                   5000,
+		"default.mysql5.7":          43520,
+		"default.mysql8.0":          43520,
+		"default.aurora-postgres14": 6000,
+		"default.aurora-postgres16": 6000,
+		"default.aurora-postgres17": 6000,
 	},
 }
 
