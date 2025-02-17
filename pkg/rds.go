@@ -317,6 +317,12 @@ var DBMaxConnections = map[string]map[string]int64{
 	//
 	// R6i
 	//
+	"db.r6i.large": map[string]int64{
+		// Memory: 16 GiB
+		"default":          1800,
+		"default.mysql5.7": 1300,
+		"default.mysql8.0": 1300,
+	},
 	"db.r6i.16xlarge": map[string]int64{
 		// Memory: 512 GiB
 		"default":                   5000,
