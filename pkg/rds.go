@@ -41,177 +41,283 @@ var metricsProxy = NewMetricProxy()
 // This is a dump workaround created because by default the DB Parameter Group `max_connections` is a function
 // that is hard to parse and process in code and it contains a variable whose value is unknown to us (DBInstanceClassMemory)
 // AWS has no means to return the actual `max_connections` value.
-// For postgres (ALL postgres versions): LEAST({DBInstanceClassMemory_in_Bytes / 9531392},5000) - See https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/AuroraPostgreSQL.Managing.html#AuroraPostgreSQL.Managing.MaxConnections
+// Non aurora limits: https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_Limits.html#RDS_Limits.MaxConnections
+// DBInstanceClassMemory in bytes: Memory (in GiB) * 1024 * 1024 * 1024
+// * postgres: LEAST({DBInstanceClassMemory_in_Bytes / 9531392},5000)
+// * mysql: {DBInstanceClassMemory/12582880}
+
 // For Aurora see: https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/AuroraMySQL.Managing.Performance.html
-// For MySQL: {DBInstanceClassMemory/12582880} --> Memory (in GiB) * 1024 * 1024 * 1024 / 12582880
 var DBMaxConnections = map[string]map[string]int64{
-	"db.t2.micro": map[string]int64{
-		"default": 87,
-	},
-	"db.t2.small": map[string]int64{
-		"default":          150,
-		"default.mysql5.7": 150,
-	},
+	//
+	// Tx
+	//
 	"db.t3.micro": map[string]int64{
-		"default": 112,
+		// Memory: 1 GiB
+		"default":          112,
+		"default.mysql5.7": 85,
+		"default.mysql8.0": 85,
 	},
 	"db.t3.small": map[string]int64{
-		"default": 225,
+		// Memory: 2 GiB
+		"default":          225,
+		"default.mysql5.7": 170,
+		"default.mysql8.0": 170,
 	},
 	"db.t3.medium": map[string]int64{
-		"default": 550,
+		// Memory: 4 GiB
+		"default":          450,
+		"default.mysql5.7": 340,
+		"default.mysql8.0": 340,
 	},
 	"db.t4g.micro": map[string]int64{
-		"default": 112,
+		// Memory: 1 GiB
+		"default":          112,
+		"default.mysql5.7": 85,
+		"default.mysql8.0": 85,
 	},
 	"db.t4g.small": map[string]int64{
-		"default": 225,
+		// Memory: 2 GiB
+		"default":          225,
+		"default.mysql5.7": 170,
+		"default.mysql8.0": 170,
 	},
 	"db.t4g.medium": map[string]int64{
-		"default": 450,
+		// Memory: 4 GiB
+		"default":          450,
+		"default.mysql5.7": 340,
+		"default.mysql8.0": 340,
 	},
 	"db.t4g.large": map[string]int64{
-		"default": 900,
+		// Memory: 8 GiB
+		"default":          900,
+		"default.mysql5.7": 680,
+		"default.mysql8.0": 680,
 	},
 	"db.t4g.xlarge": map[string]int64{
-		"default": 4000,
+		// Memory: 16 GiB
+		"default":          1800,
+		"default.mysql5.7": 1360,
+		"default.mysql8.0": 1360,
 	},
 	"db.t4g.2xlarge": map[string]int64{
-		"default": 4000,
+		// Memory: 32 GiB
+		"default":          3600,
+		"default.mysql5.7": 2720,
+		"default.mysql8.0": 2720,
 	},
-	"db.m3.medium": map[string]int64{
-		"default": 392,
-	},
-	"db.m3.large": map[string]int64{
-		"default": 801,
-	},
-	"db.m3.2xlarge": map[string]int64{
-		"default": 3379,
-	},
-	"db.m4.large": map[string]int64{
-		"default": 823,
-	},
+
+	//
+	// M5
+	//
 	"db.m5.large": map[string]int64{
-		"default": 823,
+		// Memory: 8 GiB
+		"default":          900,
+		"default.mysql5.7": 680,
+		"default.mysql8.0": 680,
 	},
 	"db.m5.xlarge": map[string]int64{
-		"default": 1646,
+		// Memory: 16 GiB
+		"default":          1800,
+		"default.mysql5.7": 1360,
+		"default.mysql8.0": 1360,
 	},
 	"db.m5.2xlarge": map[string]int64{
-		"default": 3429,
+		// Memory: 32 GiB
+		"default":          3600,
+		"default.mysql5.7": 2720,
+		"default.mysql8.0": 2720,
 	},
 	"db.m5.4xlarge": map[string]int64{
-		"default": 5000,
+		// Memory: 64 GiB
+		"default":          5000,
+		"default.mysql5.7": 5440,
+		"default.mysql8.0": 5440,
 	},
 	"db.m5.8xlarge": map[string]int64{
-		"default": 5000,
+		// Memory: 128 GiB
+		"default":          5000,
+		"default.mysql5.7": 10880,
+		"default.mysql8.0": 10880,
 	},
 	"db.m5.16xlarge": map[string]int64{
-		"default":                 6000,
+		// Memory: 256 GiB
+		"default":                 5000,
 		"default.aurora-mysql5.7": 6000,
+		"default.aurora-mysql5.8": 6000,
+		"default.aurora-mysql8.0": 6000,
+		"default.mysql5.7":        21760,
+		"default.mysql8.0":        21760,
 	},
-	"db.m5d.large": map[string]int64{
-		"default": 823,
-	},
-	"db.m5d.xlarge": map[string]int64{
-		"default": 1646,
-	},
-	"db.m5d.2xlarge": map[string]int64{
-		"default": 3429,
-	},
-	"db.m5d.4xlarge": map[string]int64{
-		"default": 5000,
-	},
-	"db.r4.large": map[string]int64{
-		"default":          1301,
-		"default.mysql5.7": 1301,
-	},
-	"db.r4.4xlarge": map[string]int64{
-		"default":          10410,
-		"default.mysql5.7": 10410,
-	},
-	// 244 * 1024 * 1024 * 1024 / 12582880
-	"db.r4.8xlarge": map[string]int64{
-		"default":          20820,
-		"default.mysql5.7": 20820,
-	},
-	"db.r5.large": map[string]int64{
-		"default": 1802,
-	},
-	"db.r5.xlarge": map[string]int64{
-		"default":          3604,
-		"default.mysql5.7": 2730,
-	},
-	"db.r5.2xlarge": map[string]int64{
-		"default":                 3000,
-		"default.aurora-mysql5.7": 3000,
-	},
-	"db.r5.4xlarge": map[string]int64{
-		"default": 5000,
-	},
-	"db.r5.8xlarge": map[string]int64{
-		"default":          16000,
-		"default.mysql5.7": 16000,
-	},
-	"db.r5.12xlarge": map[string]int64{
-		"default":          16000,
-		"default.mysql5.7": 16000,
-	},
-	"db.r5.16xlarge": map[string]int64{
-		"default":          16000,
-		"default.mysql5.7": 16000,
-	},
-	"db.r5.24xlarge": map[string]int64{
-		"default":          16000,
-		"default.mysql5.7": 16000,
-	},
+
+	//
+	// M6g
+	//
 	"db.m6g.large": map[string]int64{
-		"default": 901,
+		// Memory: 8 GiB
+		"default":          900,
+		"default.mysql5.7": 680,
+		"default.mysql8.0": 680,
 	},
 	"db.m6g.xlarge": map[string]int64{
-		"default": 1705,
+		// Memory: 16 GiB
+		"default":          1800,
+		"default.mysql5.7": 1360,
+		"default.mysql8.0": 1360,
 	},
 	"db.m6g.2xlarge": map[string]int64{
-		"default": 3410,
+		// Memory: 32 GiB
+		"default":          3600,
+		"default.mysql5.7": 2720,
+		"default.mysql8.0": 2720,
 	},
 	"db.m6g.4xlarge": map[string]int64{
-		"default": 5000,
+		// Memory: 64 GiB
+		"default":          5000,
+		"default.mysql5.7": 5440,
+		"default.mysql8.0": 5440,
 	},
 	"db.m6g.8xlarge": map[string]int64{
-		"default": 5000,
+		// Memory: 128 GiB
+		"default":          5000,
+		"default.mysql5.7": 10880,
+		"default.mysql8.0": 10880,
 	},
 	"db.m6g.12xlarge": map[string]int64{
-		"default": 5000,
+		// Memory: 192 GiB
+		"default":          5000,
+		"default.mysql5.7": 16384,
+		"default.mysql8.0": 16384,
+	},
+
+	//
+	// M6gd
+	//
+	"db.m6gd.xlarge": map[string]int64{
+		// Memory: 16 GiB
+		"default":          1800,
+		"default.mysql5.7": 1360,
+		"default.mysql8.0": 1360,
 	},
 	"db.m6gd.2xlarge": map[string]int64{
-		"default": 3449,
+		// Memory: 32 GiB
+		"default":          3600,
+		"default.mysql5.7": 2720,
+		"default.mysql8.0": 2720,
 	},
-	"db.m6gd.xlarge": map[string]int64{
-		"default": 3449,
-	},
+
+	//
+	// M6i
+	//
 	"db.m6i.2xlarge": map[string]int64{
-		"default": 3410,
+		// Memory: 32 GiB
+		"default":          3600,
+		"default.mysql5.7": 2720,
+		"default.mysql8.0": 2720,
 	},
-	"db.r6i.16xlarge": map[string]int64{
-		"default": 5000,
-	},
+
+	//
+	// M7g
+	//
 	"db.m7g.large": map[string]int64{
-		"default": 901,
+		// Memory: 8 GiB
+		"default":          900,
+		"default.mysql5.7": 680,
+		"default.mysql8.0": 680,
 	},
 	"db.m7g.xlarge": map[string]int64{
-		"default": 1705,
+		// Memory: 16 GiB
+		"default":          1800,
+		"default.mysql5.7": 1360,
+		"default.mysql8.0": 1360,
 	},
 	"db.m7g.2xlarge": map[string]int64{
-		"default": 3410,
+		// Memory: 32 GiB
+		"default":          3600,
+		"default.mysql5.7": 2720,
+		"default.mysql8.0": 2720,
 	},
 	"db.m7g.4xlarge": map[string]int64{
-		"default": 5000,
+		// Memory: 64 GiB
+		"default":          5000,
+		"default.mysql5.7": 5440,
+		"default.mysql8.0": 5440,
 	},
 	"db.m7g.8xlarge": map[string]int64{
-		"default": 5000,
+		// Memory: 128 GiB
+		"default":          5000,
+		"default.mysql5.7": 10880,
+		"default.mysql8.0": 10880,
 	},
 	"db.m7g.12xlarge": map[string]int64{
-		"default": 5000,
+		// Memory: 192 GiB
+		"default":          5000,
+		"default.mysql5.7": 16384,
+		"default.mysql8.0": 16384,
+	},
+
+	//
+	// R5
+	//
+	"db.r5.large": map[string]int64{
+		// Memory: 16 GiB
+		"default":          1800,
+		"default.mysql5.7": 1360,
+		"default.mysql8.0": 1360,
+	},
+	"db.r5.xlarge": map[string]int64{
+		// Memory: 32 GiB
+		"default":          3600,
+		"default.mysql5.7": 2720,
+		"default.mysql8.0": 2720,
+	},
+	"db.r5.2xlarge": map[string]int64{
+		// Memory: 64 GiB
+		"default":                 5000,
+		"default.mysql5.7":        5440,
+		"default.mysql8.0":        5440,
+		"default.aurora-mysql5.7": 3000,
+		"default.aurora-mysql5.8": 3000,
+		"default.aurora-mysql8.0": 3000,
+	},
+	"db.r5.4xlarge": map[string]int64{
+		// Memory: 128 GiB
+		"default":          5000,
+		"default.mysql5.7": 10880,
+		"default.mysql8.0": 10880,
+	},
+	"db.r5.8xlarge": map[string]int64{
+		// Memory: 256 GiB
+		"default":          5000,
+		"default.mysql5.7": 21760,
+		"default.mysql8.0": 21760,
+	},
+	"db.r5.12xlarge": map[string]int64{
+		// Memory: 384 GiB
+		"default":          16000,
+		"default.mysql5.7": 32768,
+		"default.mysql8.0": 32768,
+	},
+	"db.r5.16xlarge": map[string]int64{
+		// Memory: 512 GiB
+		"default":          5000,
+		"default.mysql5.7": 43520,
+		"default.mysql8.0": 43520,
+	},
+	"db.r5.24xlarge": map[string]int64{
+		// Memory: 768 GiB
+		"default":          5000,
+		"default.mysql5.7": 65536,
+		"default.mysql8.0": 65536,
+	},
+
+	//
+	// R6i
+	//
+	"db.r6i.16xlarge": map[string]int64{
+		// Memory: 512 GiB
+		"default":          5000,
+		"default.mysql5.7": 43520,
+		"default.mysql8.0": 43520,
 	},
 }
 
