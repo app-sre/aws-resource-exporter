@@ -41,12 +41,15 @@ var metricsProxy = NewMetricProxy()
 // This is a dump workaround created because by default the DB Parameter Group `max_connections` is a function
 // that is hard to parse and process in code and it contains a variable whose value is unknown to us (DBInstanceClassMemory)
 // AWS has no means to return the actual `max_connections` value.
-// Non aurora limits: https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_Limits.html#RDS_Limits.MaxConnections
+
+// Non Aurora: https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_Limits.html#RDS_Limits.MaxConnections
 // DBInstanceClassMemory in bytes: Memory (in GiB) * 1024 * 1024 * 1024
 // * postgres: LEAST({DBInstanceClassMemory_in_Bytes / 9531392},5000)
 // * mysql: {DBInstanceClassMemory/12582880}
 
 // For Aurora see: https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/AuroraMySQL.Managing.Performance.html
+
+// Attention: use "default" for all Postgres versions (non-aurora)!
 var DBMaxConnections = map[string]map[string]int64{
 	//
 	// Tx
