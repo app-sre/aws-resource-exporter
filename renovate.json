@@ -6,5 +6,5 @@
   "gomod": {
     "enabled": true
   },
-  "postUpdateOptions": ["goModTidy"]
+  "postUpdateOptions": ["gomodTidy"]
 }
