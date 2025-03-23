@@ -10,10 +10,15 @@ vpc:
     - "eu-west-1"
 route53:
   enabled: true
-  region: "us-east-1"
+  regions:
+    - "us-east-1"
 ec2:
   enabled: true
   regions:
     - "us-east-1"
     - "eu-central-1"
     - "us-west-1"
+iam:
+  enabled: true
+  region:
+    - "us-east-1"

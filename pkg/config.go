@@ -5,8 +5,8 @@ import (
 	"io/ioutil"
 	"time"
 
-	"github.com/go-kit/kit/log"
-	"github.com/go-kit/kit/log/level"
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"gopkg.in/yaml.v2"
 )
 
@@ -70,6 +70,11 @@ type MSKInfo struct {
 	Version string `yaml:"version"`
 }
 
+type IAMConfig struct {
+	BaseConfig `yaml:"base,inline"`
+	Region     string `yaml:"region"`
+}
+
 type Config struct {
 	RdsConfig         RDSConfig         `yaml:"rds"`
 	VpcConfig         VPCConfig         `yaml:"vpc"`
@@ -77,6 +82,7 @@ type Config struct {
 	EC2Config         EC2Config         `yaml:"ec2"`
 	ElastiCacheConfig ElastiCacheConfig `yaml:"elasticache"`
 	MskConfig         MSKConfig         `yaml:"msk"`
+	IamConfig         IAMConfig         `yaml:"iam"`
 }
 
 func LoadExporterConfiguration(logger log.Logger, configFile string) (*Config, error) {
@@ -125,6 +131,9 @@ func LoadExporterConfiguration(logger log.Logger, configFile string) (*Config, e
 	if config.MskConfig.Interval == nil {
 		config.MskConfig.Interval = durationPtr(15 * time.Second)
 	}
+	if config.IamConfig.Interval == nil {
+		config.IamConfig.Interval = durationPtr(15 * time.Second)
+	}
 
 	if config.RdsConfig.Timeout == nil {
 		config.RdsConfig.Timeout = durationPtr(10 * time.Second)
@@ -143,6 +152,9 @@ func LoadExporterConfiguration(logger log.Logger, configFile string) (*Config, e
 	}
 	if config.MskConfig.Timeout == nil {
 		config.MskConfig.Timeout = durationPtr(10 * time.Second)
+	}
+	if config.IamConfig.Timeout == nil {
+		config.IamConfig.Timeout = durationPtr(10 * time.Second)
 	}
 
 	// Setting defaults when threshold is not defined to ease the transition from hardcoded thresholds
