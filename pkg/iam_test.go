@@ -28,7 +28,6 @@ func TestGetIAMMetrics_Success(t *testing.T) {
 		},
 	)
 
-	// Mock Service Quotas response
 	mockServiceQuotas.EXPECT().GetServiceQuotaWithContext(gomock.Any(), gomock.Any()).Return(
 		&servicequotas.GetServiceQuotaOutput{
 			Quota: &servicequotas.ServiceQuota{
@@ -37,7 +36,6 @@ func TestGetIAMMetrics_Success(t *testing.T) {
 		}, nil,
 	)
 
-	// Create IAMExporter instance with mocks
 	iamExporter := &IAMExporter{
 		iamClient:    mockIAM,
 		sqClient:     mockServiceQuotas,
@@ -62,12 +60,10 @@ func TestGetIAMMetrics_ErrorHandling(t *testing.T) {
 	mockIAM := mock.NewMockIAMClient(ctrl)
 	mockServiceQuotas := mock.NewMockServiceQuotasClient(ctrl)
 
-	// Simulate IAM API failure
 	mockIAM.EXPECT().
 		ListRolesPagesWithContext(gomock.Any(), gomock.Any(), gomock.Any()).
 		Return(errors.New("IAM API error"))
 
-	// Ensure Service Quotas API is still called, even if IAM API fails
 	mockServiceQuotas.EXPECT().
 		GetServiceQuotaWithContext(gomock.Any(), gomock.Any()).
 		Return(
@@ -100,15 +96,13 @@ func TestGetIAMMetrics_QuotaError(t *testing.T) {
 	mockIAM := mock.NewMockIAMClient(ctrl)
 	mockServiceQuotas := mock.NewMockServiceQuotasClient(ctrl)
 
-	// Simulate successful IAM role listing
 	mockIAM.EXPECT().ListRolesPagesWithContext(gomock.Any(), gomock.Any(), gomock.Any()).DoAndReturn(
 		func(ctx aws.Context, input *iam.ListRolesInput, fn func(*iam.ListRolesOutput, bool) bool, opts ...interface{}) error {
-			fn(&iam.ListRolesOutput{Roles: []*iam.Role{{}}}, true) // Simulating 1 IAM role
+			fn(&iam.ListRolesOutput{Roles: []*iam.Role{{}}}, true)
 			return nil
 		},
 	)
 
-	// Simulate Service Quotas API failure
 	mockServiceQuotas.EXPECT().
 		GetServiceQuotaWithContext(gomock.Any(), gomock.Any()).
 		Return(nil, errors.New("Quota API error"))
@@ -124,7 +118,6 @@ func TestGetIAMMetrics_QuotaError(t *testing.T) {
 
 	roleCount, roleQuota, usagePercent, err := iamExporter.getIAMMetrics()
 
-	// Assertions
 	assert.NoError(t, err)
 	assert.Equal(t, 1, roleCount)
 	assert.Equal(t, 0.0, roleQuota)

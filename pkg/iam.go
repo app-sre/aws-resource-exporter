@@ -40,7 +40,6 @@ func (c *AWSServiceQuotasClient) GetServiceQuotaWithContext(ctx aws.Context, inp
 }
 
 var (
-	// Prometheus metrics
 	IamRolesUsed = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "iam", "roles_used"),
 		"Number of IAM roles used in the account.",
@@ -51,14 +50,8 @@ var (
 		"IAM role quota for the account.",
 		[]string{"aws_account_id"}, nil,
 	)
-	IamRolesUsagePercent = prometheus.NewDesc(
-		prometheus.BuildFQName(namespace, "iam", "roles_usage_percent"),
-		"Percentage of IAM roles used relative to the quota.",
-		[]string{"aws_account_id"}, nil,
-	)
 )
 
-// IAMExporter collects IAM role usage metrics.
 type IAMExporter struct {
 	iamClient    IAMClient
 	sqClient     ServiceQuotasClient
@@ -68,7 +61,6 @@ type IAMExporter struct {
 	awsAccountId string
 }
 
-// NewIAMExporter initializes an IAMExporter instance.
 func NewIAMExporter(sess *session.Session, logger log.Logger, config IAMConfig, awsAccountId string) *IAMExporter {
 	level.Info(logger).Log("msg", "Initializing IAM exporter")
 
@@ -82,16 +74,13 @@ func NewIAMExporter(sess *session.Session, logger log.Logger, config IAMConfig, 
 	}
 }
 
-// Describe sends the descriptors of each metric over to the provided channel.
 func (e *IAMExporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- IamRolesUsed
 	ch <- IamRolesQuota
-	ch <- IamRolesUsagePercent
 }
 
-// Collect fetches the metrics and delivers them as Prometheus metrics.
 func (e *IAMExporter) Collect(ch chan<- prometheus.Metric) {
-	used, quota, usagePercent, err := e.getIAMMetrics()
+	used, quota, _, err := e.getIAMMetrics()
 	if err != nil {
 		level.Error(e.logger).Log("msg", "Failed to get IAM metrics", "err", err)
 		return
@@ -99,16 +88,16 @@ func (e *IAMExporter) Collect(ch chan<- prometheus.Metric) {
 
 	ch <- prometheus.MustNewConstMetric(IamRolesUsed, prometheus.GaugeValue, float64(used), e.awsAccountId)
 	ch <- prometheus.MustNewConstMetric(IamRolesQuota, prometheus.GaugeValue, quota, e.awsAccountId)
-	ch <- prometheus.MustNewConstMetric(IamRolesUsagePercent, prometheus.GaugeValue, usagePercent, e.awsAccountId)
 }
 
-// getIAMMetrics fetches IAM role usage metrics.
 func (e *IAMExporter) getIAMMetrics() (int, float64, float64, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), e.timeout)
 	defer cancel()
 
 	var roleCount int
-	err := e.iamClient.ListRolesPagesWithContext(ctx, &iam.ListRolesInput{}, func(output *iam.ListRolesOutput, _ bool) bool {
+	err := e.iamClient.ListRolesPagesWithContext(ctx, &iam.ListRolesInput{
+		MaxItems: aws.Int64(1000),
+	}, func(output *iam.ListRolesOutput, _ bool) bool {
 		roleCount += len(output.Roles)
 		return true
 	})
@@ -135,7 +124,6 @@ func (e *IAMExporter) getIAMMetrics() (int, float64, float64, error) {
 	return roleCount, roleQuota, usagePercent, nil
 }
 
-// CollectLoop periodically collects IAM metrics.
 func (e *IAMExporter) CollectLoop() {
 	ticker := time.NewTicker(e.interval)
 	defer ticker.Stop()
