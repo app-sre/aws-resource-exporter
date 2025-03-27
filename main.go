@@ -8,20 +8,19 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/app-sre/aws-resource-exporter/pkg"
 	"github.com/app-sre/aws-resource-exporter/pkg/awsclient"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sts"
-	"github.com/go-kit/kit/log/level"
-	"github.com/prometheus/common/promlog"
-	"github.com/prometheus/common/promlog/flag"
-
-	"github.com/go-kit/kit/log"
+	"github.com/go-kit/log"
+	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/prometheus/common/promlog"
+	"github.com/prometheus/common/promlog/flag"
 	"github.com/prometheus/common/version"
-	"github.com/alecthomas/kingpin/v2"
 )
 
 const (
@@ -62,6 +61,7 @@ func setupCollectors(logger log.Logger, configFile string) ([]prometheus.Collect
 	level.Info(logger).Log("msg", "Configuring elasticache with regions", "regions", strings.Join(config.ElastiCacheConfig.Regions, ","))
 	level.Info(logger).Log("msg", "Configuring msk with regions", "regions", strings.Join(config.MskConfig.Regions, ","))
 	level.Info(logger).Log("msg", "Will VPC metrics be gathered?", "vpc-enabled", config.VpcConfig.Enabled)
+	level.Info(logger).Log("msg", "Will IAM metrics be gathered?", "iam-enabled", config.IamConfig.Enabled)
 
 	sessionRegion := "us-east-1"
 	if sr := os.Getenv("AWS_REGION"); sr != "" {
@@ -141,6 +141,14 @@ func setupCollectors(logger log.Logger, configFile string) ([]prometheus.Collect
 		mskExporter := pkg.NewMSKExporter(mskSessions, logger, config.MskConfig, awsAccountId)
 		collectors = append(collectors, mskExporter)
 		go mskExporter.CollectLoop()
+	}
+	level.Info(logger).Log("msg", "Will IAM metrics be gathered?", "iam-enabled", config.IamConfig.Enabled)
+	if config.IamConfig.Enabled {
+		awsConfig := aws.NewConfig().WithRegion(config.IamConfig.Region) // IAM is global, this region just for AWS SDK initialization
+		sess := session.Must(session.NewSession(awsConfig))
+		iamExporter := pkg.NewIAMExporter(sess, logger, config.IamConfig, awsAccountId)
+		collectors = append(collectors, iamExporter)
+		go iamExporter.CollectLoop()
 	}
 
 	return collectors, nil
