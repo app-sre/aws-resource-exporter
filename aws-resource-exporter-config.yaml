@@ -20,5 +20,4 @@ ec2:
     - "us-west-1"
 iam:
   enabled: true
-  region:
-    - "us-east-1"
+  region: "us-east-1"

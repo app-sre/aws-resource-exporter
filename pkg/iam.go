@@ -2,14 +2,14 @@ package pkg
 
 import (
 	"context"
-	"fmt"
 	"time"
+
+	"github.com/app-sre/aws-resource-exporter/pkg/awsclient"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/iam"
-	"github.com/aws/aws-sdk-go/service/servicequotas"
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
@@ -17,26 +17,6 @@ import (
 
 type IAMClient interface {
 	ListRolesPagesWithContext(ctx aws.Context, input *iam.ListRolesInput, fn func(*iam.ListRolesOutput, bool) bool, opts ...request.Option) error
-}
-
-type ServiceQuotasClient interface {
-	GetServiceQuotaWithContext(ctx aws.Context, input *servicequotas.GetServiceQuotaInput, opts ...request.Option) (*servicequotas.GetServiceQuotaOutput, error)
-}
-
-type AWSIAMClient struct {
-	iam *iam.IAM
-}
-
-func (c *AWSIAMClient) ListRolesPagesWithContext(ctx aws.Context, input *iam.ListRolesInput, fn func(*iam.ListRolesOutput, bool) bool, opts ...request.Option) error {
-	return c.iam.ListRolesPagesWithContext(ctx, input, fn, opts...)
-}
-
-type AWSServiceQuotasClient struct {
-	sq *servicequotas.ServiceQuotas
-}
-
-func (c *AWSServiceQuotasClient) GetServiceQuotaWithContext(ctx aws.Context, input *servicequotas.GetServiceQuotaInput, opts ...request.Option) (*servicequotas.GetServiceQuotaOutput, error) {
-	return c.sq.GetServiceQuotaWithContext(ctx, input, opts...)
 }
 
 var (
@@ -53,24 +33,29 @@ var (
 )
 
 type IAMExporter struct {
+	session      *session.Session
 	iamClient    IAMClient
-	sqClient     ServiceQuotasClient
+	sqClient     awsclient.Client
 	logger       log.Logger
 	timeout      time.Duration
 	interval     time.Duration
 	awsAccountId string
+	cache        MetricsCache
 }
 
+// NewIAMExporter creates a new IAMExporter
 func NewIAMExporter(sess *session.Session, logger log.Logger, config IAMConfig, awsAccountId string) *IAMExporter {
 	level.Info(logger).Log("msg", "Initializing IAM exporter")
 
 	return &IAMExporter{
-		iamClient:    &AWSIAMClient{iam: iam.New(sess)},
-		sqClient:     &AWSServiceQuotasClient{sq: servicequotas.New(sess)},
+		session:      sess,
+		iamClient:    iam.New(sess),
+		sqClient:     awsclient.NewClientFromSession(sess),
 		logger:       logger,
 		timeout:      *config.Timeout,
 		interval:     *config.Interval,
 		awsAccountId: awsAccountId,
+		cache:        *NewMetricsCache(*config.CacheTTL),
 	}
 }
 
@@ -80,63 +65,48 @@ func (e *IAMExporter) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func (e *IAMExporter) Collect(ch chan<- prometheus.Metric) {
-	used, quota, _, err := e.getIAMMetrics()
-	if err != nil {
-		level.Error(e.logger).Log("msg", "Failed to get IAM metrics", "err", err)
-		return
+	for _, m := range e.cache.GetAllMetrics() {
+		ch <- m
 	}
-
-	ch <- prometheus.MustNewConstMetric(IamRolesUsed, prometheus.GaugeValue, float64(used), e.awsAccountId)
-	ch <- prometheus.MustNewConstMetric(IamRolesQuota, prometheus.GaugeValue, quota, e.awsAccountId)
-}
-
-func (e *IAMExporter) getIAMMetrics() (int, float64, float64, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), e.timeout)
-	defer cancel()
-
-	var roleCount int
-	err := e.iamClient.ListRolesPagesWithContext(ctx, &iam.ListRolesInput{
-		MaxItems: aws.Int64(1000),
-	}, func(output *iam.ListRolesOutput, _ bool) bool {
-		roleCount += len(output.Roles)
-		return true
-	})
-
-	quotaResp, quotaErr := e.sqClient.GetServiceQuotaWithContext(ctx, &servicequotas.GetServiceQuotaInput{
-		ServiceCode: aws.String("iam"),
-		QuotaCode:   aws.String("L-FE177D64"),
-	})
-
-	roleQuota := 0.0
-	if quotaErr == nil && quotaResp.Quota.Value != nil {
-		roleQuota = *quotaResp.Quota.Value
-	}
-
-	usagePercent := 0.0
-	if roleQuota > 0 {
-		usagePercent = (float64(roleCount) / roleQuota) * 100
-	}
-
-	if err != nil {
-		return 0, roleQuota, usagePercent, fmt.Errorf("error listing IAM roles: %w", err)
-	}
-
-	return roleCount, roleQuota, usagePercent, nil
 }
 
 func (e *IAMExporter) CollectLoop() {
-	ticker := time.NewTicker(e.interval)
-	defer ticker.Stop()
-
 	for {
-		select {
-		case <-ticker.C:
-			used, quota, usagePercent, err := e.getIAMMetrics()
-			if err != nil {
-				level.Error(e.logger).Log("msg", "Error collecting IAM metrics", "err", err)
-			} else {
-				level.Info(e.logger).Log("msg", "IAM metrics collected", "used", used, "quota", quota, "usage_percent", usagePercent)
-			}
+		ctx, cancel := context.WithTimeout(context.Background(), e.timeout)
+
+		roleCount, err := getIAMRoleCount(ctx, e.iamClient)
+		if err != nil {
+			level.Error(e.logger).Log("msg", "Failed to get IAM role count", "err", err)
+			cancel()
+			time.Sleep(e.interval)
+			continue
 		}
+
+		quota, err := getQuotaValueWithContext(e.sqClient, "iam", "L-FE177D64", ctx)
+		if err != nil {
+			level.Error(e.logger).Log("msg", "Failed to get IAM role quota", "err", err)
+			cancel()
+			time.Sleep(e.interval)
+			continue
+		}
+
+		e.cache.AddMetric(prometheus.MustNewConstMetric(IamRolesUsed, prometheus.GaugeValue, float64(roleCount), e.awsAccountId))
+		e.cache.AddMetric(prometheus.MustNewConstMetric(IamRolesQuota, prometheus.GaugeValue, quota, e.awsAccountId))
+
+		level.Info(e.logger).Log("msg", "IAM metrics updated", "used", roleCount, "quota", quota)
+		cancel()
+		time.Sleep(e.interval)
 	}
+}
+
+// getIAMRoleCount returns number of IAM roles using IAMClient
+func getIAMRoleCount(ctx context.Context, client IAMClient) (int, error) {
+	var count int
+	err := client.ListRolesPagesWithContext(ctx, &iam.ListRolesInput{
+		MaxItems: aws.Int64(1000),
+	}, func(output *iam.ListRolesOutput, _ bool) bool {
+		count += len(output.Roles)
+		return true
+	})
+	return count, err
 }

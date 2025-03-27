@@ -112,6 +112,9 @@ func LoadExporterConfiguration(logger log.Logger, configFile string) (*Config, e
 	if config.MskConfig.CacheTTL == nil {
 		config.MskConfig.CacheTTL = durationPtr(35 * time.Second)
 	}
+	if config.IamConfig.CacheTTL == nil {
+		config.IamConfig.CacheTTL = durationPtr(35 * time.Second)
+	}
 
 	if config.RdsConfig.Interval == nil {
 		config.RdsConfig.Interval = durationPtr(15 * time.Second)

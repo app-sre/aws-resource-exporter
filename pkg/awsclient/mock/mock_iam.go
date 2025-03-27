@@ -10,7 +10,6 @@ import (
 	aws "github.com/aws/aws-sdk-go/aws"
 	request "github.com/aws/aws-sdk-go/aws/request"
 	iam "github.com/aws/aws-sdk-go/service/iam"
-	servicequotas "github.com/aws/aws-sdk-go/service/servicequotas"
 	gomock "github.com/golang/mock/gomock"
 )
 
@@ -54,47 +53,4 @@ func (mr *MockIAMClientMockRecorder) ListRolesPagesWithContext(ctx, input, fn in
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]interface{}{ctx, input, fn}, opts...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListRolesPagesWithContext", reflect.TypeOf((*MockIAMClient)(nil).ListRolesPagesWithContext), varargs...)
-}
-
-// MockServiceQuotasClient is a mock of ServiceQuotasClient interface.
-type MockServiceQuotasClient struct {
-	ctrl     *gomock.Controller
-	recorder *MockServiceQuotasClientMockRecorder
-}
-
-// MockServiceQuotasClientMockRecorder is the mock recorder for MockServiceQuotasClient.
-type MockServiceQuotasClientMockRecorder struct {
-	mock *MockServiceQuotasClient
-}
-
-// NewMockServiceQuotasClient creates a new mock instance.
-func NewMockServiceQuotasClient(ctrl *gomock.Controller) *MockServiceQuotasClient {
-	mock := &MockServiceQuotasClient{ctrl: ctrl}
-	mock.recorder = &MockServiceQuotasClientMockRecorder{mock}
-	return mock
-}
-
-// EXPECT returns an object that allows the caller to indicate expected use.
-func (m *MockServiceQuotasClient) EXPECT() *MockServiceQuotasClientMockRecorder {
-	return m.recorder
-}
-
-// GetServiceQuotaWithContext mocks base method.
-func (m *MockServiceQuotasClient) GetServiceQuotaWithContext(ctx aws.Context, input *servicequotas.GetServiceQuotaInput, opts ...request.Option) (*servicequotas.GetServiceQuotaOutput, error) {
-	m.ctrl.T.Helper()
-	varargs := []interface{}{ctx, input}
-	for _, a := range opts {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "GetServiceQuotaWithContext", varargs...)
-	ret0, _ := ret[0].(*servicequotas.GetServiceQuotaOutput)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetServiceQuotaWithContext indicates an expected call of GetServiceQuotaWithContext.
-func (mr *MockServiceQuotasClientMockRecorder) GetServiceQuotaWithContext(ctx, input interface{}, opts ...interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	varargs := append([]interface{}{ctx, input}, opts...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetServiceQuotaWithContext", reflect.TypeOf((*MockServiceQuotasClient)(nil).GetServiceQuotaWithContext), varargs...)
 }
