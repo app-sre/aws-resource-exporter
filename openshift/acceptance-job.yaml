@@ -13,7 +13,7 @@ objects:
   metadata:
     annotations:
       ignore-check.kube-linter.io/unset-cpu-requirements: "no cpu limits"
-    name: ${EXPORTER_NAME}-${IMAGE_TAG}-acceptance-tests
+    name: ${EXPORTER_NAME}-${IMAGE_TAG}-tests
   spec:
     backoffLimit: 5
     template:

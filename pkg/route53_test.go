@@ -7,7 +7,7 @@ import (
 	"github.com/app-sre/aws-resource-exporter/pkg/awsclient/mock"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/route53"
-	"github.com/go-kit/kit/log"
+	"github.com/go-kit/log"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
