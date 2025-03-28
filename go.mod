@@ -5,7 +5,6 @@ go 1.22
 require (
 	github.com/alecthomas/kingpin/v2 v2.4.0
 	github.com/aws/aws-sdk-go v1.55.5
-	github.com/go-kit/kit v0.13.0
 	github.com/go-kit/log v0.2.1
 	github.com/golang/mock v1.6.0
 	github.com/prometheus/client_golang v1.20.5
