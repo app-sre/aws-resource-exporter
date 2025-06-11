@@ -34,7 +34,7 @@ type EC2Exporter struct {
 
 func NewEC2Exporter(sessions []*session.Session, logger *slog.Logger, config EC2Config, awsAccountId string) *EC2Exporter {
 
-	logger.Info("msg", "Initializing EC2 exporter")
+	logger.Info("Initializing EC2 exporter")
 	constLabels := map[string]string{"aws_account_id": awsAccountId, QUOTA_CODE_KEY: transitGatewayPerAccountQuotaCode, SERVICE_CODE_KEY: ec2ServiceCode}
 
 	TransitGatewaysQuota = prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "ec2_transitgatewaysperregion_quota"), "Quota for maximum number of Transitgateways in this account", []string{"aws_region"}, constLabels)
@@ -68,7 +68,7 @@ func (e *EC2Exporter) CollectLoop() {
 		}
 		wg.Wait()
 
-		e.logger.Info("msg", "EC2 metrics Updated")
+		e.logger.Info("EC2 metrics Updated")
 
 		time.Sleep(e.interval)
 	}
@@ -81,14 +81,14 @@ func (e *EC2Exporter) collectInRegion(sess *session.Session, logger *slog.Logger
 
 	quota, err := getQuotaValueWithContext(aws, ec2ServiceCode, transitGatewayPerAccountQuotaCode, ctx)
 	if err != nil {
-		logger.Error("msg", "Could not retrieve Transit Gateway quota", "error", err.Error())
+		logger.Error("Could not retrieve Transit Gateway quota", slog.String("error", err.Error()))
 		awsclient.AwsExporterMetrics.IncrementErrors()
 		return
 	}
 
 	gateways, err := getAllTransitGatewaysWithContext(aws, ctx)
 	if err != nil {
-		logger.Error("msg", "Could not retrieve Transit Gateway quota", "error", err.Error())
+		logger.Error("Could not retrieve Transit Gateway quota", slog.String("error", err.Error()))
 		awsclient.AwsExporterMetrics.IncrementErrors()
 		return
 	}

@@ -44,7 +44,7 @@ type IAMExporter struct {
 
 // NewIAMExporter creates a new IAMExporter
 func NewIAMExporter(sess *session.Session, logger *slog.Logger, config IAMConfig, awsAccountId string) *IAMExporter {
-	logger.Info("msg", "Initializing IAM exporter")
+	logger.Info("Initializing IAM exporter")
 
 	return &IAMExporter{
 		session:      sess,
@@ -75,7 +75,7 @@ func (e *IAMExporter) CollectLoop() {
 
 		roleCount, err := getIAMRoleCount(ctx, e.iamClient)
 		if err != nil {
-			e.logger.Error("msg", "Failed to get IAM role count", "err", err)
+			e.logger.Error("Failed to get IAM role count", slog.Any("err", err))
 			cancel()
 			time.Sleep(e.interval)
 			continue
@@ -83,7 +83,7 @@ func (e *IAMExporter) CollectLoop() {
 
 		quota, err := getQuotaValueWithContext(e.sqClient, "iam", "L-FE177D64", ctx)
 		if err != nil {
-			e.logger.Info("msg", "Failed to get IAM role quota", "err", err)
+			e.logger.Error("Failed to get IAM role quota", slog.Any("err", err))
 			cancel()
 			time.Sleep(e.interval)
 			continue
@@ -92,7 +92,10 @@ func (e *IAMExporter) CollectLoop() {
 		e.cache.AddMetric(prometheus.MustNewConstMetric(IamRolesUsed, prometheus.GaugeValue, float64(roleCount), e.awsAccountId))
 		e.cache.AddMetric(prometheus.MustNewConstMetric(IamRolesQuota, prometheus.GaugeValue, quota, e.awsAccountId))
 
-		e.logger.Info("msg", "IAM metrics updated", "used", roleCount, "quota", quota)
+		e.logger.Info("IAM metrics updated",
+			slog.Int("used", roleCount),
+			slog.Float64("quota", quota))
+
 		cancel()
 		time.Sleep(e.interval)
 	}

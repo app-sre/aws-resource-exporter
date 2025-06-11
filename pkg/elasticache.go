@@ -33,7 +33,7 @@ type ElastiCacheExporter struct {
 
 // NewElastiCacheExporter creates a new ElastiCacheExporter instance
 func NewElastiCacheExporter(sessions []*session.Session, logger *slog.Logger, config ElastiCacheConfig, awsAccountId string) *ElastiCacheExporter {
-	logger.Info("msg", "Initializing ElastiCache exporter")
+	logger.Info("Initializing ElastiCache exporter")
 
 	var elasticaches []awsclient.Client
 	for _, session := range sessions {
@@ -84,12 +84,14 @@ func (e *ElastiCacheExporter) CollectLoop() {
 		for i, client := range e.svcs {
 			clusters, err := client.DescribeCacheClustersAll(ctx)
 			if err != nil {
-				e.logger.Error("msg", "Call to DescribeCacheClustersAll failed", "region", *e.sessions[i].Config.Region, "err", err)
+				e.logger.Error("Call to DescribeCacheClustersAll failed",
+					slog.String("region", *e.sessions[i].Config.Region),
+					slog.Any("err", err))
 				continue
 			}
 			e.addMetricFromElastiCacheInfo(i, clusters)
 		}
-		e.logger.Info("msg", "ElastiCache metrics updated")
+		e.logger.Info("ElastiCache metrics updated")
 
 		cancel()
 		time.Sleep(e.interval)

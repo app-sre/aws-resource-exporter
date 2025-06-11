@@ -35,7 +35,7 @@ type MSKExporter struct {
 
 // NewMSKExporter creates a new MSKExporter instance
 func NewMSKExporter(sessions []*session.Session, logger *slog.Logger, config MSKConfig, awsAccountId string) *MSKExporter {
-	logger.Info("msg", "Initializing MSK exporter")
+	logger.Info("Initializing MSK exporter")
 
 	var msks []awsclient.Client
 	for _, session := range sessions {
@@ -73,7 +73,8 @@ func (e *MSKExporter) addMetricFromMSKInfo(sessionIndex int, clusters []*kafka.C
 		if eolDate, found := eolMap[mskVersion]; found {
 			eolStatus, err := GetEOLStatus(eolDate, e.thresholds)
 			if err != nil {
-				e.logger.Error("msg", "Error determining MSK EOL status", "version", mskVersion, "error", err)
+				e.logger.Error("Error determining MSK EOL status", slog.String("version", mskVersion), slog.Any("error", err))
+
 			}
 			e.cache.AddMetric(prometheus.MustNewConstMetric(MSKInfos, prometheus.GaugeValue, 1, region, clusterName, mskVersion, eolDate, eolStatus))
 		} else {
@@ -99,12 +100,12 @@ func (e *MSKExporter) CollectLoop() {
 		for i, svc := range e.svcs {
 			clusters, err := svc.ListClustersAll(ctx)
 			if err != nil {
-				e.logger.Error("msg", "Call to ListClustersAll failed", "region", *e.sessions[i].Config.Region, "err", err)
+				e.logger.Error("Call to ListClustersAll failed", slog.String("region", *e.sessions[i].Config.Region), slog.Any("err", err))
 				continue
 			}
 			e.addMetricFromMSKInfo(i, clusters, e.mskInfos)
 		}
-		e.logger.Info("msg", "MSK metrics updated")
+		e.logger.Info("MSK metrics updated")
 
 		cancel()
 		time.Sleep(e.interval)

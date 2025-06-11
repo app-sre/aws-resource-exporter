@@ -42,7 +42,7 @@ type Route53Exporter struct {
 
 func NewRoute53Exporter(sess *session.Session, logger *slog.Logger, config Route53Config, awsAccountId string) *Route53Exporter {
 
-	logger.Info("msg", "Initializing Route53 exporter")
+	logger.Info("Initializing Route53 exporter")
 	constLabels := map[string]string{"aws_account_id": awsAccountId, SERVICE_CODE_KEY: route53ServiceCode}
 
 	exporter := &Route53Exporter{
@@ -83,7 +83,7 @@ func (e *Route53Exporter) getRecordsPerHostedZoneMetrics(client awsclient.Client
 				awsclient.AwsExporterMetrics.IncrementErrors()
 				return
 			}
-			e.logger.Info("msg", fmt.Sprintf("Currently at hosted zone: %d / %d", i, len(hostedZones)))
+			e.logger.Info(fmt.Sprintf("Currently at hosted zone: %d / %d", i, len(hostedZones)))
 			e.cache.AddMetric(prometheus.MustNewConstMetric(e.RecordsPerHostedZoneQuota, prometheus.GaugeValue, float64(*hostedZoneLimitOut.Limit.Value), *hostedZone.Id, *hostedZone.Name))
 			e.cache.AddMetric(prometheus.MustNewConstMetric(e.RecordsPerHostedZoneUsage, prometheus.GaugeValue, float64(*hostedZoneLimitOut.Count), *hostedZone.Id, *hostedZone.Name))
 
@@ -117,29 +117,29 @@ func (e *Route53Exporter) CollectLoop() {
 	for {
 		ctx, ctxCancelFunc := context.WithTimeout(context.Background(), e.timeout)
 		e.Cancel = ctxCancelFunc
-		e.logger.Info("msg", "Updating Route53 metrics...")
+		e.logger.Info("Updating Route53 metrics...")
 
 		hostedZones, err := getAllHostedZones(client, ctx, e.logger)
 
-		e.logger.Info("msg", "Got all zones")
+		e.logger.Info("Got all zones")
 		if err != nil {
-			e.logger.Error("msg", "Could not retrieve the list of hosted zones", "error", err.Error())
+			e.logger.Error("Could not retrieve the list of hosted zones", "error", err.Error())
 			awsclient.AwsExporterMetrics.IncrementErrors()
 		}
 
 		err = e.getHostedZonesPerAccountMetrics(client, hostedZones, ctx)
 		if err != nil {
-			e.logger.Error("msg", "Could not get limits for hosted zone", "error", err.Error())
+			e.logger.Error("Could not get limits for hosted zone", "error", err.Error())
 			awsclient.AwsExporterMetrics.IncrementErrors()
 		}
 
 		errs := e.getRecordsPerHostedZoneMetrics(client, hostedZones, ctx)
 		for _, err = range errs {
-			e.logger.Error("msg", "Could not get limits for hosted zone", "error", err.Error())
+			e.logger.Error("Could not get limits for hosted zone", "error", err.Error())
 			awsclient.AwsExporterMetrics.IncrementErrors()
 		}
 
-		e.logger.Info("msg", "Route53 metrics Updated")
+		e.logger.Info("Route53 metrics Updated")
 
 		ctxCancelFunc() // should never do anything as we don't run stuff in the background
 
@@ -194,7 +194,7 @@ func ListHostedZonesWithBackoff(client awsclient.Client, ctx context.Context, in
 		if !isThrottlingError(err) {
 			return nil, err
 		}
-		logger.Debug("msg", "Retrying throttling api call", "tries", i+1, "endpoint", "ListHostedZones")
+		logger.Debug("Retrying throttling api call", "tries", i+1, "endpoint", "ListHostedZones")
 		backOffSeconds := math.Pow(2, float64(i-1))
 		time.Sleep(time.Duration(backOffSeconds) * time.Second)
 	}
@@ -218,7 +218,8 @@ func GetHostedZoneLimitWithBackoff(client awsclient.Client, ctx context.Context,
 		if !isThrottlingError(err) {
 			return nil, err
 		}
-		logger.Debug("msg", "Retrying throttling api call", "tries", i+1, "endpoint", "GetHostedZoneLimit", "hostedZoneID", hostedZoneId)
+		logger.Debug("Retrying throttling api call", slog.Int("tries", i+1), slog.String("endpoint", "GetHostedZoneLimit"), slog.Any("hostedZoneID", hostedZoneId))
+
 		backOffSeconds := math.Pow(2, float64(i-1))
 		time.Sleep(time.Duration(backOffSeconds) * time.Second)
 
