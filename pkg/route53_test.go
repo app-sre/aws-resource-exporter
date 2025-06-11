@@ -2,12 +2,12 @@ package pkg
 
 import (
 	"context"
+	"log/slog"
 	"testing"
 
 	"github.com/app-sre/aws-resource-exporter/pkg/awsclient/mock"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/route53"
-	"github.com/go-kit/log"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
@@ -36,7 +36,7 @@ func TestListHostedZonesWithContext(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockClient := mock.NewMockClient(ctrl)
-	var logger log.Logger
+	var logger *slog.Logger
 	maxItems := "10"
 	input := route53.ListHostedZonesInput{
 		MaxItems: aws.String("10"),
@@ -56,7 +56,7 @@ func TestGetHostedZoneLimitWithBackoff(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockClient := mock.NewMockClient(ctrl)
-	var logger log.Logger
+	var logger *slog.Logger
 
 	mockClient.EXPECT().GetHostedZoneLimitWithContext(ctx, createGetHostedZoneLimitWithContext(route53ServiceCode, route53.HostedZoneLimitTypeMaxRrsetsByZone)).Return(
 		&route53.GetHostedZoneLimitOutput{
@@ -82,7 +82,7 @@ func TestListHostedZonesWithBackoff(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockClient := mock.NewMockClient(ctrl)
-	var logger log.Logger
+	var logger *slog.Logger
 	maxItems := "10"
 
 	input := route53.ListHostedZonesInput{

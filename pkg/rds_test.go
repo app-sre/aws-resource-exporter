@@ -3,6 +3,8 @@ package pkg
 import (
 	"context"
 	"fmt"
+	"io"
+	"log/slog"
 	"testing"
 	"time"
 
@@ -11,7 +13,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/rds"
-	"github.com/go-kit/log"
 	"github.com/golang/mock/gomock"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
@@ -81,7 +82,7 @@ func TestAddAllInstanceMetrics(t *testing.T) {
 	x := RDSExporter{
 		sessions: []*session.Session{session.New(&aws.Config{Region: aws.String("foo")})},
 		cache:    *NewMetricsCache(10 * time.Second),
-		logger:   log.NewNopLogger(),
+		logger:   slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 
 	var instances = []*rds.DBInstance{}
@@ -108,7 +109,7 @@ func TestAddAllInstanceMetricsWithEOLMatch(t *testing.T) {
 	x := RDSExporter{
 		sessions:   []*session.Session{session.New(&aws.Config{Region: aws.String("foo")})},
 		cache:      *NewMetricsCache(10 * time.Second),
-		logger:     log.NewNopLogger(),
+		logger:     slog.New(slog.NewTextHandler(io.Discard, nil)),
 		thresholds: thresholds,
 	}
 
@@ -139,7 +140,7 @@ func TestAddAllInstanceMetricsWithGetEOLStatusError(t *testing.T) {
 	x := RDSExporter{
 		sessions: []*session.Session{session.New(&aws.Config{Region: aws.String("foo")})},
 		cache:    *NewMetricsCache(10 * time.Second),
-		logger:   log.NewNopLogger(),
+		logger:   slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 
 	eolInfos := []EOLInfo{
@@ -225,7 +226,7 @@ func TestEngineVersionMetricIncludesAWSAccountId(t *testing.T) {
 	x := RDSExporter{
 		sessions:     []*session.Session{session.New(&aws.Config{Region: aws.String("foo")})},
 		cache:        *NewMetricsCache(10 * time.Second),
-		logger:       log.NewNopLogger(),
+		logger:       slog.New(slog.NewTextHandler(io.Discard, nil)),
 		awsAccountId: "1234567890",
 	}
 
@@ -292,7 +293,7 @@ func TestAddAllPendingMaintenancesMetrics(t *testing.T) {
 		svcs:     []awsclient.Client{mockClient},
 		sessions: []*session.Session{session.New(&aws.Config{Region: aws.String("foo")})},
 		cache:    *NewMetricsCache(10 * time.Second),
-		logger:   log.NewNopLogger(),
+		logger:   slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 
 	x.addAllPendingMaintenancesMetrics(ctx, 0, createTestDBInstances())
@@ -319,7 +320,7 @@ func TestAddAllPendingMaintenancesNoMetrics(t *testing.T) {
 		svcs:     []awsclient.Client{mockClient},
 		sessions: []*session.Session{session.New(&aws.Config{Region: aws.String("foo")})},
 		cache:    *NewMetricsCache(10 * time.Second),
-		logger:   log.NewNopLogger(),
+		logger:   slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 
 	x.addAllPendingMaintenancesMetrics(ctx, 0, createTestDBInstances())

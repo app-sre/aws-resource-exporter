@@ -572,9 +572,9 @@ func (e *RDSExporter) addAllInstanceMetrics(sessionIndex int, instances []*rds.D
 				maxConnections = maxconn
 				e.cache.AddMetric(prometheus.MustNewConstMetric(MaxConnectionsMappingError, prometheus.GaugeValue, 0, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.DBInstanceClass))
 			} else {
-				e.logger.Error("msg", "No DB max_connections mapping exists for instance",
-					"type", *instance.DBInstanceClass,
-					"group", *instance.DBParameterGroups[0].DBParameterGroupName)
+				e.logger.Error("No DB max_connections mapping exists for instance",
+					slog.String("type", *instance.DBInstanceClass),
+					slog.String("group", *instance.DBParameterGroups[0].DBParameterGroupName))
 				e.cache.AddMetric(prometheus.MustNewConstMetric(MaxConnectionsMappingError, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.DBInstanceClass))
 			}
 		} else {

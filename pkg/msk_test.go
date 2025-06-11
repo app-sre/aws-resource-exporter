@@ -2,13 +2,14 @@ package pkg
 
 import (
 	"fmt"
+	"io"
+	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/kafka"
-	"github.com/go-kit/log"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 )
@@ -34,7 +35,7 @@ func TestAddAllMSKMetricsWithEOLMatch(t *testing.T) {
 	e := MSKExporter{
 		sessions:   []*session.Session{session.New(&aws.Config{Region: aws.String("foo")})},
 		cache:      *NewMetricsCache(10 * time.Second),
-		logger:     log.NewNopLogger(),
+		logger:     slog.New(slog.NewTextHandler(io.Discard, nil)),
 		thresholds: thresholds,
 	}
 
@@ -71,7 +72,7 @@ func TestAddAllMSKMetricsWithoutEOLMatch(t *testing.T) {
 	e := MSKExporter{
 		sessions:   []*session.Session{session.New(&aws.Config{Region: aws.String("foo")})},
 		cache:      *NewMetricsCache(10 * time.Second),
-		logger:     log.NewNopLogger(),
+		logger:     slog.New(slog.NewTextHandler(io.Discard, nil)),
 		thresholds: thresholds,
 	}
 
