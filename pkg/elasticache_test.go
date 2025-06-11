@@ -1,13 +1,14 @@
 package pkg
 
 import (
+	"io"
+	"log/slog"
 	"testing"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/elasticache"
-	"github.com/go-kit/log"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -25,7 +26,7 @@ func TestAddMetricFromElastiCacheInfo(t *testing.T) {
 	x := ElastiCacheExporter{
 		sessions: []*session.Session{session.New(&aws.Config{Region: aws.String("foo")})},
 		cache:    *NewMetricsCache(10 * time.Second),
-		logger:   log.NewNopLogger(),
+		logger:   slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 
 	var clusters = []*elasticache.CacheCluster{}

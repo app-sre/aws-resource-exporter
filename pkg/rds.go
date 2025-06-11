@@ -3,6 +3,7 @@ package pkg
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 	"sync"
 	"time"
@@ -10,8 +11,6 @@ import (
 	"github.com/app-sre/aws-resource-exporter/pkg/awsclient"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/rds"
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -433,30 +432,30 @@ type RDSExporter struct {
 	workers        int
 	logsMetricsTTL int
 
-	logger   log.Logger
+	logger   *slog.Logger
 	cache    MetricsCache
 	interval time.Duration
 	timeout  time.Duration
 }
 
 // NewRDSExporter creates a new RDSExporter instance
-func NewRDSExporter(sessions []*session.Session, logger log.Logger, config RDSConfig, awsAccountId string) *RDSExporter {
-	level.Info(logger).Log("msg", "Initializing RDS exporter")
+func NewRDSExporter(sessions []*session.Session, logger *slog.Logger, config RDSConfig, awsAccountId string) *RDSExporter {
+	logger.Info("Initializing RDS exporter")
 
 	workers, _ := GetEnvIntValue(RDS_LOGS_METRICS_WORKERS)
 	if workers == nil {
 		workers = &RDS_LOGS_METRICS_WORKERS_DEFAULT
-		level.Info(logger).Log("msg", fmt.Sprintf("Using default value for number Workers: %d", RDS_LOGS_METRICS_WORKERS_DEFAULT))
+		logger.Info(fmt.Sprintf("Using default value for number Workers: %d", RDS_LOGS_METRICS_WORKERS_DEFAULT))
 	} else {
-		level.Info(logger).Log("msg", fmt.Sprintf("Using Env value for number of Workers: %d", *workers))
+		logger.Info(fmt.Sprintf("Using Env value for number of Workers: %d", *workers))
 	}
 
 	logMetricsTTL, _ := GetEnvIntValue(RDS_LOGS_METRICS_TTL)
 	if logMetricsTTL == nil {
 		logMetricsTTL = &RDS_LOGS_METRICS_TTL_DEFAULT
-		level.Info(logger).Log("msg", fmt.Sprintf("Using default value for logs metrics TTL: %d", RDS_LOGS_METRICS_TTL_DEFAULT))
+		logger.Info(fmt.Sprintf("Using default value for logs metrics TTL: %d", RDS_LOGS_METRICS_TTL_DEFAULT))
 	} else {
-		level.Info(logger).Log("msg", fmt.Sprintf("Using Env value for logs metrics TTL: %d", *logMetricsTTL))
+		logger.Info(fmt.Sprintf("Using Env value for logs metrics TTL: %d", *logMetricsTTL))
 	}
 	var rdses []awsclient.Client
 	for _, session := range sessions {
@@ -491,7 +490,11 @@ func (e *RDSExporter) requestRDSLogMetrics(ctx context.Context, sessionIndex int
 
 	logOutPuts, err := e.svcs[sessionIndex].DescribeDBLogFilesAll(ctx, instanceId)
 	if err != nil {
-		level.Error(e.logger).Log("msg", "Call to DescribeDBLogFiles failed", "region", e.getRegion(sessionIndex), "instance", &instanceId, "err", err)
+		e.logger.Error("Call to DescribeDBLogFiles failed",
+			slog.String("region", e.getRegion(sessionIndex)),
+			slog.String("instance", instanceId),
+			slog.Any("err", err))
+
 		return nil, err
 	}
 
@@ -566,21 +569,22 @@ func (e *RDSExporter) addAllInstanceMetrics(sessionIndex int, instances []*rds.D
 				found = true
 			}
 			if found {
-				level.Debug(e.logger).Log("msg", "Found mapping for instance",
-					"type", *instance.DBInstanceClass,
-					"group", *instance.DBParameterGroups[0].DBParameterGroupName,
-					"value", maxconn)
+				e.logger.Debug("Found mapping for instance",
+					slog.String("type", *instance.DBInstanceClass),
+					slog.String("group", *instance.DBParameterGroups[0].DBParameterGroupName),
+					slog.Int64("value", maxconn))
+
 				maxConnections = maxconn
 				e.cache.AddMetric(prometheus.MustNewConstMetric(MaxConnectionsMappingError, prometheus.GaugeValue, 0, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.DBInstanceClass))
 			} else {
-				level.Error(e.logger).Log("msg", "No DB max_connections mapping exists for instance",
-					"type", *instance.DBInstanceClass,
-					"group", *instance.DBParameterGroups[0].DBParameterGroupName)
+				e.logger.Error("No DB max_connections mapping exists for instance",
+					slog.String("type", *instance.DBInstanceClass),
+					slog.String("group", *instance.DBParameterGroups[0].DBParameterGroupName))
 				e.cache.AddMetric(prometheus.MustNewConstMetric(MaxConnectionsMappingError, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.DBInstanceClass))
 			}
 		} else {
-			level.Error(e.logger).Log("msg", "No DB max_connections mapping exists for instance",
-				"type", *instance.DBInstanceClass)
+			e.logger.Error("No DB max_connections mapping exists for instance",
+				slog.String("type", *instance.DBInstanceClass))
 			e.cache.AddMetric(prometheus.MustNewConstMetric(MaxConnectionsMappingError, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.DBInstanceClass))
 		}
 
@@ -588,12 +592,18 @@ func (e *RDSExporter) addAllInstanceMetrics(sessionIndex int, instances []*rds.D
 		if eolInfo, ok := eolMap[EOLKey{Engine: *instance.Engine, Version: *instance.EngineVersion}]; ok {
 			eolStatus, err := GetEOLStatus(eolInfo.EOL, e.thresholds)
 			if err != nil {
-				level.Error(e.logger).Log("msg", fmt.Sprintf("Could not get days to RDS EOL for Engine %s, Version %s: %s\n", *instance.Engine, *instance.EngineVersion, err.Error()))
+				e.logger.Error("Could not get days to RDS EOL for engine version",
+					slog.String("engine", *instance.Engine),
+					slog.String("version", *instance.EngineVersion),
+					slog.Any("error", err))
+
 			} else {
 				e.cache.AddMetric(prometheus.MustNewConstMetric(EOLInfos, prometheus.GaugeValue, 1, e.getRegion(sessionIndex), *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion, eolInfo.EOL, eolStatus))
 			}
 		} else {
-			level.Info(e.logger).Log("msg", fmt.Sprintf("RDS EOL not found for Engine %s, Version %s\n", *instance.Engine, *instance.EngineVersion))
+			e.logger.Info("RDS EOL not found for engine version",
+				slog.String("engine", *instance.Engine),
+				slog.String("version", *instance.EngineVersion))
 		}
 
 		var public = 0.0
@@ -629,7 +639,9 @@ func (e *RDSExporter) addAllPendingMaintenancesMetrics(ctx context.Context, sess
 	instancesPendMaintActionsData, err := e.svcs[sessionIndex].DescribePendingMaintenanceActionsAll(ctx)
 
 	if err != nil {
-		level.Error(e.logger).Log("msg", "Call to DescribePendingMaintenanceActions failed", "region", e.getRegion(sessionIndex), "err", err)
+		e.logger.Error("Call to DescribePendingMaintenanceActions failed",
+			slog.String("region", e.getRegion(sessionIndex)),
+			slog.Any("err", err))
 		return
 	}
 
@@ -688,7 +700,9 @@ func (e *RDSExporter) CollectLoop() {
 
 			instances, err := e.svcs[i].DescribeDBInstancesAll(ctx)
 			if err != nil {
-				level.Error(e.logger).Log("msg", "Call to DescribeDBInstances failed", "region", *e.sessions[i].Config.Region, "err", err)
+				e.logger.Error("Call to DescribeDBInstances failed",
+					slog.String("region", *e.sessions[i].Config.Region),
+					slog.Any("err", err))
 			}
 
 			wg := sync.WaitGroup{}
@@ -709,7 +723,7 @@ func (e *RDSExporter) CollectLoop() {
 			wg.Wait()
 		}
 
-		level.Info(e.logger).Log("msg", "RDS metrics Updated")
+		e.logger.Info("RDS metrics Updated")
 
 		cancel()
 		time.Sleep(e.interval)

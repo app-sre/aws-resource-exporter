@@ -2,6 +2,7 @@ package pkg
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/app-sre/aws-resource-exporter/pkg/awsclient"
@@ -9,8 +10,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/elasticache"
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -27,14 +26,14 @@ type ElastiCacheExporter struct {
 	cache        MetricsCache
 	awsAccountId string
 
-	logger   log.Logger
+	logger   *slog.Logger
 	timeout  time.Duration
 	interval time.Duration
 }
 
 // NewElastiCacheExporter creates a new ElastiCacheExporter instance
-func NewElastiCacheExporter(sessions []*session.Session, logger log.Logger, config ElastiCacheConfig, awsAccountId string) *ElastiCacheExporter {
-	level.Info(logger).Log("msg", "Initializing ElastiCache exporter")
+func NewElastiCacheExporter(sessions []*session.Session, logger *slog.Logger, config ElastiCacheConfig, awsAccountId string) *ElastiCacheExporter {
+	logger.Info("Initializing ElastiCache exporter")
 
 	var elasticaches []awsclient.Client
 	for _, session := range sessions {
@@ -85,12 +84,14 @@ func (e *ElastiCacheExporter) CollectLoop() {
 		for i, client := range e.svcs {
 			clusters, err := client.DescribeCacheClustersAll(ctx)
 			if err != nil {
-				level.Error(e.logger).Log("msg", "Call to DescribeCacheClustersAll failed", "region", *e.sessions[i].Config.Region, "err", err)
+				e.logger.Error("Call to DescribeCacheClustersAll failed",
+					slog.String("region", *e.sessions[i].Config.Region),
+					slog.Any("err", err))
 				continue
 			}
 			e.addMetricFromElastiCacheInfo(i, clusters)
 		}
-		level.Info(e.logger).Log("msg", "ElastiCache metrics updated")
+		e.logger.Info("ElastiCache metrics updated")
 
 		cancel()
 		time.Sleep(e.interval)

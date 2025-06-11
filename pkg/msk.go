@@ -2,6 +2,7 @@ package pkg
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/app-sre/aws-resource-exporter/pkg/awsclient"
@@ -9,8 +10,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/kafka"
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -29,14 +28,14 @@ type MSKExporter struct {
 	cache        MetricsCache
 	awsAccountId string
 
-	logger   log.Logger
+	logger   *slog.Logger
 	timeout  time.Duration
 	interval time.Duration
 }
 
 // NewMSKExporter creates a new MSKExporter instance
-func NewMSKExporter(sessions []*session.Session, logger log.Logger, config MSKConfig, awsAccountId string) *MSKExporter {
-	level.Info(logger).Log("msg", "Initializing MSK exporter")
+func NewMSKExporter(sessions []*session.Session, logger *slog.Logger, config MSKConfig, awsAccountId string) *MSKExporter {
+	logger.Info("Initializing MSK exporter")
 
 	var msks []awsclient.Client
 	for _, session := range sessions {
@@ -74,11 +73,12 @@ func (e *MSKExporter) addMetricFromMSKInfo(sessionIndex int, clusters []*kafka.C
 		if eolDate, found := eolMap[mskVersion]; found {
 			eolStatus, err := GetEOLStatus(eolDate, e.thresholds)
 			if err != nil {
-				level.Error(e.logger).Log("msg", "Error determining MSK EOL status", "version", mskVersion, "error", err)
+				e.logger.Error("Error determining MSK EOL status", slog.String("version", mskVersion), slog.Any("error", err))
+
 			}
 			e.cache.AddMetric(prometheus.MustNewConstMetric(MSKInfos, prometheus.GaugeValue, 1, region, clusterName, mskVersion, eolDate, eolStatus))
 		} else {
-			level.Info(e.logger).Log("msg", "EOL information not found for MSK version %s, setting status to 'unknown'", mskVersion)
+			e.logger.Info("msg", "EOL information not found for MSK version %s, setting status to 'unknown'", mskVersion)
 			e.cache.AddMetric(prometheus.MustNewConstMetric(MSKInfos, prometheus.GaugeValue, 1, region, clusterName, mskVersion, "no-eol-date", "unknown"))
 		}
 	}
@@ -100,12 +100,12 @@ func (e *MSKExporter) CollectLoop() {
 		for i, svc := range e.svcs {
 			clusters, err := svc.ListClustersAll(ctx)
 			if err != nil {
-				level.Error(e.logger).Log("msg", "Call to ListClustersAll failed", "region", *e.sessions[i].Config.Region, "err", err)
+				e.logger.Error("Call to ListClustersAll failed", slog.String("region", *e.sessions[i].Config.Region), slog.Any("err", err))
 				continue
 			}
 			e.addMetricFromMSKInfo(i, clusters, e.mskInfos)
 		}
-		level.Info(e.logger).Log("msg", "MSK metrics updated")
+		e.logger.Info("MSK metrics updated")
 
 		cancel()
 		time.Sleep(e.interval)
