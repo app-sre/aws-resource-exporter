@@ -2,11 +2,10 @@ package pkg
 
 import (
 	"errors"
-	"io/ioutil"
+	"log/slog"
+	"os"
 	"time"
 
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	"gopkg.in/yaml.v3"
 )
 
@@ -85,11 +84,11 @@ type Config struct {
 	IamConfig         IAMConfig         `yaml:"iam"`
 }
 
-func LoadExporterConfiguration(logger log.Logger, configFile string) (*Config, error) {
+func LoadExporterConfiguration(logger *slog.Logger, configFile string) (*Config, error) {
 	var config Config
-	file, err := ioutil.ReadFile(configFile)
+	file, err := os.ReadFile(configFile)
 	if err != nil {
-		level.Error(logger).Log("Could not load configuration file")
+		logger.Error("Could not load configuration file")
 		return nil, errors.New("Could not load configuration file: " + configFile)
 	}
 	yaml.Unmarshal(file, &config)

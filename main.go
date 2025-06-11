@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -14,12 +15,9 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sts"
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/prometheus/common/promlog"
-	"github.com/prometheus/common/promlog/flag"
+	"github.com/prometheus/common/promslog"
 	"github.com/prometheus/common/version"
 )
 
@@ -38,30 +36,30 @@ func main() {
 	os.Exit(run())
 }
 
-func getAwsAccountNumber(logger log.Logger, sess *session.Session) (string, error) {
+func getAwsAccountNumber(logger *slog.Logger, sess *session.Session) (string, error) {
 	stsClient := sts.New(sess)
 	identityOutput, err := stsClient.GetCallerIdentity(&sts.GetCallerIdentityInput{})
 	if err != nil {
-		level.Error(logger).Log("msg", "Could not retrieve caller identity of the aws account", "err", err)
+		logger.Error("msg", "Could not retrieve caller identity of the aws account", "err", err)
 		return "", err
 	}
 	return *identityOutput.Account, nil
 }
 
-func setupCollectors(logger log.Logger, configFile string) ([]prometheus.Collector, error) {
+func setupCollectors(logger *slog.Logger, configFile string) ([]prometheus.Collector, error) {
 	var collectors []prometheus.Collector
 	config, err := pkg.LoadExporterConfiguration(logger, configFile)
 	if err != nil {
 		return nil, err
 	}
-	level.Info(logger).Log("msg", "Configuring vpc with regions", "regions", strings.Join(config.VpcConfig.Regions, ","))
-	level.Info(logger).Log("msg", "Configuring rds with regions", "regions", strings.Join(config.RdsConfig.Regions, ","))
-	level.Info(logger).Log("msg", "Configuring ec2 with regions", "regions", strings.Join(config.EC2Config.Regions, ","))
-	level.Info(logger).Log("msg", "Configuring route53 with region", "region", config.Route53Config.Region)
-	level.Info(logger).Log("msg", "Configuring elasticache with regions", "regions", strings.Join(config.ElastiCacheConfig.Regions, ","))
-	level.Info(logger).Log("msg", "Configuring msk with regions", "regions", strings.Join(config.MskConfig.Regions, ","))
-	level.Info(logger).Log("msg", "Will VPC metrics be gathered?", "vpc-enabled", config.VpcConfig.Enabled)
-	level.Info(logger).Log("msg", "Will IAM metrics be gathered?", "iam-enabled", config.IamConfig.Enabled)
+	logger.Info("msg", "Configuring vpc with regions", "regions", strings.Join(config.VpcConfig.Regions, ","))
+	logger.Info("msg", "Configuring rds with regions", "regions", strings.Join(config.RdsConfig.Regions, ","))
+	logger.Info("msg", "Configuring ec2 with regions", "regions", strings.Join(config.EC2Config.Regions, ","))
+	logger.Info("msg", "Configuring route53 with region", "region", config.Route53Config.Region)
+	logger.Info("msg", "Configuring elasticache with regions", "regions", strings.Join(config.ElastiCacheConfig.Regions, ","))
+	logger.Info("msg", "Configuring msk with regions", "regions", strings.Join(config.MskConfig.Regions, ","))
+	logger.Info("msg", "Will VPC metrics be gathered?", "vpc-enabled", config.VpcConfig.Enabled)
+	logger.Info("msg", "Will IAM metrics be gathered?", "iam-enabled", config.IamConfig.Enabled)
 
 	sessionRegion := "us-east-1"
 	if sr := os.Getenv("AWS_REGION"); sr != "" {
@@ -86,7 +84,7 @@ func setupCollectors(logger log.Logger, configFile string) ([]prometheus.Collect
 		collectors = append(collectors, vpcExporter)
 		go vpcExporter.CollectLoop()
 	}
-	level.Info(logger).Log("msg", "Will RDS metrics be gathered?", "rds-enabled", config.RdsConfig.Enabled)
+	logger.Info("msg", "Will RDS metrics be gathered?", "rds-enabled", config.RdsConfig.Enabled)
 	var rdsSessions []*session.Session
 	if config.RdsConfig.Enabled {
 		for _, region := range config.RdsConfig.Regions {
@@ -98,7 +96,7 @@ func setupCollectors(logger log.Logger, configFile string) ([]prometheus.Collect
 		collectors = append(collectors, rdsExporter)
 		go rdsExporter.CollectLoop()
 	}
-	level.Info(logger).Log("msg", "Will EC2 metrics be gathered?", "ec2-enabled", config.EC2Config.Enabled)
+	logger.Info("msg", "Will EC2 metrics be gathered?", "ec2-enabled", config.EC2Config.Enabled)
 	var ec2Sessions []*session.Session
 	if config.EC2Config.Enabled {
 		for _, region := range config.EC2Config.Regions {
@@ -110,7 +108,7 @@ func setupCollectors(logger log.Logger, configFile string) ([]prometheus.Collect
 		collectors = append(collectors, ec2Exporter)
 		go ec2Exporter.CollectLoop()
 	}
-	level.Info(logger).Log("msg", "Will Route53 metrics be gathered?", "route53-enabled", config.Route53Config.Enabled)
+	logger.Info("msg", "Will Route53 metrics be gathered?", "route53-enabled", config.Route53Config.Enabled)
 	if config.Route53Config.Enabled {
 		awsConfig := aws.NewConfig().WithRegion(config.Route53Config.Region)
 		sess := session.Must(session.NewSession(awsConfig))
@@ -118,7 +116,7 @@ func setupCollectors(logger log.Logger, configFile string) ([]prometheus.Collect
 		collectors = append(collectors, r53Exporter)
 		go r53Exporter.CollectLoop()
 	}
-	level.Info(logger).Log("msg", "Will ElastiCache metrics be gathered?", "elasticache-enabled", config.ElastiCacheConfig.Enabled)
+	logger.Info("msg", "Will ElastiCache metrics be gathered?", "elasticache-enabled", config.ElastiCacheConfig.Enabled)
 	var elasticacheSessions []*session.Session
 	if config.ElastiCacheConfig.Enabled {
 		for _, region := range config.ElastiCacheConfig.Regions {
@@ -130,7 +128,7 @@ func setupCollectors(logger log.Logger, configFile string) ([]prometheus.Collect
 		collectors = append(collectors, elasticacheExporter)
 		go elasticacheExporter.CollectLoop()
 	}
-	level.Info(logger).Log("msg", "Will MSK metrics be gathered?", "msk-enabled", config.MskConfig.Enabled)
+	logger.Info("msg", "Will MSK metrics be gathered?", "msk-enabled", config.MskConfig.Enabled)
 	var mskSessions []*session.Session
 	if config.MskConfig.Enabled {
 		for _, region := range config.MskConfig.Regions {
@@ -142,7 +140,7 @@ func setupCollectors(logger log.Logger, configFile string) ([]prometheus.Collect
 		collectors = append(collectors, mskExporter)
 		go mskExporter.CollectLoop()
 	}
-	level.Info(logger).Log("msg", "Will IAM metrics be gathered?", "iam-enabled", config.IamConfig.Enabled)
+	logger.Info("msg", "Will IAM metrics be gathered?", "iam-enabled", config.IamConfig.Enabled)
 	if config.IamConfig.Enabled {
 		awsConfig := aws.NewConfig().WithRegion(config.IamConfig.Region) // IAM is global, this region just for AWS SDK initialization
 		sess := session.Must(session.NewSession(awsConfig))
@@ -155,15 +153,15 @@ func setupCollectors(logger log.Logger, configFile string) ([]prometheus.Collect
 }
 
 func run() int {
-	promlogConfig := &promlog.Config{}
-	flag.AddFlags(kingpin.CommandLine, promlogConfig)
+	promslogConfig := &promslog.Config{}
+
 	kingpin.Version(version.Print(namespace))
 	kingpin.HelpFlag.Short('h')
 	kingpin.Parse()
-	logger := promlog.New(promlogConfig)
+	logger := promslog.New(promslogConfig)
 
-	level.Info(logger).Log("msg", "Starting"+namespace, "version", version.Info())
-	level.Info(logger).Log("msg", "Build context", version.BuildContext())
+	logger.Info("msg", "Starting"+namespace, "version", version.Info())
+	logger.Info("msg", "Build context", version.BuildContext())
 
 	awsclient.AwsExporterMetrics = awsclient.NewExporterMetrics(namespace)
 
@@ -175,7 +173,7 @@ func run() int {
 	}
 	cs, err := setupCollectors(logger, configFile)
 	if err != nil {
-		level.Error(logger).Log("msg", "Could not load configuration file", "err", err)
+		logger.Error("msg", "Could not load configuration file", "err", err)
 		return 1
 	}
 	collectors := append(cs, awsclient.AwsExporterMetrics)
@@ -200,9 +198,9 @@ func run() int {
 	signal.Notify(term, os.Interrupt, syscall.SIGTERM)
 
 	go func() {
-		level.Info(logger).Log("msg", "Starting HTTP server", "address", *listenAddress)
+		logger.Info("msg", "Starting HTTP server", "address", *listenAddress)
 		if err := srv.ListenAndServe(); err != http.ErrServerClosed {
-			level.Error(logger).Log("msg", "Error starting HTTP server", "err", err)
+			logger.Error("msg", "Error starting HTTP server", "err", err)
 			close(srvc)
 		}
 	}()
@@ -210,7 +208,7 @@ func run() int {
 	for {
 		select {
 		case <-term:
-			level.Info(logger).Log("msg", "Received SIGTERM, exiting gracefully...")
+			logger.Info("msg", "Received SIGTERM, exiting gracefully...")
 			return 0
 		case <-srvc:
 			return 1

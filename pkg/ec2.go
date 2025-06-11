@@ -3,6 +3,7 @@ package pkg
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -11,8 +12,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/ec2"
 	"github.com/aws/aws-sdk-go/service/servicequotas"
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -28,14 +27,14 @@ type EC2Exporter struct {
 	sessions []*session.Session
 	cache    MetricsCache
 
-	logger   log.Logger
+	logger   *slog.Logger
 	timeout  time.Duration
 	interval time.Duration
 }
 
-func NewEC2Exporter(sessions []*session.Session, logger log.Logger, config EC2Config, awsAccountId string) *EC2Exporter {
+func NewEC2Exporter(sessions []*session.Session, logger *slog.Logger, config EC2Config, awsAccountId string) *EC2Exporter {
 
-	level.Info(logger).Log("msg", "Initializing EC2 exporter")
+	logger.Info("msg", "Initializing EC2 exporter")
 	constLabels := map[string]string{"aws_account_id": awsAccountId, QUOTA_CODE_KEY: transitGatewayPerAccountQuotaCode, SERVICE_CODE_KEY: ec2ServiceCode}
 
 	TransitGatewaysQuota = prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "ec2_transitgatewaysperregion_quota"), "Quota for maximum number of Transitgateways in this account", []string{"aws_region"}, constLabels)
@@ -69,27 +68,27 @@ func (e *EC2Exporter) CollectLoop() {
 		}
 		wg.Wait()
 
-		level.Info(e.logger).Log("msg", "EC2 metrics Updated")
+		e.logger.Info("msg", "EC2 metrics Updated")
 
 		time.Sleep(e.interval)
 	}
 }
 
-func (e *EC2Exporter) collectInRegion(sess *session.Session, logger log.Logger, wg *sync.WaitGroup, ctx context.Context) {
+func (e *EC2Exporter) collectInRegion(sess *session.Session, logger *slog.Logger, wg *sync.WaitGroup, ctx context.Context) {
 	defer wg.Done()
 
 	aws := awsclient.NewClientFromSession(sess)
 
 	quota, err := getQuotaValueWithContext(aws, ec2ServiceCode, transitGatewayPerAccountQuotaCode, ctx)
 	if err != nil {
-		level.Error(logger).Log("msg", "Could not retrieve Transit Gateway quota", "error", err.Error())
+		logger.Error("msg", "Could not retrieve Transit Gateway quota", "error", err.Error())
 		awsclient.AwsExporterMetrics.IncrementErrors()
 		return
 	}
 
 	gateways, err := getAllTransitGatewaysWithContext(aws, ctx)
 	if err != nil {
-		level.Error(logger).Log("msg", "Could not retrieve Transit Gateway quota", "error", err.Error())
+		logger.Error("msg", "Could not retrieve Transit Gateway quota", "error", err.Error())
 		awsclient.AwsExporterMetrics.IncrementErrors()
 		return
 	}

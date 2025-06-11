@@ -2,6 +2,7 @@ package pkg
 
 import (
 	"context"
+	"log/slog"
 	"time"
 
 	"github.com/app-sre/aws-resource-exporter/pkg/awsclient"
@@ -10,8 +11,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/iam"
-	"github.com/go-kit/log"
-	"github.com/go-kit/log/level"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -36,7 +35,7 @@ type IAMExporter struct {
 	session      *session.Session
 	iamClient    IAMClient
 	sqClient     awsclient.Client
-	logger       log.Logger
+	logger       *slog.Logger
 	timeout      time.Duration
 	interval     time.Duration
 	awsAccountId string
@@ -44,8 +43,8 @@ type IAMExporter struct {
 }
 
 // NewIAMExporter creates a new IAMExporter
-func NewIAMExporter(sess *session.Session, logger log.Logger, config IAMConfig, awsAccountId string) *IAMExporter {
-	level.Info(logger).Log("msg", "Initializing IAM exporter")
+func NewIAMExporter(sess *session.Session, logger *slog.Logger, config IAMConfig, awsAccountId string) *IAMExporter {
+	logger.Info("msg", "Initializing IAM exporter")
 
 	return &IAMExporter{
 		session:      sess,
@@ -76,7 +75,7 @@ func (e *IAMExporter) CollectLoop() {
 
 		roleCount, err := getIAMRoleCount(ctx, e.iamClient)
 		if err != nil {
-			level.Error(e.logger).Log("msg", "Failed to get IAM role count", "err", err)
+			e.logger.Error("msg", "Failed to get IAM role count", "err", err)
 			cancel()
 			time.Sleep(e.interval)
 			continue
@@ -84,7 +83,7 @@ func (e *IAMExporter) CollectLoop() {
 
 		quota, err := getQuotaValueWithContext(e.sqClient, "iam", "L-FE177D64", ctx)
 		if err != nil {
-			level.Error(e.logger).Log("msg", "Failed to get IAM role quota", "err", err)
+			e.logger.Info("msg", "Failed to get IAM role quota", "err", err)
 			cancel()
 			time.Sleep(e.interval)
 			continue
@@ -93,7 +92,7 @@ func (e *IAMExporter) CollectLoop() {
 		e.cache.AddMetric(prometheus.MustNewConstMetric(IamRolesUsed, prometheus.GaugeValue, float64(roleCount), e.awsAccountId))
 		e.cache.AddMetric(prometheus.MustNewConstMetric(IamRolesQuota, prometheus.GaugeValue, quota, e.awsAccountId))
 
-		level.Info(e.logger).Log("msg", "IAM metrics updated", "used", roleCount, "quota", quota)
+		e.logger.Info("msg", "IAM metrics updated", "used", roleCount, "quota", quota)
 		cancel()
 		time.Sleep(e.interval)
 	}
