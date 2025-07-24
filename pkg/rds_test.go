@@ -10,24 +10,24 @@ import (
 
 	"github.com/app-sre/aws-resource-exporter/pkg/awsclient"
 	"github.com/app-sre/aws-resource-exporter/pkg/awsclient/mock"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/rds"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/rds"
+	"github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/golang/mock/gomock"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 )
 
-func createTestDBInstances() []*rds.DBInstance {
-	return []*rds.DBInstance{
+func createTestDBInstances() []types.DBInstance {
+	return []types.DBInstance{
 		{
 			DBInstanceIdentifier: aws.String("footest"),
 			DBInstanceClass:      aws.String("db.m5.xlarge"),
-			DBParameterGroups:    []*rds.DBParameterGroupStatus{{DBParameterGroupName: aws.String("default.postgres14")}},
+			DBParameterGroups:    []types.DBParameterGroupStatus{{DBParameterGroupName: aws.String("default.postgres14")}},
 			PubliclyAccessible:   aws.Bool(false),
 			StorageEncrypted:     aws.Bool(false),
-			AllocatedStorage:     aws.Int64(1024),
+			AllocatedStorage:     aws.Int32(1024),
 			DBInstanceStatus:     aws.String("on fire"),
 			Engine:               aws.String("SQL"),
 			EngineVersion:        aws.String("1000"),
@@ -42,8 +42,8 @@ func TestRequestRDSLogMetrics(t *testing.T) {
 
 	mockClient := mock.NewMockClient(ctrl)
 	mockClient.EXPECT().DescribeDBLogFilesAll(ctx, "footest").Return([]*rds.DescribeDBLogFilesOutput{
-		{DescribeDBLogFiles: []*rds.DescribeDBLogFilesDetails{{Size: aws.Int64(123)}, {Size: aws.Int64(123)}}},
-		{DescribeDBLogFiles: []*rds.DescribeDBLogFilesDetails{{Size: aws.Int64(1)}}},
+		{DescribeDBLogFiles: []types.DescribeDBLogFilesDetails{{Size: aws.Int64(123)}, {Size: aws.Int64(123)}}},
+		{DescribeDBLogFiles: []types.DescribeDBLogFilesDetails{{Size: aws.Int64(1)}}},
 	}, nil)
 
 	x := RDSExporter{
@@ -63,14 +63,14 @@ func TestAddRDSLogMetrics(t *testing.T) {
 
 	mockClient := mock.NewMockClient(ctrl)
 	mockClient.EXPECT().DescribeDBLogFilesAll(ctx, "footest").Return([]*rds.DescribeDBLogFilesOutput{
-		{DescribeDBLogFiles: []*rds.DescribeDBLogFilesDetails{{Size: aws.Int64(123)}, {Size: aws.Int64(123)}}},
-		{DescribeDBLogFiles: []*rds.DescribeDBLogFilesDetails{{Size: aws.Int64(1)}}},
+		{DescribeDBLogFiles: []types.DescribeDBLogFilesDetails{{Size: aws.Int64(123)}, {Size: aws.Int64(123)}}},
+		{DescribeDBLogFiles: []types.DescribeDBLogFilesDetails{{Size: aws.Int64(1)}}},
 	}, nil)
 
 	x := RDSExporter{
-		svcs:     []awsclient.Client{mockClient},
-		sessions: []*session.Session{session.New(&aws.Config{Region: aws.String("foo")})},
-		cache:    *NewMetricsCache(10 * time.Second),
+		svcs:  []awsclient.Client{mockClient},
+		cfgs:  []aws.Config{{Region: "foo"}},
+		cache: *NewMetricsCache(10 * time.Second),
 	}
 
 	err := x.addRDSLogMetrics(ctx, 0, "footest")
@@ -80,12 +80,12 @@ func TestAddRDSLogMetrics(t *testing.T) {
 
 func TestAddAllInstanceMetrics(t *testing.T) {
 	x := RDSExporter{
-		sessions: []*session.Session{session.New(&aws.Config{Region: aws.String("foo")})},
-		cache:    *NewMetricsCache(10 * time.Second),
-		logger:   slog.New(slog.NewTextHandler(io.Discard, nil)),
+		cfgs:   []aws.Config{{Region: "foo"}},
+		cache:  *NewMetricsCache(10 * time.Second),
+		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 
-	var instances = []*rds.DBInstance{}
+	var instances = []types.DBInstance{}
 
 	// Test with no match
 	eolInfos := []EOLInfo{
@@ -107,7 +107,7 @@ func TestAddAllInstanceMetricsWithEOLMatch(t *testing.T) {
 	}
 
 	x := RDSExporter{
-		sessions:   []*session.Session{session.New(&aws.Config{Region: aws.String("foo")})},
+		cfgs:       []aws.Config{{Region: "foo"}},
 		cache:      *NewMetricsCache(10 * time.Second),
 		logger:     slog.New(slog.NewTextHandler(io.Discard, nil)),
 		thresholds: thresholds,
@@ -138,9 +138,9 @@ func TestAddAllInstanceMetricsWithEOLMatch(t *testing.T) {
 
 func TestAddAllInstanceMetricsWithGetEOLStatusError(t *testing.T) {
 	x := RDSExporter{
-		sessions: []*session.Session{session.New(&aws.Config{Region: aws.String("foo")})},
-		cache:    *NewMetricsCache(10 * time.Second),
-		logger:   slog.New(slog.NewTextHandler(io.Discard, nil)),
+		cfgs:   []aws.Config{{Region: "foo"}},
+		cache:  *NewMetricsCache(10 * time.Second),
+		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 
 	eolInfos := []EOLInfo{
@@ -224,7 +224,7 @@ func TestGetEOLStatus(t *testing.T) {
 
 func TestEngineVersionMetricIncludesAWSAccountId(t *testing.T) {
 	x := RDSExporter{
-		sessions:     []*session.Session{session.New(&aws.Config{Region: aws.String("foo")})},
+		cfgs:         []aws.Config{{Region: "foo"}},
 		cache:        *NewMetricsCache(10 * time.Second),
 		logger:       slog.New(slog.NewTextHandler(io.Discard, nil)),
 		awsAccountId: "1234567890",
@@ -279,9 +279,9 @@ func TestAddAllPendingMaintenancesMetrics(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient := mock.NewMockClient(ctrl)
-	mockClient.EXPECT().DescribePendingMaintenanceActionsAll(ctx).Return([]*rds.ResourcePendingMaintenanceActions{
+	mockClient.EXPECT().DescribePendingMaintenanceActionsAll(ctx).Return([]types.ResourcePendingMaintenanceActions{
 		{
-			PendingMaintenanceActionDetails: []*rds.PendingMaintenanceAction{{
+			PendingMaintenanceActionDetails: []types.PendingMaintenanceAction{{
 				Action:      aws.String("something going on"),
 				Description: aws.String("plumbing"),
 			}},
@@ -290,10 +290,10 @@ func TestAddAllPendingMaintenancesMetrics(t *testing.T) {
 	}, nil)
 
 	x := RDSExporter{
-		svcs:     []awsclient.Client{mockClient},
-		sessions: []*session.Session{session.New(&aws.Config{Region: aws.String("foo")})},
-		cache:    *NewMetricsCache(10 * time.Second),
-		logger:   slog.New(slog.NewTextHandler(io.Discard, nil)),
+		svcs:   []awsclient.Client{mockClient},
+		cfgs:   []aws.Config{{Region: "foo"}},
+		cache:  *NewMetricsCache(10 * time.Second),
+		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 
 	x.addAllPendingMaintenancesMetrics(ctx, 0, createTestDBInstances())
@@ -314,13 +314,13 @@ func TestAddAllPendingMaintenancesNoMetrics(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockClient := mock.NewMockClient(ctrl)
-	mockClient.EXPECT().DescribePendingMaintenanceActionsAll(ctx).Return([]*rds.ResourcePendingMaintenanceActions{}, nil)
+	mockClient.EXPECT().DescribePendingMaintenanceActionsAll(ctx).Return([]types.ResourcePendingMaintenanceActions{}, nil)
 
 	x := RDSExporter{
-		svcs:     []awsclient.Client{mockClient},
-		sessions: []*session.Session{session.New(&aws.Config{Region: aws.String("foo")})},
-		cache:    *NewMetricsCache(10 * time.Second),
-		logger:   slog.New(slog.NewTextHandler(io.Discard, nil)),
+		svcs:   []awsclient.Client{mockClient},
+		cfgs:   []aws.Config{{Region: "foo"}},
+		cache:  *NewMetricsCache(10 * time.Second),
+		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 
 	x.addAllPendingMaintenancesMetrics(ctx, 0, createTestDBInstances())
