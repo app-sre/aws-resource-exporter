@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"os"
@@ -12,9 +13,9 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/app-sre/aws-resource-exporter/pkg"
 	"github.com/app-sre/aws-resource-exporter/pkg/awsclient"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/promslog"
@@ -36,9 +37,9 @@ func main() {
 	os.Exit(run())
 }
 
-func getAwsAccountNumber(logger *slog.Logger, sess *session.Session) (string, error) {
-	stsClient := sts.New(sess)
-	identityOutput, err := stsClient.GetCallerIdentity(&sts.GetCallerIdentityInput{})
+func getAwsAccountNumber(ctx context.Context, logger *slog.Logger, cfg aws.Config) (string, error) {
+	stsClient := sts.NewFromConfig(cfg)
+	identityOutput, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
 	if err != nil {
 		logger.Error("Could not retrieve caller identity of the aws account", "err", err)
 		return "", err
@@ -48,103 +49,122 @@ func getAwsAccountNumber(logger *slog.Logger, sess *session.Session) (string, er
 
 func setupCollectors(logger *slog.Logger, configFile string) ([]prometheus.Collector, error) {
 	var collectors []prometheus.Collector
-	config, err := pkg.LoadExporterConfiguration(logger, configFile)
+	cfg, err := pkg.LoadExporterConfiguration(logger, configFile)
 	if err != nil {
 		return nil, err
 	}
-	logger.Info("Configuring vpc with regions", "regions", strings.Join(config.VpcConfig.Regions, ","))
-	logger.Info("Configuring rds with regions", "regions", strings.Join(config.RdsConfig.Regions, ","))
-	logger.Info("Configuring ec2 with regions", "regions", strings.Join(config.EC2Config.Regions, ","))
-	logger.Info("Configuring route53 with region", "region", config.Route53Config.Region)
-	logger.Info("Configuring elasticache with regions", "regions", strings.Join(config.ElastiCacheConfig.Regions, ","))
-	logger.Info("Configuring msk with regions", "regions", strings.Join(config.MskConfig.Regions, ","))
-	logger.Info("Will VPC metrics be gathered?", "vpc-enabled", config.VpcConfig.Enabled)
-	logger.Info("Will IAM metrics be gathered?", "iam-enabled", config.IamConfig.Enabled)
+	logger.Info("Configuring vpc with regions", "regions", strings.Join(cfg.VpcConfig.Regions, ","))
+	logger.Info("Configuring rds with regions", "regions", strings.Join(cfg.RdsConfig.Regions, ","))
+	logger.Info("Configuring ec2 with regions", "regions", strings.Join(cfg.EC2Config.Regions, ","))
+	logger.Info("Configuring route53 with region", "region", cfg.Route53Config.Region)
+	logger.Info("Configuring elasticache with regions", "regions", strings.Join(cfg.ElastiCacheConfig.Regions, ","))
+	logger.Info("Configuring msk with regions", "regions", strings.Join(cfg.MskConfig.Regions, ","))
+	logger.Info("Will VPC metrics be gathered?", "vpc-enabled", cfg.VpcConfig.Enabled)
+	logger.Info("Will IAM metrics be gathered?", "iam-enabled", cfg.IamConfig.Enabled)
 
 	sessionRegion := "us-east-1"
 	if sr := os.Getenv("AWS_REGION"); sr != "" {
 		sessionRegion = sr
 	}
 
+	ctx := context.TODO()
+
 	// Create a single session here, because we need the accountid, before we create the other configs
-	awsConfig := aws.NewConfig().WithRegion(sessionRegion)
-	sess := session.Must(session.NewSession(awsConfig))
-	awsAccountId, err := getAwsAccountNumber(logger, sess)
+	awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(sessionRegion))
+	if err != nil {
+		return nil, err
+	}
+
+	awsAccountId, err := getAwsAccountNumber(ctx, logger, awsCfg)
 	if err != nil {
 		return collectors, err
 	}
-	var vpcSessions []*session.Session
-	if config.VpcConfig.Enabled {
-		for _, region := range config.VpcConfig.Regions {
-			config := aws.NewConfig().WithRegion(region)
-			sess := session.Must(session.NewSession(config))
-			vpcSessions = append(vpcSessions, sess)
+	var vpcCfgs []aws.Config
+	if cfg.VpcConfig.Enabled {
+		for _, region := range cfg.VpcConfig.Regions {
+			awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+			if err != nil {
+				return nil, err
+			}
+			vpcCfgs = append(vpcCfgs, awsCfg)
 		}
-		vpcExporter := pkg.NewVPCExporter(vpcSessions, logger, config.VpcConfig, awsAccountId)
+		vpcExporter := pkg.NewVPCExporter(vpcCfgs, logger, cfg.VpcConfig, awsAccountId)
 		collectors = append(collectors, vpcExporter)
 		go vpcExporter.CollectLoop()
 	}
-	logger.Info("Will RDS metrics be gathered?", "rds-enabled", config.RdsConfig.Enabled)
-	var rdsSessions []*session.Session
-	if config.RdsConfig.Enabled {
-		for _, region := range config.RdsConfig.Regions {
-			config := aws.NewConfig().WithRegion(region)
-			sess := session.Must(session.NewSession(config))
-			rdsSessions = append(rdsSessions, sess)
+	logger.Info("Will RDS metrics be gathered?", "rds-enabled", cfg.RdsConfig.Enabled)
+	var rdsCfgs []aws.Config
+	if cfg.RdsConfig.Enabled {
+		for _, region := range cfg.RdsConfig.Regions {
+			awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+			if err != nil {
+				return nil, err
+			}
+			rdsCfgs = append(rdsCfgs, awsCfg)
 		}
-		rdsExporter := pkg.NewRDSExporter(rdsSessions, logger, config.RdsConfig, awsAccountId)
+		rdsExporter := pkg.NewRDSExporter(rdsCfgs, logger, cfg.RdsConfig, awsAccountId)
 		collectors = append(collectors, rdsExporter)
 		go rdsExporter.CollectLoop()
 	}
-	logger.Info("Will EC2 metrics be gathered?", "ec2-enabled", config.EC2Config.Enabled)
-	var ec2Sessions []*session.Session
-	if config.EC2Config.Enabled {
-		for _, region := range config.EC2Config.Regions {
-			config := aws.NewConfig().WithRegion(region)
-			sess := session.Must(session.NewSession(config))
-			ec2Sessions = append(ec2Sessions, sess)
+	logger.Info("Will EC2 metrics be gathered?", "ec2-enabled", cfg.EC2Config.Enabled)
+	var ec2Cfgs []aws.Config
+	if cfg.EC2Config.Enabled {
+		for _, region := range cfg.EC2Config.Regions {
+			awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+			if err != nil {
+				return nil, err
+			}
+			ec2Cfgs = append(ec2Cfgs, awsCfg)
 		}
-		ec2Exporter := pkg.NewEC2Exporter(ec2Sessions, logger, config.EC2Config, awsAccountId)
+		ec2Exporter := pkg.NewEC2Exporter(ec2Cfgs, logger, cfg.EC2Config, awsAccountId)
 		collectors = append(collectors, ec2Exporter)
 		go ec2Exporter.CollectLoop()
 	}
-	logger.Info("Will Route53 metrics be gathered?", "route53-enabled", config.Route53Config.Enabled)
-	if config.Route53Config.Enabled {
-		awsConfig := aws.NewConfig().WithRegion(config.Route53Config.Region)
-		sess := session.Must(session.NewSession(awsConfig))
-		r53Exporter := pkg.NewRoute53Exporter(sess, logger, config.Route53Config, awsAccountId)
+	logger.Info("Will Route53 metrics be gathered?", "route53-enabled", cfg.Route53Config.Enabled)
+	if cfg.Route53Config.Enabled {
+		awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(cfg.Route53Config.Region))
+		if err != nil {
+			return nil, err
+		}
+		r53Exporter := pkg.NewRoute53Exporter(awsCfg, logger, cfg.Route53Config, awsAccountId)
 		collectors = append(collectors, r53Exporter)
 		go r53Exporter.CollectLoop()
 	}
-	logger.Info("Will ElastiCache metrics be gathered?", "elasticache-enabled", config.ElastiCacheConfig.Enabled)
-	var elasticacheSessions []*session.Session
-	if config.ElastiCacheConfig.Enabled {
-		for _, region := range config.ElastiCacheConfig.Regions {
-			config := aws.NewConfig().WithRegion(region)
-			sess := session.Must(session.NewSession(config))
-			elasticacheSessions = append(elasticacheSessions, sess)
+	logger.Info("Will ElastiCache metrics be gathered?", "elasticache-enabled", cfg.ElastiCacheConfig.Enabled)
+	var elasticacheCfgs []aws.Config
+	if cfg.ElastiCacheConfig.Enabled {
+		for _, region := range cfg.ElastiCacheConfig.Regions {
+			awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+			if err != nil {
+				return nil, err
+			}
+			elasticacheCfgs = append(elasticacheCfgs, awsCfg)
 		}
-		elasticacheExporter := pkg.NewElastiCacheExporter(elasticacheSessions, logger, config.ElastiCacheConfig, awsAccountId)
+		elasticacheExporter := pkg.NewElastiCacheExporter(elasticacheCfgs, logger, cfg.ElastiCacheConfig, awsAccountId)
 		collectors = append(collectors, elasticacheExporter)
 		go elasticacheExporter.CollectLoop()
 	}
-	logger.Info("Will MSK metrics be gathered?", "msk-enabled", config.MskConfig.Enabled)
-	var mskSessions []*session.Session
-	if config.MskConfig.Enabled {
-		for _, region := range config.MskConfig.Regions {
-			config := aws.NewConfig().WithRegion(region)
-			sess := session.Must(session.NewSession(config))
-			mskSessions = append(mskSessions, sess)
+	logger.Info("Will MSK metrics be gathered?", "msk-enabled", cfg.MskConfig.Enabled)
+	var mskCfgs []aws.Config
+	if cfg.MskConfig.Enabled {
+		for _, region := range cfg.MskConfig.Regions {
+			awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+			if err != nil {
+				return nil, err
+			}
+			mskCfgs = append(mskCfgs, awsCfg)
 		}
-		mskExporter := pkg.NewMSKExporter(mskSessions, logger, config.MskConfig, awsAccountId)
+		mskExporter := pkg.NewMSKExporter(mskCfgs, logger, cfg.MskConfig, awsAccountId)
 		collectors = append(collectors, mskExporter)
 		go mskExporter.CollectLoop()
 	}
-	logger.Info("Will IAM metrics be gathered?", "iam-enabled", config.IamConfig.Enabled)
-	if config.IamConfig.Enabled {
-		awsConfig := aws.NewConfig().WithRegion(config.IamConfig.Region) // IAM is global, this region just for AWS SDK initialization
-		sess := session.Must(session.NewSession(awsConfig))
-		iamExporter := pkg.NewIAMExporter(sess, logger, config.IamConfig, awsAccountId)
+	logger.Info("Will IAM metrics be gathered?", "iam-enabled", cfg.IamConfig.Enabled)
+	if cfg.IamConfig.Enabled {
+		awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(cfg.IamConfig.Region))
+		if err != nil {
+			return nil, err
+		}
+		iamExporter := pkg.NewIAMExporter(awsCfg, logger, cfg.IamConfig, awsAccountId)
 		collectors = append(collectors, iamExporter)
 		go iamExporter.CollectLoop()
 	}

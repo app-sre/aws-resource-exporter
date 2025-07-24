@@ -5,19 +5,16 @@ package awsclient
 import (
 	"context"
 
-	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/service/rds"
-	"github.com/aws/aws-sdk-go/service/route53"
-	"github.com/aws/aws-sdk-go/service/route53/route53iface"
-	"github.com/aws/aws-sdk-go/service/servicequotas"
-	"github.com/aws/aws-sdk-go/service/servicequotas/servicequotasiface"
-
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
-	"github.com/aws/aws-sdk-go/service/elasticache"
-	"github.com/aws/aws-sdk-go/service/kafka"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/elasticache"
+	elasticacheTypes "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
+	"github.com/aws/aws-sdk-go-v2/service/kafka"
+	kafkaTypes "github.com/aws/aws-sdk-go-v2/service/kafka/types"
+	"github.com/aws/aws-sdk-go-v2/service/rds"
+	"github.com/aws/aws-sdk-go-v2/service/rds/types"
+	"github.com/aws/aws-sdk-go-v2/service/route53"
+	"github.com/aws/aws-sdk-go-v2/service/servicequotas"
 )
 
 //go:generate mockgen -source=./awsclient.go -destination=./mock/zz_generated.mock_client.go -package=mock
@@ -25,170 +22,197 @@ import (
 // Client is a wrapper object for actual AWS SDK clients to allow for easier testing.
 type Client interface {
 	//EC2
-	DescribeTransitGatewaysWithContext(ctx aws.Context, input *ec2.DescribeTransitGatewaysInput, opts ...request.Option) (*ec2.DescribeTransitGatewaysOutput, error)
+	DescribeTransitGateways(ctx context.Context, input *ec2.DescribeTransitGatewaysInput, optFns ...func(*ec2.Options)) (*ec2.DescribeTransitGatewaysOutput, error)
 
 	//RDS
-	DescribeDBInstancesPagesWithContext(ctx aws.Context, input *rds.DescribeDBInstancesInput, fn func(*rds.DescribeDBInstancesOutput, bool) bool, opts ...request.Option) error
-	DescribeDBLogFilesPagesWithContext(ctx aws.Context, input *rds.DescribeDBLogFilesInput, fn func(*rds.DescribeDBLogFilesOutput, bool) bool, opts ...request.Option) error
-	DescribePendingMaintenanceActionsPagesWithContext(ctx aws.Context, input *rds.DescribePendingMaintenanceActionsInput, fn func(*rds.DescribePendingMaintenanceActionsOutput, bool) bool, opts ...request.Option) error
+	DescribeDBLogFiles(ctx context.Context, input *rds.DescribeDBLogFilesInput, optFns ...func(*rds.Options)) (*rds.DescribeDBLogFilesOutput, error)
+	DescribePendingMaintenanceActions(ctx context.Context, input *rds.DescribePendingMaintenanceActionsInput, optFns ...func(*rds.Options)) (*rds.DescribePendingMaintenanceActionsOutput, error)
+	DescribeDBInstances(ctx context.Context, input *rds.DescribeDBInstancesInput, optFns ...func(*rds.Options)) (*rds.DescribeDBInstancesOutput, error)
 	DescribeDBLogFilesAll(ctx context.Context, instanceId string) ([]*rds.DescribeDBLogFilesOutput, error)
-	DescribePendingMaintenanceActionsAll(ctx context.Context) ([]*rds.ResourcePendingMaintenanceActions, error)
-	DescribeDBInstancesAll(ctx context.Context) ([]*rds.DBInstance, error)
+	DescribePendingMaintenanceActionsAll(ctx context.Context) ([]types.ResourcePendingMaintenanceActions, error)
+	DescribeDBInstancesAll(ctx context.Context) ([]types.DBInstance, error)
 
 	// Service Quota
-	GetServiceQuotaWithContext(ctx aws.Context, input *servicequotas.GetServiceQuotaInput, opts ...request.Option) (*servicequotas.GetServiceQuotaOutput, error)
+	GetServiceQuota(ctx context.Context, input *servicequotas.GetServiceQuotaInput, optFns ...func(*servicequotas.Options)) (*servicequotas.GetServiceQuotaOutput, error)
 
 	//route53
-	ListHostedZonesWithContext(ctx context.Context, input *route53.ListHostedZonesInput, opts ...request.Option) (*route53.ListHostedZonesOutput, error)
-	GetHostedZoneLimitWithContext(ctx context.Context, input *route53.GetHostedZoneLimitInput, opts ...request.Option) (*route53.GetHostedZoneLimitOutput, error)
+	ListHostedZones(ctx context.Context, input *route53.ListHostedZonesInput, optFns ...func(*route53.Options)) (*route53.ListHostedZonesOutput, error)
+	GetHostedZoneLimit(ctx context.Context, input *route53.GetHostedZoneLimitInput, optFns ...func(*route53.Options)) (*route53.GetHostedZoneLimitOutput, error)
 
 	// ElastiCache
-	DescribeCacheClustersAll(ctx context.Context) ([]*elasticache.CacheCluster, error)
+	DescribeCacheClusters(ctx context.Context, input *elasticache.DescribeCacheClustersInput, optFns ...func(*elasticache.Options)) (*elasticache.DescribeCacheClustersOutput, error)
+	DescribeCacheClustersAll(ctx context.Context) ([]elasticacheTypes.CacheCluster, error)
 
 	// MSK
-	ListClustersAll(ctx context.Context) ([]*kafka.ClusterInfo, error)
+	ListClusters(ctx context.Context, input *kafka.ListClustersInput, optFns ...func(*kafka.Options)) (*kafka.ListClustersOutput, error)
+	ListClustersAll(ctx context.Context) ([]kafkaTypes.ClusterInfo, error)
 }
 
 type awsClient struct {
-	ec2Client           ec2iface.EC2API
-	rdsClient           rds.RDS
-	serviceQuotasClient servicequotasiface.ServiceQuotasAPI
-	route53Client       route53iface.Route53API
-	elasticacheClient   elasticache.ElastiCache
-	mskClient           kafka.Kafka
+	ec2Client           *ec2.Client
+	rdsClient           *rds.Client
+	serviceQuotasClient *servicequotas.Client
+	route53Client       *route53.Client
+	elasticacheClient   *elasticache.Client
+	mskClient           *kafka.Client
 }
 
-func (c *awsClient) DescribeTransitGatewaysWithContext(ctx aws.Context, input *ec2.DescribeTransitGatewaysInput, opts ...request.Option) (*ec2.DescribeTransitGatewaysOutput, error) {
-	return c.ec2Client.DescribeTransitGatewaysWithContext(ctx, input, opts...)
+func (c *awsClient) DescribeTransitGateways(ctx context.Context, input *ec2.DescribeTransitGatewaysInput, optFns ...func(*ec2.Options)) (*ec2.DescribeTransitGatewaysOutput, error) {
+	return c.ec2Client.DescribeTransitGateways(ctx, input, optFns...)
 }
 
-func (c *awsClient) DescribeDBLogFilesPagesWithContext(ctx aws.Context, input *rds.DescribeDBLogFilesInput, fn func(*rds.DescribeDBLogFilesOutput, bool) bool, opts ...request.Option) error {
-	return c.rdsClient.DescribeDBLogFilesPagesWithContext(ctx, input, fn, opts...)
+func (c *awsClient) DescribeDBLogFiles(ctx context.Context, input *rds.DescribeDBLogFilesInput, optFns ...func(*rds.Options)) (*rds.DescribeDBLogFilesOutput, error) {
+	return c.rdsClient.DescribeDBLogFiles(ctx, input, optFns...)
 }
 
-func (c *awsClient) DescribeDBInstancesPagesWithContext(ctx aws.Context, input *rds.DescribeDBInstancesInput, fn func(*rds.DescribeDBInstancesOutput, bool) bool, opts ...request.Option) error {
-	return c.rdsClient.DescribeDBInstancesPagesWithContext(ctx, input, fn, opts...)
+func (c *awsClient) DescribeDBInstances(ctx context.Context, input *rds.DescribeDBInstancesInput, optFns ...func(*rds.Options)) (*rds.DescribeDBInstancesOutput, error) {
+	return c.rdsClient.DescribeDBInstances(ctx, input, optFns...)
 }
 
-func (c *awsClient) DescribePendingMaintenanceActionsPagesWithContext(ctx aws.Context, input *rds.DescribePendingMaintenanceActionsInput, fn func(*rds.DescribePendingMaintenanceActionsOutput, bool) bool, opts ...request.Option) error {
-	return c.rdsClient.DescribePendingMaintenanceActionsPagesWithContext(ctx, input, fn, opts...)
+func (c *awsClient) DescribePendingMaintenanceActions(ctx context.Context, input *rds.DescribePendingMaintenanceActionsInput, optFns ...func(*rds.Options)) (*rds.DescribePendingMaintenanceActionsOutput, error) {
+	return c.rdsClient.DescribePendingMaintenanceActions(ctx, input, optFns...)
 }
 
-func (c *awsClient) GetServiceQuotaWithContext(ctx aws.Context, input *servicequotas.GetServiceQuotaInput, opts ...request.Option) (*servicequotas.GetServiceQuotaOutput, error) {
-	return c.serviceQuotasClient.GetServiceQuotaWithContext(ctx, input, opts...)
+func (c *awsClient) GetServiceQuota(ctx context.Context, input *servicequotas.GetServiceQuotaInput, optFns ...func(*servicequotas.Options)) (*servicequotas.GetServiceQuotaOutput, error) {
+	return c.serviceQuotasClient.GetServiceQuota(ctx, input, optFns...)
 }
 
 func (c *awsClient) DescribeDBLogFilesAll(ctx context.Context, instanceId string) ([]*rds.DescribeDBLogFilesOutput, error) {
-	input := &rds.DescribeDBLogFilesInput{
+	paginator := rds.NewDescribeDBLogFilesPaginator(c.rdsClient, &rds.DescribeDBLogFilesInput{
 		DBInstanceIdentifier: &instanceId,
-	}
-
-	var logOutPuts []*rds.DescribeDBLogFilesOutput
-	err := c.DescribeDBLogFilesPagesWithContext(ctx, input, func(ddlo *rds.DescribeDBLogFilesOutput, b bool) bool {
-		AwsExporterMetrics.IncrementRequests()
-		logOutPuts = append(logOutPuts, ddlo)
-		return true
 	})
 
-	if err != nil {
-		AwsExporterMetrics.IncrementErrors()
-		return nil, err
+	var logOutPuts []*rds.DescribeDBLogFilesOutput
+	for paginator.HasMorePages() {
+		output, err := paginator.NextPage(ctx)
+		if err != nil {
+			AwsExporterMetrics.IncrementErrors()
+			return nil, err
+		}
+		logOutPuts = append(logOutPuts, output)
+		AwsExporterMetrics.IncrementRequests()
 	}
 
 	return logOutPuts, nil
 }
 
-func (c *awsClient) DescribePendingMaintenanceActionsAll(ctx context.Context) ([]*rds.ResourcePendingMaintenanceActions, error) {
-	describePendingMaintInput := &rds.DescribePendingMaintenanceActionsInput{}
+func (c *awsClient) DescribePendingMaintenanceActionsAll(ctx context.Context) ([]types.ResourcePendingMaintenanceActions, error) {
+	paginator := rds.NewDescribePendingMaintenanceActionsPaginator(c.rdsClient, &rds.DescribePendingMaintenanceActionsInput{})
 
-	var instancesPendMaintActionsData []*rds.ResourcePendingMaintenanceActions
-	err := c.DescribePendingMaintenanceActionsPagesWithContext(ctx, describePendingMaintInput, func(dpm *rds.DescribePendingMaintenanceActionsOutput, b bool) bool {
+	var instancesPendMaintActionsData []types.ResourcePendingMaintenanceActions
+	for paginator.HasMorePages() {
+		output, err := paginator.NextPage(ctx)
+		if err != nil {
+			AwsExporterMetrics.IncrementErrors()
+			return nil, err
+		}
+		instancesPendMaintActionsData = append(instancesPendMaintActionsData, output.PendingMaintenanceActions...)
 		AwsExporterMetrics.IncrementRequests()
-		instancesPendMaintActionsData = append(instancesPendMaintActionsData, dpm.PendingMaintenanceActions...)
-		return true
-	})
-
-	if err != nil {
-		AwsExporterMetrics.IncrementErrors()
-		return nil, err
 	}
 
 	return instancesPendMaintActionsData, nil
 }
 
-func (c *awsClient) DescribeDBInstancesAll(ctx context.Context) ([]*rds.DBInstance, error) {
-	input := &rds.DescribeDBInstancesInput{}
+func (c *awsClient) DescribeDBInstancesAll(ctx context.Context) ([]types.DBInstance, error) {
+	paginator := rds.NewDescribeDBInstancesPaginator(c.rdsClient, &rds.DescribeDBInstancesInput{})
 
-	var instances []*rds.DBInstance
-	err := c.DescribeDBInstancesPagesWithContext(ctx, input, func(ddo *rds.DescribeDBInstancesOutput, b bool) bool {
+	var instances []types.DBInstance
+	for paginator.HasMorePages() {
+		output, err := paginator.NextPage(ctx)
+		if err != nil {
+			AwsExporterMetrics.IncrementErrors()
+			return nil, err
+		}
+		instances = append(instances, output.DBInstances...)
 		AwsExporterMetrics.IncrementRequests()
-		instances = append(instances, ddo.DBInstances...)
-		return true
-	})
-	if err != nil {
-		AwsExporterMetrics.IncrementErrors()
-		return nil, err
 	}
 	return instances, nil
 }
 
-func (c *awsClient) ListHostedZonesWithContext(ctx context.Context, input *route53.ListHostedZonesInput, opts ...request.Option) (*route53.ListHostedZonesOutput, error) {
-	return c.route53Client.ListHostedZonesWithContext(ctx, input, opts...)
+func (c *awsClient) ListHostedZones(ctx context.Context, input *route53.ListHostedZonesInput, optFns ...func(*route53.Options)) (*route53.ListHostedZonesOutput, error) {
+	return c.route53Client.ListHostedZones(ctx, input, optFns...)
 }
 
-func (c *awsClient) GetHostedZoneLimitWithContext(ctx context.Context, input *route53.GetHostedZoneLimitInput, opts ...request.Option) (*route53.GetHostedZoneLimitOutput, error) {
-	return c.route53Client.GetHostedZoneLimitWithContext(ctx, input, opts...)
+func (c *awsClient) GetHostedZoneLimit(ctx context.Context, input *route53.GetHostedZoneLimitInput, optFns ...func(*route53.Options)) (*route53.GetHostedZoneLimitOutput, error) {
+	return c.route53Client.GetHostedZoneLimit(ctx, input, optFns...)
 }
 
-func (c *awsClient) DescribeCacheClustersAll(ctx context.Context) ([]*elasticache.CacheCluster, error) {
-	input := &elasticache.DescribeCacheClustersInput{}
+func (c *awsClient) DescribeCacheClusters(ctx context.Context, input *elasticache.DescribeCacheClustersInput, optFns ...func(*elasticache.Options)) (*elasticache.DescribeCacheClustersOutput, error) {
+	return c.elasticacheClient.DescribeCacheClusters(ctx, input, optFns...)
+}
 
-	var clusters []*elasticache.CacheCluster
-	err := c.DescribeCacheClustersPagesWithContext(ctx, input, func(dco *elasticache.DescribeCacheClustersOutput, more bool) bool {
+func (c *awsClient) DescribeCacheClustersAll(ctx context.Context) ([]elasticacheTypes.CacheCluster, error) {
+	paginator := elasticache.NewDescribeCacheClustersPaginator(c.elasticacheClient, &elasticache.DescribeCacheClustersInput{})
+
+	var clusters []elasticacheTypes.CacheCluster
+	for paginator.HasMorePages() {
+		output, err := paginator.NextPage(ctx)
+		if err != nil {
+			AwsExporterMetrics.IncrementErrors()
+			return nil, err
+		}
+		clusters = append(clusters, output.CacheClusters...)
 		AwsExporterMetrics.IncrementRequests()
-		clusters = append(clusters, dco.CacheClusters...)
-		return more
-	})
-	if err != nil {
-		AwsExporterMetrics.IncrementErrors()
-		return nil, err
 	}
 	return clusters, nil
 }
 
-func (c *awsClient) DescribeCacheClustersPagesWithContext(ctx aws.Context, input *elasticache.DescribeCacheClustersInput, fn func(*elasticache.DescribeCacheClustersOutput, bool) bool, opts ...request.Option) error {
-	return c.elasticacheClient.DescribeCacheClustersPagesWithContext(ctx, input, fn, opts...)
+func (c *awsClient) ListClusters(ctx context.Context, input *kafka.ListClustersInput, optFns ...func(*kafka.Options)) (*kafka.ListClustersOutput, error) {
+	return c.mskClient.ListClusters(ctx, input, optFns...)
 }
 
-func (c *awsClient) ListClustersPagesWithContext(ctx context.Context, input *kafka.ListClustersInput, fn func(*kafka.ListClustersOutput, bool) bool, opts ...request.Option) error {
-	return c.mskClient.ListClustersPagesWithContext(ctx, input, fn, opts...)
-}
+func (c *awsClient) ListClustersAll(ctx context.Context) ([]kafkaTypes.ClusterInfo, error) {
+	paginator := kafka.NewListClustersPaginator(c.mskClient, &kafka.ListClustersInput{})
 
-func (c *awsClient) ListClustersAll(ctx context.Context) ([]*kafka.ClusterInfo, error) {
-	input := &kafka.ListClustersInput{}
-
-	var clusters []*kafka.ClusterInfo
-	err := c.mskClient.ListClustersPagesWithContext(ctx, input, func(lco *kafka.ListClustersOutput, lastPage bool) bool {
+	var clusters []kafkaTypes.ClusterInfo
+	for paginator.HasMorePages() {
+		output, err := paginator.NextPage(ctx)
+		if err != nil {
+			AwsExporterMetrics.IncrementErrors()
+			return nil, err
+		}
+		clusters = append(clusters, output.ClusterInfoList...)
 		AwsExporterMetrics.IncrementRequests()
-		clusters = append(clusters, lco.ClusterInfoList...)
-		return true
-	})
-
-	if err != nil {
-		AwsExporterMetrics.IncrementErrors()
-		return nil, err
 	}
 
 	return clusters, nil
 }
 
-func NewClientFromSession(sess *session.Session) Client {
+func NewClientFromConfig(cfg aws.Config) Client {
 	return &awsClient{
-		ec2Client:           ec2.New(sess),
-		serviceQuotasClient: servicequotas.New(sess),
-		rdsClient:           *rds.New(sess),
-		route53Client:       route53.New(sess),
-		elasticacheClient:   *elasticache.New(sess),
-		mskClient:           *kafka.New(sess),
+		ec2Client:           ec2.NewFromConfig(cfg),
+		serviceQuotasClient: servicequotas.NewFromConfig(cfg),
+		rdsClient:           rds.NewFromConfig(cfg),
+		route53Client:       route53.NewFromConfig(cfg),
+		elasticacheClient:   elasticache.NewFromConfig(cfg),
+		mskClient:           kafka.NewFromConfig(cfg),
 	}
+}
+
+func (c *awsClient) DescribeCacheClustersPagesWithContext(ctx context.Context, input *elasticache.DescribeCacheClustersInput, fn func(*elasticache.DescribeCacheClustersOutput, bool) bool) error {
+	paginator := elasticache.NewDescribeCacheClustersPaginator(c.elasticacheClient, input)
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return err
+		}
+		if !fn(page, paginator.HasMorePages()) {
+			break
+		}
+	}
+	return nil
+}
+
+func (c *awsClient) ListClustersPagesWithContext(ctx context.Context, input *kafka.ListClustersInput, fn func(*kafka.ListClustersOutput, bool) bool) error {
+	paginator := kafka.NewListClustersPaginator(c.mskClient, input)
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return err
+		}
+		if !fn(page, paginator.HasMorePages()) {
+			break
+		}
+	}
+	return nil
 }

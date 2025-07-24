@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/app-sre/aws-resource-exporter/pkg/awsclient"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/rds"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -54,55 +54,55 @@ var DBMaxConnections = map[string]map[string]int64{
 	//
 	// Tx
 	//
-	"db.t3.micro": map[string]int64{
+	"db.t3.micro": {
 		// Memory: 1 GiB
 		"default":          112,
 		"default.mysql5.7": 45,
 		"default.mysql8.0": 45,
 	},
-	"db.t3.small": map[string]int64{
+	"db.t3.small": {
 		// Memory: 2 GiB
 		"default":          225,
 		"default.mysql5.7": 130,
 		"default.mysql8.0": 130,
 	},
-	"db.t3.medium": map[string]int64{
+	"db.t3.medium": {
 		// Memory: 4 GiB
 		"default":          450,
 		"default.mysql5.7": 300,
 		"default.mysql8.0": 300,
 	},
-	"db.t4g.micro": map[string]int64{
+	"db.t4g.micro": {
 		// Memory: 1 GiB
 		"default":          112,
 		"default.mysql5.7": 45,
 		"default.mysql8.0": 45,
 	},
-	"db.t4g.small": map[string]int64{
+	"db.t4g.small": {
 		// Memory: 2 GiB
 		"default":          225,
 		"default.mysql5.7": 130,
 		"default.mysql8.0": 130,
 	},
-	"db.t4g.medium": map[string]int64{
+	"db.t4g.medium": {
 		// Memory: 4 GiB
 		"default":          450,
 		"default.mysql5.7": 300,
 		"default.mysql8.0": 300,
 	},
-	"db.t4g.large": map[string]int64{
+	"db.t4g.large": {
 		// Memory: 8 GiB
 		"default":          900,
 		"default.mysql5.7": 600,
 		"default.mysql8.0": 600,
 	},
-	"db.t4g.xlarge": map[string]int64{
+	"db.t4g.xlarge": {
 		// Memory: 16 GiB
 		"default":          1800,
 		"default.mysql5.7": 1300,
 		"default.mysql8.0": 1300,
 	},
-	"db.t4g.2xlarge": map[string]int64{
+	"db.t4g.2xlarge": {
 		// Memory: 32 GiB
 		"default":          3600,
 		"default.mysql5.7": 2600,
@@ -112,37 +112,37 @@ var DBMaxConnections = map[string]map[string]int64{
 	//
 	// M5
 	//
-	"db.m5.large": map[string]int64{
+	"db.m5.large": {
 		// Memory: 8 GiB
 		"default":          900,
 		"default.mysql5.7": 600,
 		"default.mysql8.0": 600,
 	},
-	"db.m5.xlarge": map[string]int64{
+	"db.m5.xlarge": {
 		// Memory: 16 GiB
 		"default":          1800,
 		"default.mysql5.7": 1300,
 		"default.mysql8.0": 1300,
 	},
-	"db.m5.2xlarge": map[string]int64{
+	"db.m5.2xlarge": {
 		// Memory: 32 GiB
 		"default":          3600,
 		"default.mysql5.7": 2600,
 		"default.mysql8.0": 2600,
 	},
-	"db.m5.4xlarge": map[string]int64{
+	"db.m5.4xlarge": {
 		// Memory: 64 GiB
 		"default":          5000,
 		"default.mysql5.7": 5300,
 		"default.mysql8.0": 5300,
 	},
-	"db.m5.8xlarge": map[string]int64{
+	"db.m5.8xlarge": {
 		// Memory: 128 GiB
 		"default":          5000,
 		"default.mysql5.7": 10700,
 		"default.mysql8.0": 10700,
 	},
-	"db.m5.16xlarge": map[string]int64{
+	"db.m5.16xlarge": {
 		// Memory: 256 GiB
 		"default":                 5000,
 		"default.aurora-mysql5.7": 6000,
@@ -155,37 +155,37 @@ var DBMaxConnections = map[string]map[string]int64{
 	//
 	// M6g
 	//
-	"db.m6g.large": map[string]int64{
+	"db.m6g.large": {
 		// Memory: 8 GiB
 		"default":          900,
 		"default.mysql5.7": 600,
 		"default.mysql8.0": 600,
 	},
-	"db.m6g.xlarge": map[string]int64{
+	"db.m6g.xlarge": {
 		// Memory: 16 GiB
 		"default":          1800,
 		"default.mysql5.7": 1300,
 		"default.mysql8.0": 1300,
 	},
-	"db.m6g.2xlarge": map[string]int64{
+	"db.m6g.2xlarge": {
 		// Memory: 32 GiB
 		"default":          3600,
 		"default.mysql5.7": 2600,
 		"default.mysql8.0": 2600,
 	},
-	"db.m6g.4xlarge": map[string]int64{
+	"db.m6g.4xlarge": {
 		// Memory: 64 GiB
 		"default":          5000,
 		"default.mysql5.7": 5300,
 		"default.mysql8.0": 5300,
 	},
-	"db.m6g.8xlarge": map[string]int64{
+	"db.m6g.8xlarge": {
 		// Memory: 128 GiB
 		"default":          5000,
 		"default.mysql5.7": 10700,
 		"default.mysql8.0": 10700,
 	},
-	"db.m6g.12xlarge": map[string]int64{
+	"db.m6g.12xlarge": {
 		// Memory: 192 GiB
 		"default":          5000,
 		"default.mysql5.7": 16200,
@@ -195,13 +195,13 @@ var DBMaxConnections = map[string]map[string]int64{
 	//
 	// M6gd
 	//
-	"db.m6gd.xlarge": map[string]int64{
+	"db.m6gd.xlarge": {
 		// Memory: 16 GiB
 		"default":          1800,
 		"default.mysql5.7": 1300,
 		"default.mysql8.0": 1300,
 	},
-	"db.m6gd.2xlarge": map[string]int64{
+	"db.m6gd.2xlarge": {
 		// Memory: 32 GiB
 		"default":          3600,
 		"default.mysql5.7": 2600,
@@ -211,7 +211,7 @@ var DBMaxConnections = map[string]map[string]int64{
 	//
 	// M6i
 	//
-	"db.m6i.2xlarge": map[string]int64{
+	"db.m6i.2xlarge": {
 		// Memory: 32 GiB
 		"default":          3600,
 		"default.mysql5.7": 2600,
@@ -221,37 +221,37 @@ var DBMaxConnections = map[string]map[string]int64{
 	//
 	// M7g
 	//
-	"db.m7g.large": map[string]int64{
+	"db.m7g.large": {
 		// Memory: 8 GiB
 		"default":          900,
 		"default.mysql5.7": 600,
 		"default.mysql8.0": 600,
 	},
-	"db.m7g.xlarge": map[string]int64{
+	"db.m7g.xlarge": {
 		// Memory: 16 GiB
 		"default":          1800,
 		"default.mysql5.7": 1300,
 		"default.mysql8.0": 1300,
 	},
-	"db.m7g.2xlarge": map[string]int64{
+	"db.m7g.2xlarge": {
 		// Memory: 32 GiB
 		"default":          3600,
 		"default.mysql5.7": 2600,
 		"default.mysql8.0": 2600,
 	},
-	"db.m7g.4xlarge": map[string]int64{
+	"db.m7g.4xlarge": {
 		// Memory: 64 GiB
 		"default":          5000,
 		"default.mysql5.7": 5300,
 		"default.mysql8.0": 5300,
 	},
-	"db.m7g.8xlarge": map[string]int64{
+	"db.m7g.8xlarge": {
 		// Memory: 128 GiB
 		"default":          5000,
 		"default.mysql5.7": 10700,
 		"default.mysql8.0": 10700,
 	},
-	"db.m7g.12xlarge": map[string]int64{
+	"db.m7g.12xlarge": {
 		// Memory: 192 GiB
 		"default":          5000,
 		"default.mysql5.7": 16200,
@@ -261,19 +261,19 @@ var DBMaxConnections = map[string]map[string]int64{
 	//
 	// R5
 	//
-	"db.r5.large": map[string]int64{
+	"db.r5.large": {
 		// Memory: 16 GiB
 		"default":          1800,
 		"default.mysql5.7": 1300,
 		"default.mysql8.0": 1300,
 	},
-	"db.r5.xlarge": map[string]int64{
+	"db.r5.xlarge": {
 		// Memory: 32 GiB
 		"default":          3600,
 		"default.mysql5.7": 2600,
 		"default.mysql8.0": 2600,
 	},
-	"db.r5.2xlarge": map[string]int64{
+	"db.r5.2xlarge": {
 		// Memory: 64 GiB
 		"default":                 5000,
 		"default.mysql5.7":        5300,
@@ -282,31 +282,31 @@ var DBMaxConnections = map[string]map[string]int64{
 		"default.aurora-mysql5.8": 3000,
 		"default.aurora-mysql8.0": 3000,
 	},
-	"db.r5.4xlarge": map[string]int64{
+	"db.r5.4xlarge": {
 		// Memory: 128 GiB
 		"default":          5000,
 		"default.mysql5.7": 10700,
 		"default.mysql8.0": 10700,
 	},
-	"db.r5.8xlarge": map[string]int64{
+	"db.r5.8xlarge": {
 		// Memory: 256 GiB
 		"default":          5000,
 		"default.mysql5.7": 21600,
 		"default.mysql8.0": 21600,
 	},
-	"db.r5.12xlarge": map[string]int64{
+	"db.r5.12xlarge": {
 		// Memory: 384 GiB
 		"default":          5000,
 		"default.mysql5.7": 32768,
 		"default.mysql8.0": 32768,
 	},
-	"db.r5.16xlarge": map[string]int64{
+	"db.r5.16xlarge": {
 		// Memory: 512 GiB
 		"default":          5000,
 		"default.mysql5.7": 43400,
 		"default.mysql8.0": 43400,
 	},
-	"db.r5.24xlarge": map[string]int64{
+	"db.r5.24xlarge": {
 		// Memory: 768 GiB
 		"default":          5000,
 		"default.mysql5.7": 65400,
@@ -316,25 +316,25 @@ var DBMaxConnections = map[string]map[string]int64{
 	//
 	// R6
 	//
-	"db.r6g.12xlarge": map[string]int64{
+	"db.r6g.12xlarge": {
 		// Memory: 384 GiB
 		"default":          5000,
 		"default.mysql5.7": 32768,
 		"default.mysql8.0": 32768,
 	},
-	"db.r6i.large": map[string]int64{
+	"db.r6i.large": {
 		// Memory: 16 GiB
 		"default":          1800,
 		"default.mysql5.7": 1300,
 		"default.mysql8.0": 1300,
 	},
-	"db.r6i.16xlarge": map[string]int64{
+	"db.r6i.16xlarge": {
 		// Memory: 512 GiB
 		"default":          5000,
 		"default.mysql5.7": 43400,
 		"default.mysql8.0": 43400,
 	},
-	"db.r6g.8xlarge": map[string]int64{
+	"db.r6g.8xlarge": {
 		// Memory: 256 GiB
 		"default":          5000,
 		"default.mysql5.7": 21600,
@@ -423,7 +423,7 @@ var EOLInfos *prometheus.Desc = prometheus.NewDesc(
 
 // RDSExporter defines an instance of the RDS Exporter
 type RDSExporter struct {
-	sessions     []*session.Session
+	cfgs         []aws.Config
 	svcs         []awsclient.Client
 	eolInfos     []EOLInfo
 	thresholds   []Threshold
@@ -439,7 +439,7 @@ type RDSExporter struct {
 }
 
 // NewRDSExporter creates a new RDSExporter instance
-func NewRDSExporter(sessions []*session.Session, logger *slog.Logger, config RDSConfig, awsAccountId string) *RDSExporter {
+func NewRDSExporter(cfgs []aws.Config, logger *slog.Logger, config RDSConfig, awsAccountId string) *RDSExporter {
 	logger.Info("Initializing RDS exporter")
 
 	workers, _ := GetEnvIntValue(RDS_LOGS_METRICS_WORKERS)
@@ -458,12 +458,12 @@ func NewRDSExporter(sessions []*session.Session, logger *slog.Logger, config RDS
 		logger.Info(fmt.Sprintf("Using Env value for logs metrics TTL: %d", *logMetricsTTL))
 	}
 	var rdses []awsclient.Client
-	for _, session := range sessions {
-		rdses = append(rdses, awsclient.NewClientFromSession(session))
+	for _, cfg := range cfgs {
+		rdses = append(rdses, awsclient.NewClientFromConfig(cfg))
 	}
 
 	return &RDSExporter{
-		sessions:       sessions,
+		cfgs:           cfgs,
 		svcs:           rdses,
 		workers:        *workers,
 		logsMetricsTTL: *logMetricsTTL,
@@ -479,7 +479,7 @@ func NewRDSExporter(sessions []*session.Session, logger *slog.Logger, config RDS
 }
 
 func (e *RDSExporter) getRegion(sessionIndex int) string {
-	return *e.sessions[sessionIndex].Config.Region
+	return e.cfgs[sessionIndex].Region
 }
 
 func (e *RDSExporter) requestRDSLogMetrics(ctx context.Context, sessionIndex int, instanceId string) (*RDSLogsMetrics, error) {
@@ -527,7 +527,7 @@ func (e *RDSExporter) addRDSLogMetrics(ctx context.Context, sessionIndex int, in
 	return nil
 }
 
-func (e *RDSExporter) addAllLogMetrics(ctx context.Context, sessionIndex int, instances []*rds.DBInstance) {
+func (e *RDSExporter) addAllLogMetrics(ctx context.Context, sessionIndex int, instances []types.DBInstance) {
 	wg := &sync.WaitGroup{}
 	wg.Add(len(instances))
 
@@ -548,7 +548,7 @@ func (e *RDSExporter) addAllLogMetrics(ctx context.Context, sessionIndex int, in
 	wg.Wait()
 }
 
-func (e *RDSExporter) addAllInstanceMetrics(sessionIndex int, instances []*rds.DBInstance, eolInfos []EOLInfo) {
+func (e *RDSExporter) addAllInstanceMetrics(sessionIndex int, instances []types.DBInstance, eolInfos []EOLInfo) {
 	var eolMap = make(map[EOLKey]EOLInfo)
 
 	// Fill eolMap with EOLInfo indexed by engine and version
@@ -632,7 +632,7 @@ func (e *RDSExporter) addAllInstanceMetrics(sessionIndex int, instances []*rds.D
 	}
 }
 
-func (e *RDSExporter) addAllPendingMaintenancesMetrics(ctx context.Context, sessionIndex int, instances []*rds.DBInstance) {
+func (e *RDSExporter) addAllPendingMaintenancesMetrics(ctx context.Context, sessionIndex int, instances []types.DBInstance) {
 	// Get pending maintenance data because this isn't provided in DescribeDBInstances
 	instancesWithPendingMaint := make(map[string]bool)
 
@@ -696,12 +696,12 @@ func (e *RDSExporter) Describe(ch chan<- *prometheus.Desc) {
 func (e *RDSExporter) CollectLoop() {
 	for {
 		ctx, cancel := context.WithTimeout(context.Background(), e.timeout)
-		for i, _ := range e.sessions {
+		for i := range e.cfgs {
 
 			instances, err := e.svcs[i].DescribeDBInstancesAll(ctx)
 			if err != nil {
 				e.logger.Error("Call to DescribeDBInstances failed",
-					slog.String("region", *e.sessions[i].Config.Region),
+					slog.String("region", e.cfgs[i].Region),
 					slog.Any("err", err))
 			}
 

@@ -6,16 +6,14 @@ import (
 	"time"
 
 	"github.com/app-sre/aws-resource-exporter/pkg/awsclient"
-
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
+//go:generate mockgen -source=./iam.go -destination=./awsclient/mock/mock_iam.go -package=mock
 type IAMClient interface {
-	ListRolesPagesWithContext(ctx aws.Context, input *iam.ListRolesInput, fn func(*iam.ListRolesOutput, bool) bool, opts ...request.Option) error
+	ListRoles(ctx context.Context, input *iam.ListRolesInput, optFns ...func(*iam.Options)) (*iam.ListRolesOutput, error)
 }
 
 var (
@@ -32,7 +30,7 @@ var (
 )
 
 type IAMExporter struct {
-	session      *session.Session
+	cfg          aws.Config
 	iamClient    IAMClient
 	sqClient     awsclient.Client
 	logger       *slog.Logger
@@ -43,13 +41,13 @@ type IAMExporter struct {
 }
 
 // NewIAMExporter creates a new IAMExporter
-func NewIAMExporter(sess *session.Session, logger *slog.Logger, config IAMConfig, awsAccountId string) *IAMExporter {
+func NewIAMExporter(cfg aws.Config, logger *slog.Logger, config IAMConfig, awsAccountId string) *IAMExporter {
 	logger.Info("Initializing IAM exporter")
 
 	return &IAMExporter{
-		session:      sess,
-		iamClient:    iam.New(sess),
-		sqClient:     awsclient.NewClientFromSession(sess),
+		cfg:          cfg,
+		iamClient:    iam.NewFromConfig(cfg),
+		sqClient:     awsclient.NewClientFromConfig(cfg),
 		logger:       logger,
 		timeout:      *config.Timeout,
 		interval:     *config.Interval,
@@ -81,7 +79,7 @@ func (e *IAMExporter) CollectLoop() {
 			continue
 		}
 
-		quota, err := getQuotaValueWithContext(e.sqClient, "iam", "L-FE177D64", ctx)
+		quota, err := getQuotaValue(e.sqClient, "iam", "L-FE177D64", ctx)
 		if err != nil {
 			e.logger.Error("Failed to get IAM role quota", slog.Any("err", err))
 			cancel()
@@ -104,11 +102,15 @@ func (e *IAMExporter) CollectLoop() {
 // getIAMRoleCount returns number of IAM roles using IAMClient
 func getIAMRoleCount(ctx context.Context, client IAMClient) (int, error) {
 	var count int
-	err := client.ListRolesPagesWithContext(ctx, &iam.ListRolesInput{
-		MaxItems: aws.Int64(1000),
-	}, func(output *iam.ListRolesOutput, _ bool) bool {
-		count += len(output.Roles)
-		return true
+	paginator := iam.NewListRolesPaginator(client, &iam.ListRolesInput{
+		MaxItems: aws.Int32(1000),
 	})
-	return count, err
+	for paginator.HasMorePages() {
+		output, err := paginator.NextPage(ctx)
+		if err != nil {
+			return 0, err
+		}
+		count += len(output.Roles)
+	}
+	return count, nil
 }

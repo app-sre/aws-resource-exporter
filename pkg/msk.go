@@ -6,10 +6,8 @@ import (
 	"time"
 
 	"github.com/app-sre/aws-resource-exporter/pkg/awsclient"
-
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/kafka"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/kafka/types"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -21,7 +19,7 @@ var MSKInfos *prometheus.Desc = prometheus.NewDesc(
 )
 
 type MSKExporter struct {
-	sessions     []*session.Session
+	cfgs         []aws.Config
 	svcs         []awsclient.Client
 	mskInfos     []MSKInfo
 	thresholds   []Threshold
@@ -34,16 +32,16 @@ type MSKExporter struct {
 }
 
 // NewMSKExporter creates a new MSKExporter instance
-func NewMSKExporter(sessions []*session.Session, logger *slog.Logger, config MSKConfig, awsAccountId string) *MSKExporter {
+func NewMSKExporter(cfgs []aws.Config, logger *slog.Logger, config MSKConfig, awsAccountId string) *MSKExporter {
 	logger.Info("Initializing MSK exporter")
 
 	var msks []awsclient.Client
-	for _, session := range sessions {
-		msks = append(msks, awsclient.NewClientFromSession(session))
+	for _, cfg := range cfgs {
+		msks = append(msks, awsclient.NewClientFromConfig(cfg))
 	}
 
 	return &MSKExporter{
-		sessions:   sessions,
+		cfgs:       cfgs,
 		svcs:       msks,
 		cache:      *NewMetricsCache(*config.CacheTTL),
 		logger:     logger,
@@ -55,10 +53,10 @@ func NewMSKExporter(sessions []*session.Session, logger *slog.Logger, config MSK
 }
 
 func (e *MSKExporter) getRegion(sessionIndex int) string {
-	return *e.sessions[sessionIndex].Config.Region
+	return e.cfgs[sessionIndex].Region
 }
 
-func (e *MSKExporter) addMetricFromMSKInfo(sessionIndex int, clusters []*kafka.ClusterInfo, mskInfos []MSKInfo) {
+func (e *MSKExporter) addMetricFromMSKInfo(sessionIndex int, clusters []types.ClusterInfo, mskInfos []MSKInfo) {
 	region := e.getRegion(sessionIndex)
 
 	eolMap := make(map[string]string)
@@ -67,8 +65,8 @@ func (e *MSKExporter) addMetricFromMSKInfo(sessionIndex int, clusters []*kafka.C
 	}
 
 	for _, cluster := range clusters {
-		clusterName := aws.StringValue(cluster.ClusterName)
-		mskVersion := aws.StringValue(cluster.CurrentBrokerSoftwareInfo.KafkaVersion)
+		clusterName := aws.ToString(cluster.ClusterName)
+		mskVersion := aws.ToString(cluster.CurrentBrokerSoftwareInfo.KafkaVersion)
 
 		if eolDate, found := eolMap[mskVersion]; found {
 			eolStatus, err := GetEOLStatus(eolDate, e.thresholds)
@@ -100,7 +98,7 @@ func (e *MSKExporter) CollectLoop() {
 		for i, svc := range e.svcs {
 			clusters, err := svc.ListClustersAll(ctx)
 			if err != nil {
-				e.logger.Error("Call to ListClustersAll failed", slog.String("region", *e.sessions[i].Config.Region), slog.Any("err", err))
+				e.logger.Error("Call to ListClustersAll failed", slog.String("region", e.cfgs[i].Region), slog.Any("err", err))
 				continue
 			}
 			e.addMetricFromMSKInfo(i, clusters, e.mskInfos)
