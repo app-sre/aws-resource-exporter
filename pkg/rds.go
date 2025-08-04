@@ -340,6 +340,16 @@ var DBMaxConnections = map[string]map[string]int64{
 		"default.mysql5.7": 21600,
 		"default.mysql8.0": 21600,
 	},
+
+	//
+	// R7
+	//
+	"db.r7g.large": map[string]int64{
+		// Memory: 16 GiB
+		"default":          1800,
+		"default.mysql5.7": 1300,
+		"default.mysql8.0": 1300,
+	},
 }
 
 var AllocatedStorage *prometheus.Desc = prometheus.NewDesc(
