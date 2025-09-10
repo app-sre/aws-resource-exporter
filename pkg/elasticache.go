@@ -6,10 +6,8 @@ import (
 	"time"
 
 	"github.com/app-sre/aws-resource-exporter/pkg/awsclient"
-
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/elasticache"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/elasticache/types"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -21,7 +19,7 @@ var RedisVersion *prometheus.Desc = prometheus.NewDesc(
 )
 
 type ElastiCacheExporter struct {
-	sessions     []*session.Session
+	cfgs         []aws.Config
 	svcs         []awsclient.Client
 	cache        MetricsCache
 	awsAccountId string
@@ -32,16 +30,16 @@ type ElastiCacheExporter struct {
 }
 
 // NewElastiCacheExporter creates a new ElastiCacheExporter instance
-func NewElastiCacheExporter(sessions []*session.Session, logger *slog.Logger, config ElastiCacheConfig, awsAccountId string) *ElastiCacheExporter {
+func NewElastiCacheExporter(cfgs []aws.Config, logger *slog.Logger, config ElastiCacheConfig, awsAccountId string) *ElastiCacheExporter {
 	logger.Info("Initializing ElastiCache exporter")
 
 	var elasticaches []awsclient.Client
-	for _, session := range sessions {
-		elasticaches = append(elasticaches, awsclient.NewClientFromSession(session))
+	for _, cfg := range cfgs {
+		elasticaches = append(elasticaches, awsclient.NewClientFromConfig(cfg))
 	}
 
 	return &ElastiCacheExporter{
-		sessions:     sessions,
+		cfgs:         cfgs,
 		svcs:         elasticaches,
 		cache:        *NewMetricsCache(*config.CacheTTL),
 		logger:       logger,
@@ -52,17 +50,17 @@ func NewElastiCacheExporter(sessions []*session.Session, logger *slog.Logger, co
 }
 
 func (e *ElastiCacheExporter) getRegion(sessionIndex int) string {
-	return *e.sessions[sessionIndex].Config.Region
+	return e.cfgs[sessionIndex].Region
 }
 
 // Adds ElastiCache info to metrics cache
-func (e *ElastiCacheExporter) addMetricFromElastiCacheInfo(sessionIndex int, clusters []*elasticache.CacheCluster) {
+func (e *ElastiCacheExporter) addMetricFromElastiCacheInfo(sessionIndex int, clusters []types.CacheCluster) {
 	region := e.getRegion(sessionIndex)
 
 	for _, cluster := range clusters {
-		replicationGroupId := aws.StringValue(cluster.ReplicationGroupId)
-		engine := aws.StringValue(cluster.Engine)
-		engineVersion := aws.StringValue(cluster.EngineVersion)
+		replicationGroupId := aws.ToString(cluster.ReplicationGroupId)
+		engine := aws.ToString(cluster.Engine)
+		engineVersion := aws.ToString(cluster.EngineVersion)
 
 		e.cache.AddMetric(prometheus.MustNewConstMetric(RedisVersion, prometheus.GaugeValue, 1, region, replicationGroupId, engine, engineVersion, e.awsAccountId))
 	}
@@ -85,7 +83,7 @@ func (e *ElastiCacheExporter) CollectLoop() {
 			clusters, err := client.DescribeCacheClustersAll(ctx)
 			if err != nil {
 				e.logger.Error("Call to DescribeCacheClustersAll failed",
-					slog.String("region", *e.sessions[i].Config.Region),
+					slog.String("region", e.cfgs[i].Region),
 					slog.Any("err", err))
 				continue
 			}
