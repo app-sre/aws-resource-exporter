@@ -6,17 +6,11 @@ import (
 	"time"
 
 	"github.com/app-sre/aws-resource-exporter/pkg/awsclient"
-
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-type IAMClient interface {
-	ListRolesPagesWithContext(ctx aws.Context, input *iam.ListRolesInput, fn func(*iam.ListRolesOutput, bool) bool, opts ...request.Option) error
-}
 
 var (
 	IamRolesUsed = prometheus.NewDesc(
@@ -32,9 +26,8 @@ var (
 )
 
 type IAMExporter struct {
-	session      *session.Session
-	iamClient    IAMClient
-	sqClient     awsclient.Client
+	config       aws.Config
+	iamClient    awsclient.Client
 	logger       *slog.Logger
 	timeout      time.Duration
 	interval     time.Duration
@@ -43,13 +36,12 @@ type IAMExporter struct {
 }
 
 // NewIAMExporter creates a new IAMExporter
-func NewIAMExporter(sess *session.Session, logger *slog.Logger, config IAMConfig, awsAccountId string) *IAMExporter {
+func NewIAMExporter(cfg aws.Config, logger *slog.Logger, config IAMConfig, awsAccountId string) *IAMExporter {
 	logger.Info("Initializing IAM exporter")
 
 	return &IAMExporter{
-		session:      sess,
-		iamClient:    iam.New(sess),
-		sqClient:     awsclient.NewClientFromSession(sess),
+		config:       cfg,
+		iamClient:    awsclient.NewClientFromConfig(cfg),
 		logger:       logger,
 		timeout:      *config.Timeout,
 		interval:     *config.Interval,
@@ -81,7 +73,7 @@ func (e *IAMExporter) CollectLoop() {
 			continue
 		}
 
-		quota, err := getQuotaValueWithContext(e.sqClient, "iam", "L-FE177D64", ctx)
+		quota, err := getQuotaValueWithContext(e.iamClient, "iam", "L-FE177D64", ctx)
 		if err != nil {
 			e.logger.Error("Failed to get IAM role quota", slog.Any("err", err))
 			cancel()
@@ -102,13 +94,29 @@ func (e *IAMExporter) CollectLoop() {
 }
 
 // getIAMRoleCount returns number of IAM roles using IAMClient
-func getIAMRoleCount(ctx context.Context, client IAMClient) (int, error) {
+func getIAMRoleCount(ctx context.Context, client awsclient.Client) (int, error) {
 	var count int
-	err := client.ListRolesPagesWithContext(ctx, &iam.ListRolesInput{
-		MaxItems: aws.Int64(1000),
-	}, func(output *iam.ListRolesOutput, _ bool) bool {
+	var marker *string
+	
+	for {
+		input := &iam.ListRolesInput{
+			MaxItems: aws.Int32(1000),
+		}
+		if marker != nil {
+			input.Marker = marker
+		}
+
+		output, err := client.ListRoles(ctx, input)
+		if err != nil {
+			return 0, err
+		}
+		
 		count += len(output.Roles)
-		return true
-	})
-	return count, err
+		
+		if !output.IsTruncated {
+			break
+		}
+		marker = output.Marker
+	}
+	return count, nil
 }

@@ -5,9 +5,11 @@ import (
 	"testing"
 
 	"github.com/app-sre/aws-resource-exporter/pkg/awsclient/mock"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/aws/aws-sdk-go/service/servicequotas"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	ec2_types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	"github.com/aws/aws-sdk-go-v2/service/servicequotas"
+	servicequotas_types "github.com/aws/aws-sdk-go-v2/service/servicequotas/types"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
@@ -19,9 +21,9 @@ func TestGetAllTransitGatewaysWithContext(t *testing.T) {
 
 	mockClient := mock.NewMockClient(ctrl)
 
-	mockClient.EXPECT().DescribeTransitGatewaysWithContext(ctx, createDescribeTransitGatewayInput()).
+	mockClient.EXPECT().DescribeTransitGateways(ctx, createDescribeTransitGatewayInput()).
 		Return(&ec2.DescribeTransitGatewaysOutput{
-			TransitGateways: []*ec2.TransitGateway{&ec2.TransitGateway{}},
+			TransitGateways: []ec2_types.TransitGateway{{}},
 		}, nil)
 
 	gateways, err := getAllTransitGatewaysWithContext(mockClient, ctx)
@@ -36,9 +38,9 @@ func TestGetQuotaValueWithContext(t *testing.T) {
 
 	mockClient := mock.NewMockClient(ctrl)
 
-	mockClient.EXPECT().GetServiceQuotaWithContext(ctx,
+	mockClient.EXPECT().GetServiceQuota(ctx,
 		createGetServiceQuotaInput(ec2ServiceCode, transitGatewayPerAccountQuotaCode)).Return(
-		&servicequotas.GetServiceQuotaOutput{Quota: &servicequotas.ServiceQuota{Value: aws.Float64(123.0)}}, nil,
+		&servicequotas.GetServiceQuotaOutput{Quota: &servicequotas_types.ServiceQuota{Value: aws.Float64(123.0)}}, nil,
 	)
 
 	quotaValue, err := getQuotaValueWithContext(mockClient, ec2ServiceCode, transitGatewayPerAccountQuotaCode, ctx)
@@ -53,9 +55,9 @@ func TestGetQuotaValueWithContextError(t *testing.T) {
 
 	mockClient := mock.NewMockClient(ctrl)
 
-	mockClient.EXPECT().GetServiceQuotaWithContext(ctx,
+	mockClient.EXPECT().GetServiceQuota(ctx,
 		createGetServiceQuotaInput(ec2ServiceCode, transitGatewayPerAccountQuotaCode)).Return(
-		&servicequotas.GetServiceQuotaOutput{Quota: &servicequotas.ServiceQuota{Value: nil}}, nil,
+		&servicequotas.GetServiceQuotaOutput{Quota: &servicequotas_types.ServiceQuota{Value: nil}}, nil,
 	)
 
 	quotaValue, err := getQuotaValueWithContext(mockClient, ec2ServiceCode, transitGatewayPerAccountQuotaCode, ctx)

@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/app-sre/aws-resource-exporter/pkg/awsclient/mock"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
+	iam_types "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
@@ -16,18 +16,18 @@ func TestGetIAMRoleCount_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockIAM := mock.NewMockIAMClient(ctrl)
-	mockIAM.EXPECT().
-		ListRolesPagesWithContext(gomock.Any(), gomock.Any(), gomock.Any()).
-		DoAndReturn(func(ctx aws.Context, input *iam.ListRolesInput, fn func(*iam.ListRolesOutput, bool) bool, opts ...interface{}) error {
-			fn(&iam.ListRolesOutput{Roles: []*iam.Role{{}, {}, {}}}, true)
-			return nil
-		})
+	mockClient := mock.NewMockClient(ctrl)
+	mockClient.EXPECT().
+		ListRoles(gomock.Any(), gomock.Any()).
+		Return(&iam.ListRolesOutput{
+			Roles:       []iam_types.Role{{}, {}, {}},
+			IsTruncated: false,
+		}, nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	count, err := getIAMRoleCount(ctx, mockIAM)
+	count, err := getIAMRoleCount(ctx, mockClient)
 	assert.NoError(t, err)
 	assert.Equal(t, 3, count)
 }
@@ -36,15 +36,15 @@ func TestGetIAMRoleCount_Error(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockIAM := mock.NewMockIAMClient(ctrl)
-	mockIAM.EXPECT().
-		ListRolesPagesWithContext(gomock.Any(), gomock.Any(), gomock.Any()).
-		Return(assert.AnError)
+	mockClient := mock.NewMockClient(ctrl)
+	mockClient.EXPECT().
+		ListRoles(gomock.Any(), gomock.Any()).
+		Return(nil, assert.AnError)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	count, err := getIAMRoleCount(ctx, mockIAM)
+	count, err := getIAMRoleCount(ctx, mockClient)
 	assert.Error(t, err)
 	assert.Equal(t, 0, count)
 	assert.Contains(t, err.Error(), "assert.AnError")
