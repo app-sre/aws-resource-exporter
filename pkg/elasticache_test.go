@@ -6,14 +6,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/elasticache"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	elasticache_types "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
 	"github.com/stretchr/testify/assert"
 )
 
-func createTestCacheClusters() []*elasticache.CacheCluster {
-	return []*elasticache.CacheCluster{
+func createTestCacheClusters() []elasticache_types.CacheCluster {
+	return []elasticache_types.CacheCluster{
 		{
 			CacheClusterId: aws.String("test-cluster"),
 			Engine:         aws.String("redis"),
@@ -24,12 +23,12 @@ func createTestCacheClusters() []*elasticache.CacheCluster {
 
 func TestAddMetricFromElastiCacheInfo(t *testing.T) {
 	x := ElastiCacheExporter{
-		sessions: []*session.Session{session.New(&aws.Config{Region: aws.String("foo")})},
-		cache:    *NewMetricsCache(10 * time.Second),
-		logger:   slog.New(slog.NewTextHandler(io.Discard, nil)),
+		configs: []aws.Config{{Region: "foo"}},
+		cache:   *NewMetricsCache(10 * time.Second),
+		logger:  slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 
-	var clusters = []*elasticache.CacheCluster{}
+	var clusters = []elasticache_types.CacheCluster{}
 
 	x.addMetricFromElastiCacheInfo(0, clusters)
 	assert.Len(t, x.cache.GetAllMetrics(), 0)

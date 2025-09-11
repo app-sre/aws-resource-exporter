@@ -6,8 +6,9 @@ import (
 	"testing"
 
 	"github.com/app-sre/aws-resource-exporter/pkg/awsclient/mock"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/route53"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/route53"
+	route53_types "github.com/aws/aws-sdk-go-v2/service/route53/types"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
@@ -17,16 +18,16 @@ func TestGetHostedZoneLimitWithContext(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockClient := mock.NewMockClient(ctrl)
-	mockClient.EXPECT().GetHostedZoneLimitWithContext(ctx,
-		createGetHostedZoneLimitInput(route53ServiceCode, hostedZonesQuotaCode)).Return(
+	mockClient.EXPECT().GetHostedZoneLimit(ctx,
+		createGetHostedZoneLimitInput("hostedZoneId", string(route53_types.HostedZoneLimitTypeMaxRrsetsByZone))).Return(
 
 		&route53.GetHostedZoneLimitOutput{
-			Count: aws.Int64(12),
-			Limit: &route53.HostedZoneLimit{
-				Type:  aws.String("route53"),
+			Count: 12,
+			Limit: &route53_types.HostedZoneLimit{
+				Type:  route53_types.HostedZoneLimitTypeMaxRrsetsByZone,
 				Value: aws.Int64(10)}}, nil)
 
-	value, err := getHostedZoneValueWithContext(mockClient, route53ServiceCode, hostedZonesQuotaCode, ctx)
+	value, err := getHostedZoneValueWithContext(mockClient, "hostedZoneId", string(route53_types.HostedZoneLimitTypeMaxRrsetsByZone), ctx)
 	assert.Nil(t, err)
 	assert.Equal(t, value, int64(10))
 }
@@ -37,18 +38,17 @@ func TestListHostedZonesWithContext(t *testing.T) {
 	defer ctrl.Finish()
 	mockClient := mock.NewMockClient(ctrl)
 	var logger *slog.Logger
-	maxItems := "10"
 	input := route53.ListHostedZonesInput{
-		MaxItems: aws.String("10"),
+		MaxItems: aws.Int32(10),
 	}
-	mockClient.EXPECT().ListHostedZonesWithContext(ctx, createListHostedZonesWithContext(maxItems)).
+	mockClient.EXPECT().ListHostedZones(ctx, createListHostedZones(10)).
 		Return(&route53.ListHostedZonesOutput{
-			HostedZones: []*route53.HostedZone{&route53.HostedZone{}},
-			MaxItems:    aws.String("10"),
+			HostedZones: []route53_types.HostedZone{{}},
+			MaxItems:    aws.Int32(10),
 		}, nil)
 	hostedZonesOutput, err := ListHostedZonesWithBackoff(mockClient, ctx, &input, maxRetries, logger)
 	assert.Nil(t, err)
-	assert.Equal(t, "10", *hostedZonesOutput.MaxItems)
+	assert.Equal(t, int32(10), *hostedZonesOutput.MaxItems)
 }
 
 func TestGetHostedZoneLimitWithBackoff(t *testing.T) {
@@ -58,22 +58,22 @@ func TestGetHostedZoneLimitWithBackoff(t *testing.T) {
 	mockClient := mock.NewMockClient(ctrl)
 	var logger *slog.Logger
 
-	mockClient.EXPECT().GetHostedZoneLimitWithContext(ctx, createGetHostedZoneLimitWithContext(route53ServiceCode, route53.HostedZoneLimitTypeMaxRrsetsByZone)).Return(
+	mockClient.EXPECT().GetHostedZoneLimit(ctx, createGetHostedZoneLimit("route53", string(route53_types.HostedZoneLimitTypeMaxRrsetsByZone))).Return(
 		&route53.GetHostedZoneLimitOutput{
-			Limit: &route53.HostedZoneLimit{
-				Type:  aws.String("route53"),
+			Limit: &route53_types.HostedZoneLimit{
+				Type:  route53_types.HostedZoneLimitTypeMaxRrsetsByZone,
 				Value: aws.Int64(10),
 			},
 		}, nil)
 
 	hostedZoneLimitInput := &route53.GetHostedZoneLimitInput{
 		HostedZoneId: aws.String("route53"),
-		Type:         aws.String(route53.HostedZoneLimitTypeMaxRrsetsByZone),
+		Type:         route53_types.HostedZoneLimitTypeMaxRrsetsByZone,
 	}
 
 	actualResult, actualErr := GetHostedZoneLimitWithBackoff(mockClient, ctx, hostedZoneLimitInput.HostedZoneId, maxRetries, logger)
 	assert.Nil(t, actualErr)
-	assert.Equal(t, "route53", *actualResult.Limit.Type)
+	assert.Equal(t, route53_types.HostedZoneLimitTypeMaxRrsetsByZone, actualResult.Limit.Type)
 
 }
 
@@ -83,19 +83,18 @@ func TestListHostedZonesWithBackoff(t *testing.T) {
 	defer ctrl.Finish()
 	mockClient := mock.NewMockClient(ctrl)
 	var logger *slog.Logger
-	maxItems := "10"
 
 	input := route53.ListHostedZonesInput{
-		MaxItems: aws.String("10"),
+		MaxItems: aws.Int32(10),
 	}
 
-	mockClient.EXPECT().ListHostedZonesWithContext(ctx, createListHostedZonesWithContext(maxItems)).Return(
+	mockClient.EXPECT().ListHostedZones(ctx, createListHostedZones(10)).Return(
 		&route53.ListHostedZonesOutput{
-			HostedZones: []*route53.HostedZone{&route53.HostedZone{}},
-			MaxItems:    aws.String("10"),
+			HostedZones: []route53_types.HostedZone{{}},
+			MaxItems:    aws.Int32(10),
 		}, nil)
 
 	actualResult, actualErr := ListHostedZonesWithBackoff(mockClient, ctx, &input, maxRetries, logger)
 	assert.Nil(t, actualErr)
-	assert.Equal(t, "10", *actualResult.MaxItems)
+	assert.Equal(t, int32(10), *actualResult.MaxItems)
 }
