@@ -11,11 +11,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/elasticache"
 	elasticache_types "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
+	iam_types "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/aws/aws-sdk-go-v2/service/kafka"
 	kafka_types "github.com/aws/aws-sdk-go-v2/service/kafka/types"
 	"github.com/aws/aws-sdk-go-v2/service/rds"
 	rds_types "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/aws/aws-sdk-go-v2/service/route53"
+	route53_types "github.com/aws/aws-sdk-go-v2/service/route53/types"
 	"github.com/aws/aws-sdk-go-v2/service/servicequotas"
 )
 
@@ -39,6 +41,7 @@ type Client interface {
 
 	//route53
 	ListHostedZones(ctx context.Context, input *route53.ListHostedZonesInput, optFns ...func(*route53.Options)) (*route53.ListHostedZonesOutput, error)
+	ListHostedZonesAll(ctx context.Context) ([]route53_types.HostedZone, error)
 	GetHostedZoneLimit(ctx context.Context, input *route53.GetHostedZoneLimitInput, optFns ...func(*route53.Options)) (*route53.GetHostedZoneLimitOutput, error)
 
 	// ElastiCache
@@ -51,6 +54,7 @@ type Client interface {
 
 	// IAM
 	ListRoles(ctx context.Context, input *iam.ListRolesInput, optFns ...func(*iam.Options)) (*iam.ListRolesOutput, error)
+	ListRolesAll(ctx context.Context) ([]iam_types.Role, error)
 	GetAccountSummary(ctx context.Context, input *iam.GetAccountSummaryInput, optFns ...func(*iam.Options)) (*iam.GetAccountSummaryOutput, error)
 }
 
@@ -148,6 +152,25 @@ func (c *awsClient) ListHostedZones(ctx context.Context, input *route53.ListHost
 	return c.route53Client.ListHostedZones(ctx, input, optFns...)
 }
 
+func (c *awsClient) ListHostedZonesAll(ctx context.Context) ([]route53_types.HostedZone, error) {
+	input := &route53.ListHostedZonesInput{}
+
+	var hostedZones []route53_types.HostedZone
+	paginator := route53.NewListHostedZonesPaginator(c.route53Client, input)
+
+	for paginator.HasMorePages() {
+		AwsExporterMetrics.IncrementRequests()
+		result, err := paginator.NextPage(ctx)
+		if err != nil {
+			AwsExporterMetrics.IncrementErrors()
+			return nil, err
+		}
+		hostedZones = append(hostedZones, result.HostedZones...)
+	}
+
+	return hostedZones, nil
+}
+
 func (c *awsClient) GetHostedZoneLimit(ctx context.Context, input *route53.GetHostedZoneLimitInput, optFns ...func(*route53.Options)) (*route53.GetHostedZoneLimitOutput, error) {
 	return c.route53Client.GetHostedZoneLimit(ctx, input, optFns...)
 }
@@ -201,6 +224,27 @@ func (c *awsClient) ListClustersAll(ctx context.Context) ([]kafka_types.ClusterI
 
 func (c *awsClient) ListRoles(ctx context.Context, input *iam.ListRolesInput, optFns ...func(*iam.Options)) (*iam.ListRolesOutput, error) {
 	return c.iamClient.ListRoles(ctx, input, optFns...)
+}
+
+func (c *awsClient) ListRolesAll(ctx context.Context) ([]iam_types.Role, error) {
+	input := &iam.ListRolesInput{
+		MaxItems: aws.Int32(1000), // Set to 1000 to reduce number of API requests
+	}
+
+	var roles []iam_types.Role
+	paginator := iam.NewListRolesPaginator(c.iamClient, input)
+
+	for paginator.HasMorePages() {
+		AwsExporterMetrics.IncrementRequests()
+		result, err := paginator.NextPage(ctx)
+		if err != nil {
+			AwsExporterMetrics.IncrementErrors()
+			return nil, err
+		}
+		roles = append(roles, result.Roles...)
+	}
+
+	return roles, nil
 }
 
 func (c *awsClient) GetAccountSummary(ctx context.Context, input *iam.GetAccountSummaryInput, optFns ...func(*iam.Options)) (*iam.GetAccountSummaryOutput, error) {

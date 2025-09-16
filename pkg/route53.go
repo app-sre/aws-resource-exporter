@@ -161,26 +161,7 @@ func (e *Route53Exporter) Describe(ch chan<- *prometheus.Desc) {
 }
 
 func getAllHostedZones(client awsclient.Client, ctx context.Context, logger *slog.Logger) ([]route53_types.HostedZone, error) {
-	result := []route53_types.HostedZone{}
-
-	listZonesInput := route53.ListHostedZonesInput{}
-
-	listZonesOut, err := ListHostedZonesWithBackoff(client, ctx, &listZonesInput, maxRetries, logger)
-	if err != nil {
-		return nil, err
-	}
-	result = append(result, listZonesOut.HostedZones...)
-
-	for listZonesOut.IsTruncated {
-		listZonesInput.Marker = listZonesOut.NextMarker
-		listZonesOut, err = ListHostedZonesWithBackoff(client, ctx, &listZonesInput, maxRetries, logger)
-		if err != nil {
-			return nil, err
-		}
-		result = append(result, listZonesOut.HostedZones...)
-	}
-
-	return result, nil
+	return client.ListHostedZonesAll(ctx)
 }
 
 func ListHostedZonesWithBackoff(client awsclient.Client, ctx context.Context, input *route53.ListHostedZonesInput, maxTries int, logger *slog.Logger) (*route53.ListHostedZonesOutput, error) {

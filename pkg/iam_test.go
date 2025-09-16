@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/app-sre/aws-resource-exporter/pkg/awsclient/mock"
-	"github.com/aws/aws-sdk-go-v2/service/iam"
 	iam_types "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
@@ -18,11 +17,8 @@ func TestGetIAMRoleCount_Success(t *testing.T) {
 
 	mockClient := mock.NewMockClient(ctrl)
 	mockClient.EXPECT().
-		ListRoles(gomock.Any(), gomock.Any()).
-		Return(&iam.ListRolesOutput{
-			Roles:       []iam_types.Role{{}, {}, {}},
-			IsTruncated: false,
-		}, nil)
+		ListRolesAll(gomock.Any()).
+		Return([]iam_types.Role{{}, {}, {}}, nil)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -38,7 +34,7 @@ func TestGetIAMRoleCount_Error(t *testing.T) {
 
 	mockClient := mock.NewMockClient(ctrl)
 	mockClient.EXPECT().
-		ListRoles(gomock.Any(), gomock.Any()).
+		ListRolesAll(gomock.Any()).
 		Return(nil, assert.AnError)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
