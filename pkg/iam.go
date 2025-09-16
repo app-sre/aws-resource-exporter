@@ -7,6 +7,7 @@ import (
 
 	"github.com/app-sre/aws-resource-exporter/pkg/awsclient"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -94,9 +95,25 @@ func (e *IAMExporter) CollectLoop() {
 
 // getIAMRoleCount returns number of IAM roles using IAMClient
 func getIAMRoleCount(ctx context.Context, client awsclient.Client) (int, error) {
-	roles, err := client.ListRolesAll(ctx)
-	if err != nil {
-		return 0, err
+	input := &iam.ListRolesInput{
+		MaxItems: aws.Int32(1000), // Set to 1000 to reduce number of API requests
 	}
-	return len(roles), nil
+
+	count := 0
+	for {
+		result, err := client.ListRoles(ctx, input)
+		if err != nil {
+			return 0, err
+		}
+
+		count += len(result.Roles)
+
+		if !result.IsTruncated {
+			break
+		}
+
+		input.Marker = result.Marker
+	}
+
+	return count, nil
 }

@@ -12,13 +12,12 @@ import (
 	elasticache "github.com/aws/aws-sdk-go-v2/service/elasticache"
 	types "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
 	iam "github.com/aws/aws-sdk-go-v2/service/iam"
-	types0 "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	kafka "github.com/aws/aws-sdk-go-v2/service/kafka"
-	types1 "github.com/aws/aws-sdk-go-v2/service/kafka/types"
+	types0 "github.com/aws/aws-sdk-go-v2/service/kafka/types"
 	rds "github.com/aws/aws-sdk-go-v2/service/rds"
-	types2 "github.com/aws/aws-sdk-go-v2/service/rds/types"
+	types1 "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	route53 "github.com/aws/aws-sdk-go-v2/service/route53"
-	types3 "github.com/aws/aws-sdk-go-v2/service/route53/types"
+	types2 "github.com/aws/aws-sdk-go-v2/service/route53/types"
 	servicequotas "github.com/aws/aws-sdk-go-v2/service/servicequotas"
 	gomock "github.com/golang/mock/gomock"
 )
@@ -102,10 +101,10 @@ func (mr *MockClientMockRecorder) DescribeDBInstances(ctx, input interface{}, op
 }
 
 // DescribeDBInstancesAll mocks base method.
-func (m *MockClient) DescribeDBInstancesAll(ctx context.Context) ([]types2.DBInstance, error) {
+func (m *MockClient) DescribeDBInstancesAll(ctx context.Context) ([]types1.DBInstance, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DescribeDBInstancesAll", ctx)
-	ret0, _ := ret[0].([]types2.DBInstance)
+	ret0, _ := ret[0].([]types1.DBInstance)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -172,10 +171,10 @@ func (mr *MockClientMockRecorder) DescribePendingMaintenanceActions(ctx, input i
 }
 
 // DescribePendingMaintenanceActionsAll mocks base method.
-func (m *MockClient) DescribePendingMaintenanceActionsAll(ctx context.Context) ([]types2.ResourcePendingMaintenanceActions, error) {
+func (m *MockClient) DescribePendingMaintenanceActionsAll(ctx context.Context) ([]types1.ResourcePendingMaintenanceActions, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DescribePendingMaintenanceActionsAll", ctx)
-	ret0, _ := ret[0].([]types2.ResourcePendingMaintenanceActions)
+	ret0, _ := ret[0].([]types1.ResourcePendingMaintenanceActions)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -287,10 +286,10 @@ func (mr *MockClientMockRecorder) ListClusters(ctx, input interface{}, optFns ..
 }
 
 // ListClustersAll mocks base method.
-func (m *MockClient) ListClustersAll(ctx context.Context) ([]types1.ClusterInfo, error) {
+func (m *MockClient) ListClustersAll(ctx context.Context) ([]types0.ClusterInfo, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListClustersAll", ctx)
-	ret0, _ := ret[0].([]types1.ClusterInfo)
+	ret0, _ := ret[0].([]types0.ClusterInfo)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -322,10 +321,10 @@ func (mr *MockClientMockRecorder) ListHostedZones(ctx, input interface{}, optFns
 }
 
 // ListHostedZonesAll mocks base method.
-func (m *MockClient) ListHostedZonesAll(ctx context.Context) ([]types3.HostedZone, error) {
+func (m *MockClient) ListHostedZonesAll(ctx context.Context) ([]types2.HostedZone, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListHostedZonesAll", ctx)
-	ret0, _ := ret[0].([]types3.HostedZone)
+	ret0, _ := ret[0].([]types2.HostedZone)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -354,19 +353,4 @@ func (mr *MockClientMockRecorder) ListRoles(ctx, input interface{}, optFns ...in
 	mr.mock.ctrl.T.Helper()
 	varargs := append([]interface{}{ctx, input}, optFns...)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListRoles", reflect.TypeOf((*MockClient)(nil).ListRoles), varargs...)
-}
-
-// ListRolesAll mocks base method.
-func (m *MockClient) ListRolesAll(ctx context.Context) ([]types0.Role, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ListRolesAll", ctx)
-	ret0, _ := ret[0].([]types0.Role)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// ListRolesAll indicates an expected call of ListRolesAll.
-func (mr *MockClientMockRecorder) ListRolesAll(ctx interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListRolesAll", reflect.TypeOf((*MockClient)(nil).ListRolesAll), ctx)
 }
