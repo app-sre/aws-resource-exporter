@@ -8,11 +8,12 @@ import (
 	"sync"
 	"time"
 
+	"errors"
+
 	"github.com/app-sre/aws-resource-exporter/pkg/awsclient"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/route53"
 	route53_types "github.com/aws/aws-sdk-go-v2/service/route53/types"
-	"errors"
 	"github.com/aws/smithy-go"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -103,6 +104,7 @@ func (e *Route53Exporter) getRecordsPerHostedZoneMetrics(client awsclient.Client
 func (e *Route53Exporter) getHostedZonesPerAccountMetrics(client awsclient.Client, hostedZones []route53_types.HostedZone, ctx context.Context) error {
 	quota, err := getQuotaValueWithContext(client, route53ServiceCode, hostedZonesQuotaCode, ctx)
 	if err != nil {
+		awsclient.AwsExporterMetrics.IncrementErrors()
 		return err
 	}
 
@@ -162,25 +164,6 @@ func (e *Route53Exporter) Describe(ch chan<- *prometheus.Desc) {
 
 func getAllHostedZones(client awsclient.Client, ctx context.Context, logger *slog.Logger) ([]route53_types.HostedZone, error) {
 	return client.ListHostedZonesAll(ctx)
-}
-
-func ListHostedZonesWithBackoff(client awsclient.Client, ctx context.Context, input *route53.ListHostedZonesInput, maxTries int, logger *slog.Logger) (*route53.ListHostedZonesOutput, error) {
-	var listHostedZonesOut *route53.ListHostedZonesOutput
-	var err error
-
-	for i := 0; i < maxTries; i++ {
-		listHostedZonesOut, err = client.ListHostedZones(ctx, input)
-		if err == nil {
-			return listHostedZonesOut, err
-		}
-		if !isThrottlingError(err) {
-			return nil, err
-		}
-		logger.Debug("Retrying throttling api call", "tries", i+1, "endpoint", "ListHostedZones")
-		backOffSeconds := math.Pow(2, float64(i-1))
-		time.Sleep(time.Duration(backOffSeconds) * time.Second)
-	}
-	return nil, err
 }
 
 func GetHostedZoneLimitWithBackoff(client awsclient.Client, ctx context.Context, hostedZoneId *string, maxTries int, logger *slog.Logger) (*route53.GetHostedZoneLimitOutput, error) {

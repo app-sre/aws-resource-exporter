@@ -3,83 +3,53 @@ package pkg
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/app-sre/aws-resource-exporter/pkg/awsclient/mock"
-	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
-	iam_types "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGetIAMRoleCount_Success(t *testing.T) {
+func TestGetIAMAccountSummary_Success(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockClient := mock.NewMockClient(ctrl)
+	ctx := context.TODO()
 
-	// Mock a single page response with 3 roles
 	mockClient.EXPECT().
-		ListRoles(gomock.Any(), gomock.Any()).
-		Return(&iam.ListRolesOutput{
-			Roles: []iam_types.Role{{}, {}, {}},
-			IsTruncated: false,
+		GetAccountSummary(ctx, &iam.GetAccountSummaryInput{}).
+		Return(&iam.GetAccountSummaryOutput{
+			SummaryMap: map[string]int32{
+				"Roles":      5,
+				"RolesQuota": 1000,
+			},
 		}, nil)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
+	summary, err := getIAMAccountSummary(ctx, mockClient)
 
-	count, err := getIAMRoleCount(ctx, mockClient)
 	assert.NoError(t, err)
-	assert.Equal(t, 3, count)
+	assert.NotNil(t, summary)
+	assert.Equal(t, int32(5), summary.RoleCount, "Role count should be 5")
+	assert.Equal(t, int32(1000), summary.RoleQuota, "Role quota should be 1000")
 }
 
-func TestGetIAMRoleCount_Pagination(t *testing.T) {
+func TestGetIAMAccountSummary_Error(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockClient := mock.NewMockClient(ctrl)
+	ctx := context.TODO()
 
-	// Mock first page with 2 roles and truncated
 	mockClient.EXPECT().
-		ListRoles(gomock.Any(), gomock.Any()).
-		Return(&iam.ListRolesOutput{
-			Roles: []iam_types.Role{{}, {}},
-			IsTruncated: true,
-			Marker: aws.String("marker1"),
-		}, nil)
-
-	// Mock second page with 1 role and not truncated
-	mockClient.EXPECT().
-		ListRoles(gomock.Any(), gomock.Any()).
-		Return(&iam.ListRolesOutput{
-			Roles: []iam_types.Role{{}},
-			IsTruncated: false,
-		}, nil)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	count, err := getIAMRoleCount(ctx, mockClient)
-	assert.NoError(t, err)
-	assert.Equal(t, 3, count)
-}
-
-func TestGetIAMRoleCount_Error(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockClient := mock.NewMockClient(ctrl)
-	mockClient.EXPECT().
-		ListRoles(gomock.Any(), gomock.Any()).
+		GetAccountSummary(ctx, &iam.GetAccountSummaryInput{}).
 		Return(nil, assert.AnError)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
+	summary, err := getIAMAccountSummary(ctx, mockClient)
 
-	count, err := getIAMRoleCount(ctx, mockClient)
 	assert.Error(t, err)
-	assert.Equal(t, 0, count)
+	assert.NotNil(t, summary, "Summary should not be nil even on error")
+	assert.Equal(t, int32(0), summary.RoleCount, "Role count should be 0 on error")
+	assert.Equal(t, int32(0), summary.RoleQuota, "Role quota should be 0 on error")
 	assert.Contains(t, err.Error(), "assert.AnError")
 }

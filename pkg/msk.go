@@ -105,6 +105,7 @@ func (e *MSKExporter) CollectLoop() {
 			clusters, err := svc.ListClustersAll(ctx)
 			if err != nil {
 				e.logger.Error("Call to ListClustersAll failed", slog.String("region", e.configs[i].Region), slog.Any("err", err))
+				awsclient.AwsExporterMetrics.IncrementErrors()
 				continue
 			}
 			e.addMetricFromMSKInfo(i, clusters, e.mskInfos)

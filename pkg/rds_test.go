@@ -68,9 +68,9 @@ func TestAddRDSLogMetrics(t *testing.T) {
 	}, nil)
 
 	x := RDSExporter{
-		svcs:     []awsclient.Client{mockClient},
+		svcs:    []awsclient.Client{mockClient},
 		configs: []aws.Config{{Region: "foo"}},
-		cache:    *NewMetricsCache(10 * time.Second),
+		cache:   *NewMetricsCache(10 * time.Second),
 	}
 
 	err := x.addRDSLogMetrics(ctx, 0, "footest")
@@ -81,8 +81,8 @@ func TestAddRDSLogMetrics(t *testing.T) {
 func TestAddAllInstanceMetrics(t *testing.T) {
 	x := RDSExporter{
 		configs: []aws.Config{{Region: "foo"}},
-		cache:    *NewMetricsCache(10 * time.Second),
-		logger:   slog.New(slog.NewTextHandler(io.Discard, nil)),
+		cache:   *NewMetricsCache(10 * time.Second),
+		logger:  slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 
 	var instances = []rds_types.DBInstance{}
@@ -107,7 +107,7 @@ func TestAddAllInstanceMetricsWithEOLMatch(t *testing.T) {
 	}
 
 	x := RDSExporter{
-		configs:   []aws.Config{{Region: "foo"}},
+		configs:    []aws.Config{{Region: "foo"}},
 		cache:      *NewMetricsCache(10 * time.Second),
 		logger:     slog.New(slog.NewTextHandler(io.Discard, nil)),
 		thresholds: thresholds,
@@ -139,8 +139,8 @@ func TestAddAllInstanceMetricsWithEOLMatch(t *testing.T) {
 func TestAddAllInstanceMetricsWithGetEOLStatusError(t *testing.T) {
 	x := RDSExporter{
 		configs: []aws.Config{{Region: "foo"}},
-		cache:    *NewMetricsCache(10 * time.Second),
-		logger:   slog.New(slog.NewTextHandler(io.Discard, nil)),
+		cache:   *NewMetricsCache(10 * time.Second),
+		logger:  slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 
 	eolInfos := []EOLInfo{
@@ -290,10 +290,10 @@ func TestAddAllPendingMaintenancesMetrics(t *testing.T) {
 	}, nil)
 
 	x := RDSExporter{
-		svcs:     []awsclient.Client{mockClient},
+		svcs:    []awsclient.Client{mockClient},
 		configs: []aws.Config{{Region: "foo"}},
-		cache:    *NewMetricsCache(10 * time.Second),
-		logger:   slog.New(slog.NewTextHandler(io.Discard, nil)),
+		cache:   *NewMetricsCache(10 * time.Second),
+		logger:  slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 
 	x.addAllPendingMaintenancesMetrics(ctx, 0, createTestDBInstances())
@@ -317,10 +317,10 @@ func TestAddAllPendingMaintenancesNoMetrics(t *testing.T) {
 	mockClient.EXPECT().DescribePendingMaintenanceActionsAll(ctx).Return([]rds_types.ResourcePendingMaintenanceActions{}, nil)
 
 	x := RDSExporter{
-		svcs:     []awsclient.Client{mockClient},
+		svcs:    []awsclient.Client{mockClient},
 		configs: []aws.Config{{Region: "foo"}},
-		cache:    *NewMetricsCache(10 * time.Second),
-		logger:   slog.New(slog.NewTextHandler(io.Discard, nil)),
+		cache:   *NewMetricsCache(10 * time.Second),
+		logger:  slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
 
 	x.addAllPendingMaintenancesMetrics(ctx, 0, createTestDBInstances())

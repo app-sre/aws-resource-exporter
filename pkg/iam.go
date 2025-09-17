@@ -11,7 +11,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-
 var (
 	IamRolesUsed = prometheus.NewDesc(
 		prometheus.BuildFQName(namespace, "iam", "roles_used"),
@@ -24,6 +23,11 @@ var (
 		[]string{"aws_account_id"}, nil,
 	)
 )
+
+type AccountSummary struct {
+	RoleCount int32
+	RoleQuota int32
+}
 
 type IAMExporter struct {
 	config       aws.Config
@@ -65,55 +69,44 @@ func (e *IAMExporter) CollectLoop() {
 	for {
 		ctx, cancel := context.WithTimeout(context.Background(), e.timeout)
 
-		roleCount, err := getIAMRoleCount(ctx, e.iamClient)
+		summary, err := getIAMAccountSummary(ctx, e.iamClient)
+
 		if err != nil {
-			e.logger.Error("Failed to get IAM role count", slog.Any("err", err))
+			e.logger.Error("Failed to get IAM account summary", slog.Any("err", err))
 			cancel()
 			time.Sleep(e.interval)
 			continue
 		}
 
-		quota, err := getQuotaValueWithContext(e.iamClient, "iam", "L-FE177D64", ctx)
-		if err != nil {
-			e.logger.Error("Failed to get IAM role quota", slog.Any("err", err))
-			cancel()
-			time.Sleep(e.interval)
-			continue
-		}
-
-		e.cache.AddMetric(prometheus.MustNewConstMetric(IamRolesUsed, prometheus.GaugeValue, float64(roleCount), e.awsAccountId))
-		e.cache.AddMetric(prometheus.MustNewConstMetric(IamRolesQuota, prometheus.GaugeValue, quota, e.awsAccountId))
+		e.cache.AddMetric(prometheus.MustNewConstMetric(IamRolesUsed, prometheus.GaugeValue, float64(summary.RoleCount), e.awsAccountId))
+		e.cache.AddMetric(prometheus.MustNewConstMetric(IamRolesQuota, prometheus.GaugeValue, float64(summary.RoleQuota), e.awsAccountId))
 
 		e.logger.Info("IAM metrics updated",
-			slog.Int("used", roleCount),
-			slog.Float64("quota", quota))
+			slog.Int("used", int(summary.RoleCount)),
+			slog.Int("quota", int(summary.RoleQuota)))
 
 		cancel()
 		time.Sleep(e.interval)
 	}
 }
 
-// getIAMRoleCount returns number of IAM roles using IAMClient
-func getIAMRoleCount(ctx context.Context, client awsclient.Client) (int, error) {
-	input := &iam.ListRolesInput{
-		MaxItems: aws.Int32(1000), // Set to 1000 to reduce number of API requests
+func getIAMAccountSummary(ctx context.Context, client awsclient.Client) (*AccountSummary, error) {
+	accountSummary := &AccountSummary{
+		RoleCount: 0,
+		RoleQuota: 0,
 	}
 
-	count := 0
-	for {
-		result, err := client.ListRoles(ctx, input)
-		if err != nil {
-			return 0, err
-		}
-
-		count += len(result.Roles)
-
-		if !result.IsTruncated {
-			break
-		}
-
-		input.Marker = result.Marker
+	summary, err := client.GetAccountSummary(ctx, &iam.GetAccountSummaryInput{})
+	if err != nil {
+		return accountSummary, err
 	}
 
-	return count, nil
+	if val, exists := summary.SummaryMap["Roles"]; exists {
+		accountSummary.RoleCount = val
+	}
+	if val, exists := summary.SummaryMap["RolesQuota"]; exists {
+		accountSummary.RoleQuota = val
+	}
+
+	return accountSummary, nil
 }

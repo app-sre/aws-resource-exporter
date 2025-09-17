@@ -32,25 +32,6 @@ func TestGetHostedZoneLimitWithContext(t *testing.T) {
 	assert.Equal(t, value, int64(10))
 }
 
-func TestListHostedZonesWithContext(t *testing.T) {
-	ctx := context.TODO()
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	mockClient := mock.NewMockClient(ctrl)
-	var logger *slog.Logger
-	input := route53.ListHostedZonesInput{
-		MaxItems: aws.Int32(10),
-	}
-	mockClient.EXPECT().ListHostedZones(ctx, createListHostedZones(10)).
-		Return(&route53.ListHostedZonesOutput{
-			HostedZones: []route53_types.HostedZone{{}},
-			MaxItems:    aws.Int32(10),
-		}, nil)
-	hostedZonesOutput, err := ListHostedZonesWithBackoff(mockClient, ctx, &input, maxRetries, logger)
-	assert.Nil(t, err)
-	assert.Equal(t, int32(10), *hostedZonesOutput.MaxItems)
-}
-
 func TestGetHostedZoneLimitWithBackoff(t *testing.T) {
 	ctx := context.TODO()
 	ctrl := gomock.NewController(t)
@@ -75,26 +56,4 @@ func TestGetHostedZoneLimitWithBackoff(t *testing.T) {
 	assert.Nil(t, actualErr)
 	assert.Equal(t, route53_types.HostedZoneLimitTypeMaxRrsetsByZone, actualResult.Limit.Type)
 
-}
-
-func TestListHostedZonesWithBackoff(t *testing.T) {
-	ctx := context.TODO()
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-	mockClient := mock.NewMockClient(ctrl)
-	var logger *slog.Logger
-
-	input := route53.ListHostedZonesInput{
-		MaxItems: aws.Int32(10),
-	}
-
-	mockClient.EXPECT().ListHostedZones(ctx, createListHostedZones(10)).Return(
-		&route53.ListHostedZonesOutput{
-			HostedZones: []route53_types.HostedZone{{}},
-			MaxItems:    aws.Int32(10),
-		}, nil)
-
-	actualResult, actualErr := ListHostedZonesWithBackoff(mockClient, ctx, &input, maxRetries, logger)
-	assert.Nil(t, actualErr)
-	assert.Equal(t, int32(10), *actualResult.MaxItems)
 }

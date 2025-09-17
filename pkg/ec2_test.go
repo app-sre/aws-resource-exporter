@@ -7,28 +7,27 @@ import (
 	"github.com/app-sre/aws-resource-exporter/pkg/awsclient/mock"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
-	ec2_types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/servicequotas"
 	servicequotas_types "github.com/aws/aws-sdk-go-v2/service/servicequotas/types"
 	"github.com/golang/mock/gomock"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGetAllTransitGatewaysWithContext(t *testing.T) {
+func TestGetTransitGatewaysCountWithContext(t *testing.T) {
 	ctx := context.TODO()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockClient := mock.NewMockClient(ctrl)
 
-	mockClient.EXPECT().DescribeTransitGateways(ctx, createDescribeTransitGatewayInput()).
-		Return(&ec2.DescribeTransitGatewaysOutput{
-			TransitGateways: []ec2_types.TransitGateway{{}},
-		}, nil)
+	mockClient.EXPECT().GetTransitGatewaysCount(ctx, &ec2.DescribeTransitGatewaysInput{
+		DryRun:     aws.Bool(false),
+		MaxResults: aws.Int32(1000),
+	}).Return(1, nil)
 
-	gateways, err := getAllTransitGatewaysWithContext(mockClient, ctx)
+	count, err := getTransitGatewaysCountWithContext(mockClient, ctx)
 	assert.Nil(t, err)
-	assert.Len(t, gateways, 1)
+	assert.Equal(t, 1, count)
 }
 
 func TestGetQuotaValueWithContext(t *testing.T) {

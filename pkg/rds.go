@@ -504,7 +504,7 @@ func (e *RDSExporter) requestRDSLogMetrics(ctx context.Context, configIndex int,
 			slog.String("region", e.getRegion(configIndex)),
 			slog.String("instance", instanceId),
 			slog.Any("err", err))
-
+		awsclient.AwsExporterMetrics.IncrementErrors()
 		return nil, err
 	}
 
@@ -652,6 +652,7 @@ func (e *RDSExporter) addAllPendingMaintenancesMetrics(ctx context.Context, conf
 		e.logger.Error("Call to DescribePendingMaintenanceActions failed",
 			slog.String("region", e.getRegion(configIndex)),
 			slog.Any("err", err))
+		awsclient.AwsExporterMetrics.IncrementErrors()
 		return
 	}
 
@@ -713,6 +714,7 @@ func (e *RDSExporter) CollectLoop() {
 				e.logger.Error("Call to DescribeDBInstances failed",
 					slog.String("region", e.getRegion(i)),
 					slog.Any("err", err))
+				awsclient.AwsExporterMetrics.IncrementErrors()
 			}
 
 			wg := sync.WaitGroup{}

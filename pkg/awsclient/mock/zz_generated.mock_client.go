@@ -9,10 +9,8 @@ import (
 	reflect "reflect"
 
 	ec2 "github.com/aws/aws-sdk-go-v2/service/ec2"
-	elasticache "github.com/aws/aws-sdk-go-v2/service/elasticache"
 	types "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
 	iam "github.com/aws/aws-sdk-go-v2/service/iam"
-	kafka "github.com/aws/aws-sdk-go-v2/service/kafka"
 	types0 "github.com/aws/aws-sdk-go-v2/service/kafka/types"
 	rds "github.com/aws/aws-sdk-go-v2/service/rds"
 	types1 "github.com/aws/aws-sdk-go-v2/service/rds/types"
@@ -45,26 +43,6 @@ func (m *MockClient) EXPECT() *MockClientMockRecorder {
 	return m.recorder
 }
 
-// DescribeCacheClusters mocks base method.
-func (m *MockClient) DescribeCacheClusters(ctx context.Context, input *elasticache.DescribeCacheClustersInput, optFns ...func(*elasticache.Options)) (*elasticache.DescribeCacheClustersOutput, error) {
-	m.ctrl.T.Helper()
-	varargs := []interface{}{ctx, input}
-	for _, a := range optFns {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "DescribeCacheClusters", varargs...)
-	ret0, _ := ret[0].(*elasticache.DescribeCacheClustersOutput)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// DescribeCacheClusters indicates an expected call of DescribeCacheClusters.
-func (mr *MockClientMockRecorder) DescribeCacheClusters(ctx, input interface{}, optFns ...interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	varargs := append([]interface{}{ctx, input}, optFns...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeCacheClusters", reflect.TypeOf((*MockClient)(nil).DescribeCacheClusters), varargs...)
-}
-
 // DescribeCacheClustersAll mocks base method.
 func (m *MockClient) DescribeCacheClustersAll(ctx context.Context) ([]types.CacheCluster, error) {
 	m.ctrl.T.Helper()
@@ -78,26 +56,6 @@ func (m *MockClient) DescribeCacheClustersAll(ctx context.Context) ([]types.Cach
 func (mr *MockClientMockRecorder) DescribeCacheClustersAll(ctx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeCacheClustersAll", reflect.TypeOf((*MockClient)(nil).DescribeCacheClustersAll), ctx)
-}
-
-// DescribeDBInstances mocks base method.
-func (m *MockClient) DescribeDBInstances(ctx context.Context, input *rds.DescribeDBInstancesInput, optFns ...func(*rds.Options)) (*rds.DescribeDBInstancesOutput, error) {
-	m.ctrl.T.Helper()
-	varargs := []interface{}{ctx, input}
-	for _, a := range optFns {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "DescribeDBInstances", varargs...)
-	ret0, _ := ret[0].(*rds.DescribeDBInstancesOutput)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// DescribeDBInstances indicates an expected call of DescribeDBInstances.
-func (mr *MockClientMockRecorder) DescribeDBInstances(ctx, input interface{}, optFns ...interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	varargs := append([]interface{}{ctx, input}, optFns...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeDBInstances", reflect.TypeOf((*MockClient)(nil).DescribeDBInstances), varargs...)
 }
 
 // DescribeDBInstancesAll mocks base method.
@@ -115,26 +73,6 @@ func (mr *MockClientMockRecorder) DescribeDBInstancesAll(ctx interface{}) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeDBInstancesAll", reflect.TypeOf((*MockClient)(nil).DescribeDBInstancesAll), ctx)
 }
 
-// DescribeDBLogFiles mocks base method.
-func (m *MockClient) DescribeDBLogFiles(ctx context.Context, input *rds.DescribeDBLogFilesInput, optFns ...func(*rds.Options)) (*rds.DescribeDBLogFilesOutput, error) {
-	m.ctrl.T.Helper()
-	varargs := []interface{}{ctx, input}
-	for _, a := range optFns {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "DescribeDBLogFiles", varargs...)
-	ret0, _ := ret[0].(*rds.DescribeDBLogFilesOutput)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// DescribeDBLogFiles indicates an expected call of DescribeDBLogFiles.
-func (mr *MockClientMockRecorder) DescribeDBLogFiles(ctx, input interface{}, optFns ...interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	varargs := append([]interface{}{ctx, input}, optFns...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeDBLogFiles", reflect.TypeOf((*MockClient)(nil).DescribeDBLogFiles), varargs...)
-}
-
 // DescribeDBLogFilesAll mocks base method.
 func (m *MockClient) DescribeDBLogFilesAll(ctx context.Context, instanceId string) ([]*rds.DescribeDBLogFilesOutput, error) {
 	m.ctrl.T.Helper()
@@ -150,26 +88,6 @@ func (mr *MockClientMockRecorder) DescribeDBLogFilesAll(ctx, instanceId interfac
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeDBLogFilesAll", reflect.TypeOf((*MockClient)(nil).DescribeDBLogFilesAll), ctx, instanceId)
 }
 
-// DescribePendingMaintenanceActions mocks base method.
-func (m *MockClient) DescribePendingMaintenanceActions(ctx context.Context, input *rds.DescribePendingMaintenanceActionsInput, optFns ...func(*rds.Options)) (*rds.DescribePendingMaintenanceActionsOutput, error) {
-	m.ctrl.T.Helper()
-	varargs := []interface{}{ctx, input}
-	for _, a := range optFns {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "DescribePendingMaintenanceActions", varargs...)
-	ret0, _ := ret[0].(*rds.DescribePendingMaintenanceActionsOutput)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// DescribePendingMaintenanceActions indicates an expected call of DescribePendingMaintenanceActions.
-func (mr *MockClientMockRecorder) DescribePendingMaintenanceActions(ctx, input interface{}, optFns ...interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	varargs := append([]interface{}{ctx, input}, optFns...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribePendingMaintenanceActions", reflect.TypeOf((*MockClient)(nil).DescribePendingMaintenanceActions), varargs...)
-}
-
 // DescribePendingMaintenanceActionsAll mocks base method.
 func (m *MockClient) DescribePendingMaintenanceActionsAll(ctx context.Context) ([]types1.ResourcePendingMaintenanceActions, error) {
 	m.ctrl.T.Helper()
@@ -183,26 +101,6 @@ func (m *MockClient) DescribePendingMaintenanceActionsAll(ctx context.Context) (
 func (mr *MockClientMockRecorder) DescribePendingMaintenanceActionsAll(ctx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribePendingMaintenanceActionsAll", reflect.TypeOf((*MockClient)(nil).DescribePendingMaintenanceActionsAll), ctx)
-}
-
-// DescribeTransitGateways mocks base method.
-func (m *MockClient) DescribeTransitGateways(ctx context.Context, input *ec2.DescribeTransitGatewaysInput, optFns ...func(*ec2.Options)) (*ec2.DescribeTransitGatewaysOutput, error) {
-	m.ctrl.T.Helper()
-	varargs := []interface{}{ctx, input}
-	for _, a := range optFns {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "DescribeTransitGateways", varargs...)
-	ret0, _ := ret[0].(*ec2.DescribeTransitGatewaysOutput)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// DescribeTransitGateways indicates an expected call of DescribeTransitGateways.
-func (mr *MockClientMockRecorder) DescribeTransitGateways(ctx, input interface{}, optFns ...interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	varargs := append([]interface{}{ctx, input}, optFns...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeTransitGateways", reflect.TypeOf((*MockClient)(nil).DescribeTransitGateways), varargs...)
 }
 
 // GetAccountSummary mocks base method.
@@ -265,24 +163,19 @@ func (mr *MockClientMockRecorder) GetServiceQuota(ctx, input interface{}, optFns
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetServiceQuota", reflect.TypeOf((*MockClient)(nil).GetServiceQuota), varargs...)
 }
 
-// ListClusters mocks base method.
-func (m *MockClient) ListClusters(ctx context.Context, input *kafka.ListClustersInput, optFns ...func(*kafka.Options)) (*kafka.ListClustersOutput, error) {
+// GetTransitGatewaysCount mocks base method.
+func (m *MockClient) GetTransitGatewaysCount(ctx context.Context, input *ec2.DescribeTransitGatewaysInput) (int, error) {
 	m.ctrl.T.Helper()
-	varargs := []interface{}{ctx, input}
-	for _, a := range optFns {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "ListClusters", varargs...)
-	ret0, _ := ret[0].(*kafka.ListClustersOutput)
+	ret := m.ctrl.Call(m, "GetTransitGatewaysCount", ctx, input)
+	ret0, _ := ret[0].(int)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// ListClusters indicates an expected call of ListClusters.
-func (mr *MockClientMockRecorder) ListClusters(ctx, input interface{}, optFns ...interface{}) *gomock.Call {
+// GetTransitGatewaysCount indicates an expected call of GetTransitGatewaysCount.
+func (mr *MockClientMockRecorder) GetTransitGatewaysCount(ctx, input interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	varargs := append([]interface{}{ctx, input}, optFns...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListClusters", reflect.TypeOf((*MockClient)(nil).ListClusters), varargs...)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTransitGatewaysCount", reflect.TypeOf((*MockClient)(nil).GetTransitGatewaysCount), ctx, input)
 }
 
 // ListClustersAll mocks base method.
@@ -300,26 +193,6 @@ func (mr *MockClientMockRecorder) ListClustersAll(ctx interface{}) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListClustersAll", reflect.TypeOf((*MockClient)(nil).ListClustersAll), ctx)
 }
 
-// ListHostedZones mocks base method.
-func (m *MockClient) ListHostedZones(ctx context.Context, input *route53.ListHostedZonesInput, optFns ...func(*route53.Options)) (*route53.ListHostedZonesOutput, error) {
-	m.ctrl.T.Helper()
-	varargs := []interface{}{ctx, input}
-	for _, a := range optFns {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "ListHostedZones", varargs...)
-	ret0, _ := ret[0].(*route53.ListHostedZonesOutput)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// ListHostedZones indicates an expected call of ListHostedZones.
-func (mr *MockClientMockRecorder) ListHostedZones(ctx, input interface{}, optFns ...interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	varargs := append([]interface{}{ctx, input}, optFns...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListHostedZones", reflect.TypeOf((*MockClient)(nil).ListHostedZones), varargs...)
-}
-
 // ListHostedZonesAll mocks base method.
 func (m *MockClient) ListHostedZonesAll(ctx context.Context) ([]types2.HostedZone, error) {
 	m.ctrl.T.Helper()
@@ -333,24 +206,4 @@ func (m *MockClient) ListHostedZonesAll(ctx context.Context) ([]types2.HostedZon
 func (mr *MockClientMockRecorder) ListHostedZonesAll(ctx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListHostedZonesAll", reflect.TypeOf((*MockClient)(nil).ListHostedZonesAll), ctx)
-}
-
-// ListRoles mocks base method.
-func (m *MockClient) ListRoles(ctx context.Context, input *iam.ListRolesInput, optFns ...func(*iam.Options)) (*iam.ListRolesOutput, error) {
-	m.ctrl.T.Helper()
-	varargs := []interface{}{ctx, input}
-	for _, a := range optFns {
-		varargs = append(varargs, a)
-	}
-	ret := m.ctrl.Call(m, "ListRoles", varargs...)
-	ret0, _ := ret[0].(*iam.ListRolesOutput)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// ListRoles indicates an expected call of ListRoles.
-func (mr *MockClientMockRecorder) ListRoles(ctx, input interface{}, optFns ...interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	varargs := append([]interface{}{ctx, input}, optFns...)
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListRoles", reflect.TypeOf((*MockClient)(nil).ListRoles), varargs...)
 }

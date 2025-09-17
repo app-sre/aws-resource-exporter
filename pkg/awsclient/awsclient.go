@@ -25,12 +25,9 @@ import (
 // Client is a wrapper object for actual AWS SDK clients to allow for easier testing.
 type Client interface {
 	//EC2
-	DescribeTransitGateways(ctx context.Context, input *ec2.DescribeTransitGatewaysInput, optFns ...func(*ec2.Options)) (*ec2.DescribeTransitGatewaysOutput, error)
+	GetTransitGatewaysCount(ctx context.Context, input *ec2.DescribeTransitGatewaysInput) (int, error)
 
 	//RDS
-	DescribeDBInstances(ctx context.Context, input *rds.DescribeDBInstancesInput, optFns ...func(*rds.Options)) (*rds.DescribeDBInstancesOutput, error)
-	DescribeDBLogFiles(ctx context.Context, input *rds.DescribeDBLogFilesInput, optFns ...func(*rds.Options)) (*rds.DescribeDBLogFilesOutput, error)
-	DescribePendingMaintenanceActions(ctx context.Context, input *rds.DescribePendingMaintenanceActionsInput, optFns ...func(*rds.Options)) (*rds.DescribePendingMaintenanceActionsOutput, error)
 	DescribeDBLogFilesAll(ctx context.Context, instanceId string) ([]*rds.DescribeDBLogFilesOutput, error)
 	DescribePendingMaintenanceActionsAll(ctx context.Context) ([]rds_types.ResourcePendingMaintenanceActions, error)
 	DescribeDBInstancesAll(ctx context.Context) ([]rds_types.DBInstance, error)
@@ -39,20 +36,16 @@ type Client interface {
 	GetServiceQuota(ctx context.Context, input *servicequotas.GetServiceQuotaInput, optFns ...func(*servicequotas.Options)) (*servicequotas.GetServiceQuotaOutput, error)
 
 	//route53
-	ListHostedZones(ctx context.Context, input *route53.ListHostedZonesInput, optFns ...func(*route53.Options)) (*route53.ListHostedZonesOutput, error)
 	ListHostedZonesAll(ctx context.Context) ([]route53_types.HostedZone, error)
 	GetHostedZoneLimit(ctx context.Context, input *route53.GetHostedZoneLimitInput, optFns ...func(*route53.Options)) (*route53.GetHostedZoneLimitOutput, error)
 
 	// ElastiCache
-	DescribeCacheClusters(ctx context.Context, input *elasticache.DescribeCacheClustersInput, optFns ...func(*elasticache.Options)) (*elasticache.DescribeCacheClustersOutput, error)
 	DescribeCacheClustersAll(ctx context.Context) ([]elasticache_types.CacheCluster, error)
 
 	// MSK
-	ListClusters(ctx context.Context, input *kafka.ListClustersInput, optFns ...func(*kafka.Options)) (*kafka.ListClustersOutput, error)
 	ListClustersAll(ctx context.Context) ([]kafka_types.ClusterInfo, error)
 
 	// IAM
-	ListRoles(ctx context.Context, input *iam.ListRolesInput, optFns ...func(*iam.Options)) (*iam.ListRolesOutput, error)
 	GetAccountSummary(ctx context.Context, input *iam.GetAccountSummaryInput, optFns ...func(*iam.Options)) (*iam.GetAccountSummaryOutput, error)
 }
 
@@ -67,20 +60,18 @@ type awsClient struct {
 	cfg                 aws.Config
 }
 
-func (c *awsClient) DescribeTransitGateways(ctx context.Context, input *ec2.DescribeTransitGatewaysInput, optFns ...func(*ec2.Options)) (*ec2.DescribeTransitGatewaysOutput, error) {
-	return c.ec2Client.DescribeTransitGateways(ctx, input, optFns...)
-}
-
-func (c *awsClient) DescribeDBLogFiles(ctx context.Context, input *rds.DescribeDBLogFilesInput, optFns ...func(*rds.Options)) (*rds.DescribeDBLogFilesOutput, error) {
-	return c.rdsClient.DescribeDBLogFiles(ctx, input, optFns...)
-}
-
-func (c *awsClient) DescribeDBInstances(ctx context.Context, input *rds.DescribeDBInstancesInput, optFns ...func(*rds.Options)) (*rds.DescribeDBInstancesOutput, error) {
-	return c.rdsClient.DescribeDBInstances(ctx, input, optFns...)
-}
-
-func (c *awsClient) DescribePendingMaintenanceActions(ctx context.Context, input *rds.DescribePendingMaintenanceActionsInput, optFns ...func(*rds.Options)) (*rds.DescribePendingMaintenanceActionsOutput, error) {
-	return c.rdsClient.DescribePendingMaintenanceActions(ctx, input, optFns...)
+func (c *awsClient) GetTransitGatewaysCount(ctx context.Context, input *ec2.DescribeTransitGatewaysInput) (int, error) {
+	count := 0
+	paginator := ec2.NewDescribeTransitGatewaysPaginator(c.ec2Client, input)
+	for paginator.HasMorePages() {
+		AwsExporterMetrics.IncrementRequests()
+		result, err := paginator.NextPage(ctx)
+		if err != nil {
+			return count, err
+		}
+		count += len(result.TransitGateways)
+	}
+	return count, nil
 }
 
 func (c *awsClient) GetServiceQuota(ctx context.Context, input *servicequotas.GetServiceQuotaInput, optFns ...func(*servicequotas.Options)) (*servicequotas.GetServiceQuotaOutput, error) {
@@ -99,7 +90,6 @@ func (c *awsClient) DescribeDBLogFilesAll(ctx context.Context, instanceId string
 		AwsExporterMetrics.IncrementRequests()
 		result, err := paginator.NextPage(ctx)
 		if err != nil {
-			AwsExporterMetrics.IncrementErrors()
 			return nil, err
 		}
 		logOutputs = append(logOutputs, result)
@@ -118,7 +108,6 @@ func (c *awsClient) DescribePendingMaintenanceActionsAll(ctx context.Context) ([
 		AwsExporterMetrics.IncrementRequests()
 		result, err := paginator.NextPage(ctx)
 		if err != nil {
-			AwsExporterMetrics.IncrementErrors()
 			return nil, err
 		}
 		instancesPendMaintActionsData = append(instancesPendMaintActionsData, result.PendingMaintenanceActions...)
@@ -137,17 +126,12 @@ func (c *awsClient) DescribeDBInstancesAll(ctx context.Context) ([]rds_types.DBI
 		AwsExporterMetrics.IncrementRequests()
 		result, err := paginator.NextPage(ctx)
 		if err != nil {
-			AwsExporterMetrics.IncrementErrors()
 			return nil, err
 		}
 		instances = append(instances, result.DBInstances...)
 	}
 
 	return instances, nil
-}
-
-func (c *awsClient) ListHostedZones(ctx context.Context, input *route53.ListHostedZonesInput, optFns ...func(*route53.Options)) (*route53.ListHostedZonesOutput, error) {
-	return c.route53Client.ListHostedZones(ctx, input, optFns...)
 }
 
 func (c *awsClient) ListHostedZonesAll(ctx context.Context) ([]route53_types.HostedZone, error) {
@@ -160,7 +144,6 @@ func (c *awsClient) ListHostedZonesAll(ctx context.Context) ([]route53_types.Hos
 		AwsExporterMetrics.IncrementRequests()
 		result, err := paginator.NextPage(ctx)
 		if err != nil {
-			AwsExporterMetrics.IncrementErrors()
 			return nil, err
 		}
 		hostedZones = append(hostedZones, result.HostedZones...)
@@ -173,10 +156,6 @@ func (c *awsClient) GetHostedZoneLimit(ctx context.Context, input *route53.GetHo
 	return c.route53Client.GetHostedZoneLimit(ctx, input, optFns...)
 }
 
-func (c *awsClient) DescribeCacheClusters(ctx context.Context, input *elasticache.DescribeCacheClustersInput, optFns ...func(*elasticache.Options)) (*elasticache.DescribeCacheClustersOutput, error) {
-	return c.elasticacheClient.DescribeCacheClusters(ctx, input, optFns...)
-}
-
 func (c *awsClient) DescribeCacheClustersAll(ctx context.Context) ([]elasticache_types.CacheCluster, error) {
 	input := &elasticache.DescribeCacheClustersInput{}
 
@@ -187,18 +166,12 @@ func (c *awsClient) DescribeCacheClustersAll(ctx context.Context) ([]elasticache
 		AwsExporterMetrics.IncrementRequests()
 		result, err := paginator.NextPage(ctx)
 		if err != nil {
-			AwsExporterMetrics.IncrementErrors()
 			return nil, err
 		}
 		clusters = append(clusters, result.CacheClusters...)
 	}
 
 	return clusters, nil
-}
-
-
-func (c *awsClient) ListClusters(ctx context.Context, input *kafka.ListClustersInput, optFns ...func(*kafka.Options)) (*kafka.ListClustersOutput, error) {
-	return c.mskClient.ListClusters(ctx, input, optFns...)
 }
 
 func (c *awsClient) ListClustersAll(ctx context.Context) ([]kafka_types.ClusterInfo, error) {
@@ -211,7 +184,6 @@ func (c *awsClient) ListClustersAll(ctx context.Context) ([]kafka_types.ClusterI
 		AwsExporterMetrics.IncrementRequests()
 		result, err := paginator.NextPage(ctx)
 		if err != nil {
-			AwsExporterMetrics.IncrementErrors()
 			return nil, err
 		}
 		clusters = append(clusters, result.ClusterInfoList...)
@@ -219,11 +191,6 @@ func (c *awsClient) ListClustersAll(ctx context.Context) ([]kafka_types.ClusterI
 
 	return clusters, nil
 }
-
-func (c *awsClient) ListRoles(ctx context.Context, input *iam.ListRolesInput, optFns ...func(*iam.Options)) (*iam.ListRolesOutput, error) {
-	return c.iamClient.ListRoles(ctx, input, optFns...)
-}
-
 
 func (c *awsClient) GetAccountSummary(ctx context.Context, input *iam.GetAccountSummaryInput, optFns ...func(*iam.Options)) (*iam.GetAccountSummaryOutput, error) {
 	return c.iamClient.GetAccountSummary(ctx, input, optFns...)
