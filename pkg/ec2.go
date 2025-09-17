@@ -8,10 +8,9 @@ import (
 	"time"
 
 	"github.com/app-sre/aws-resource-exporter/pkg/awsclient"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/ec2"
-	"github.com/aws/aws-sdk-go/service/servicequotas"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	"github.com/aws/aws-sdk-go-v2/service/servicequotas"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -24,15 +23,15 @@ var TransitGatewaysQuota *prometheus.Desc
 var TransitGatewaysUsage *prometheus.Desc
 
 type EC2Exporter struct {
-	sessions []*session.Session
-	cache    MetricsCache
+	configs []aws.Config
+	cache   MetricsCache
 
 	logger   *slog.Logger
 	timeout  time.Duration
 	interval time.Duration
 }
 
-func NewEC2Exporter(sessions []*session.Session, logger *slog.Logger, config EC2Config, awsAccountId string) *EC2Exporter {
+func NewEC2Exporter(configs []aws.Config, logger *slog.Logger, config EC2Config, awsAccountId string) *EC2Exporter {
 
 	logger.Info("Initializing EC2 exporter")
 	constLabels := map[string]string{"aws_account_id": awsAccountId, QUOTA_CODE_KEY: transitGatewayPerAccountQuotaCode, SERVICE_CODE_KEY: ec2ServiceCode}
@@ -41,8 +40,8 @@ func NewEC2Exporter(sessions []*session.Session, logger *slog.Logger, config EC2
 	TransitGatewaysUsage = prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "ec2_transitgatewaysperregion_usage"), "Number of Tranitgatewyas in the AWS Account", []string{"aws_region"}, constLabels)
 
 	return &EC2Exporter{
-		sessions: sessions,
-		cache:    *NewMetricsCache(*config.CacheTTL),
+		configs: configs,
+		cache:   *NewMetricsCache(*config.CacheTTL),
 
 		logger:   logger,
 		timeout:  *config.Timeout,
@@ -61,10 +60,10 @@ func (e *EC2Exporter) CollectLoop() {
 		ctx, ctxCancel := context.WithTimeout(context.Background(), e.timeout)
 		defer ctxCancel()
 		wg := &sync.WaitGroup{}
-		wg.Add(len(e.sessions))
+		wg.Add(len(e.configs))
 
-		for _, sess := range e.sessions {
-			go e.collectInRegion(sess, e.logger, wg, ctx)
+		for _, cfg := range e.configs {
+			go e.collectInRegion(cfg, e.logger, wg, ctx)
 		}
 		wg.Wait()
 
@@ -74,10 +73,10 @@ func (e *EC2Exporter) CollectLoop() {
 	}
 }
 
-func (e *EC2Exporter) collectInRegion(sess *session.Session, logger *slog.Logger, wg *sync.WaitGroup, ctx context.Context) {
+func (e *EC2Exporter) collectInRegion(cfg aws.Config, logger *slog.Logger, wg *sync.WaitGroup, ctx context.Context) {
 	defer wg.Done()
 
-	aws := awsclient.NewClientFromSession(sess)
+	aws := awsclient.NewClientFromConfig(cfg)
 
 	quota, err := getQuotaValueWithContext(aws, ec2ServiceCode, transitGatewayPerAccountQuotaCode, ctx)
 	if err != nil {
@@ -86,15 +85,15 @@ func (e *EC2Exporter) collectInRegion(sess *session.Session, logger *slog.Logger
 		return
 	}
 
-	gateways, err := getAllTransitGatewaysWithContext(aws, ctx)
+	count, err := getTransitGatewaysCountWithContext(aws, ctx)
 	if err != nil {
-		logger.Error("Could not retrieve Transit Gateway quota", slog.String("error", err.Error()))
+		logger.Error("Could not retrieve Transit Gateway count", slog.String("error", err.Error()))
 		awsclient.AwsExporterMetrics.IncrementErrors()
 		return
 	}
 
-	e.cache.AddMetric(prometheus.MustNewConstMetric(TransitGatewaysUsage, prometheus.GaugeValue, float64(len(gateways)), *sess.Config.Region))
-	e.cache.AddMetric(prometheus.MustNewConstMetric(TransitGatewaysQuota, prometheus.GaugeValue, quota, *sess.Config.Region))
+	e.cache.AddMetric(prometheus.MustNewConstMetric(TransitGatewaysUsage, prometheus.GaugeValue, float64(count), cfg.Region))
+	e.cache.AddMetric(prometheus.MustNewConstMetric(TransitGatewaysQuota, prometheus.GaugeValue, quota, cfg.Region))
 }
 
 func (e *EC2Exporter) Describe(ch chan<- *prometheus.Desc) {
@@ -102,11 +101,12 @@ func (e *EC2Exporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- TransitGatewaysUsage
 }
 
-func createDescribeTransitGatewayInput() *ec2.DescribeTransitGatewaysInput {
-	return &ec2.DescribeTransitGatewaysInput{
+func getTransitGatewaysCountWithContext(client awsclient.Client, ctx context.Context) (int, error) {
+	input := &ec2.DescribeTransitGatewaysInput{
 		DryRun:     aws.Bool(false),
-		MaxResults: aws.Int64(1000),
+		MaxResults: aws.Int32(1000),
 	}
+	return client.GetTransitGatewaysCount(ctx, input)
 }
 
 func createGetServiceQuotaInput(serviceCode, quotaCode string) *servicequotas.GetServiceQuotaInput {
@@ -116,30 +116,8 @@ func createGetServiceQuotaInput(serviceCode, quotaCode string) *servicequotas.Ge
 	}
 }
 
-func getAllTransitGatewaysWithContext(client awsclient.Client, ctx context.Context) ([]*ec2.TransitGateway, error) {
-	results := []*ec2.TransitGateway{}
-	describeGatewaysInput := createDescribeTransitGatewayInput()
-	describeGatewaysOutput, err := client.DescribeTransitGatewaysWithContext(ctx, describeGatewaysInput)
-
-	if err != nil {
-		return nil, err
-	}
-	results = append(results, describeGatewaysOutput.TransitGateways...)
-	// TODO: replace with aws-go-sdk pagination method
-	for describeGatewaysOutput.NextToken != nil {
-		describeGatewaysInput.SetNextToken(*describeGatewaysOutput.NextToken)
-		describeGatewaysOutput, err := client.DescribeTransitGatewaysWithContext(ctx, describeGatewaysInput)
-		if err != nil {
-			return nil, err
-		}
-		results = append(results, describeGatewaysOutput.TransitGateways...)
-	}
-
-	return results, nil
-}
-
 func getQuotaValueWithContext(client awsclient.Client, serviceCode string, quotaCode string, ctx context.Context) (float64, error) {
-	sqOutput, err := client.GetServiceQuotaWithContext(ctx, createGetServiceQuotaInput(serviceCode, quotaCode))
+	sqOutput, err := client.GetServiceQuota(ctx, createGetServiceQuotaInput(serviceCode, quotaCode))
 
 	if err != nil {
 		return 0, err
