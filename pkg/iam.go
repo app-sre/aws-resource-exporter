@@ -6,17 +6,10 @@ import (
 	"time"
 
 	"github.com/app-sre/aws-resource-exporter/pkg/awsclient"
-
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/request"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/iam"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/prometheus/client_golang/prometheus"
 )
-
-type IAMClient interface {
-	ListRolesPagesWithContext(ctx aws.Context, input *iam.ListRolesInput, fn func(*iam.ListRolesOutput, bool) bool, opts ...request.Option) error
-}
 
 var (
 	IamRolesUsed = prometheus.NewDesc(
@@ -31,10 +24,14 @@ var (
 	)
 )
 
+type AccountSummary struct {
+	RoleCount int32
+	RoleQuota int32
+}
+
 type IAMExporter struct {
-	session      *session.Session
-	iamClient    IAMClient
-	sqClient     awsclient.Client
+	config       aws.Config
+	iamClient    awsclient.Client
 	logger       *slog.Logger
 	timeout      time.Duration
 	interval     time.Duration
@@ -43,13 +40,12 @@ type IAMExporter struct {
 }
 
 // NewIAMExporter creates a new IAMExporter
-func NewIAMExporter(sess *session.Session, logger *slog.Logger, config IAMConfig, awsAccountId string) *IAMExporter {
+func NewIAMExporter(cfg aws.Config, logger *slog.Logger, config IAMConfig, awsAccountId string) *IAMExporter {
 	logger.Info("Initializing IAM exporter")
 
 	return &IAMExporter{
-		session:      sess,
-		iamClient:    iam.New(sess),
-		sqClient:     awsclient.NewClientFromSession(sess),
+		config:       cfg,
+		iamClient:    awsclient.NewClientFromConfig(cfg),
 		logger:       logger,
 		timeout:      *config.Timeout,
 		interval:     *config.Interval,
@@ -73,42 +69,44 @@ func (e *IAMExporter) CollectLoop() {
 	for {
 		ctx, cancel := context.WithTimeout(context.Background(), e.timeout)
 
-		roleCount, err := getIAMRoleCount(ctx, e.iamClient)
+		summary, err := getIAMAccountSummary(ctx, e.iamClient)
+
 		if err != nil {
-			e.logger.Error("Failed to get IAM role count", slog.Any("err", err))
+			e.logger.Error("Failed to get IAM account summary", slog.Any("err", err))
 			cancel()
 			time.Sleep(e.interval)
 			continue
 		}
 
-		quota, err := getQuotaValueWithContext(e.sqClient, "iam", "L-FE177D64", ctx)
-		if err != nil {
-			e.logger.Error("Failed to get IAM role quota", slog.Any("err", err))
-			cancel()
-			time.Sleep(e.interval)
-			continue
-		}
-
-		e.cache.AddMetric(prometheus.MustNewConstMetric(IamRolesUsed, prometheus.GaugeValue, float64(roleCount), e.awsAccountId))
-		e.cache.AddMetric(prometheus.MustNewConstMetric(IamRolesQuota, prometheus.GaugeValue, quota, e.awsAccountId))
+		e.cache.AddMetric(prometheus.MustNewConstMetric(IamRolesUsed, prometheus.GaugeValue, float64(summary.RoleCount), e.awsAccountId))
+		e.cache.AddMetric(prometheus.MustNewConstMetric(IamRolesQuota, prometheus.GaugeValue, float64(summary.RoleQuota), e.awsAccountId))
 
 		e.logger.Info("IAM metrics updated",
-			slog.Int("used", roleCount),
-			slog.Float64("quota", quota))
+			slog.Int("used", int(summary.RoleCount)),
+			slog.Int("quota", int(summary.RoleQuota)))
 
 		cancel()
 		time.Sleep(e.interval)
 	}
 }
 
-// getIAMRoleCount returns number of IAM roles using IAMClient
-func getIAMRoleCount(ctx context.Context, client IAMClient) (int, error) {
-	var count int
-	err := client.ListRolesPagesWithContext(ctx, &iam.ListRolesInput{
-		MaxItems: aws.Int64(1000),
-	}, func(output *iam.ListRolesOutput, _ bool) bool {
-		count += len(output.Roles)
-		return true
-	})
-	return count, err
+func getIAMAccountSummary(ctx context.Context, client awsclient.Client) (*AccountSummary, error) {
+	accountSummary := &AccountSummary{
+		RoleCount: 0,
+		RoleQuota: 0,
+	}
+
+	summary, err := client.GetAccountSummary(ctx, &iam.GetAccountSummaryInput{})
+	if err != nil {
+		return accountSummary, err
+	}
+
+	if val, exists := summary.SummaryMap["Roles"]; exists {
+		accountSummary.RoleCount = val
+	}
+	if val, exists := summary.SummaryMap["RolesQuota"]; exists {
+		accountSummary.RoleQuota = val
+	}
+
+	return accountSummary, nil
 }

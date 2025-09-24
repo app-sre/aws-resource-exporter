@@ -7,18 +7,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/kafka"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	kafka_types "github.com/aws/aws-sdk-go-v2/service/kafka/types"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 )
 
-func createTestClusters() []*kafka.ClusterInfo {
-	return []*kafka.ClusterInfo{
+func createTestClusters() []kafka_types.ClusterInfo {
+	return []kafka_types.ClusterInfo{
 		{
 			ClusterName: aws.String("test-cluster-1"),
-			CurrentBrokerSoftwareInfo: &kafka.BrokerSoftwareInfo{
+			CurrentBrokerSoftwareInfo: &kafka_types.BrokerSoftwareInfo{
 				KafkaVersion: aws.String("1000"),
 			},
 		},
@@ -33,7 +32,7 @@ func TestAddAllMSKMetricsWithEOLMatch(t *testing.T) {
 	}
 
 	e := MSKExporter{
-		sessions:   []*session.Session{session.New(&aws.Config{Region: aws.String("foo")})},
+		configs:    []aws.Config{{Region: "foo"}},
 		cache:      *NewMetricsCache(10 * time.Second),
 		logger:     slog.New(slog.NewTextHandler(io.Discard, nil)),
 		thresholds: thresholds,
@@ -70,7 +69,7 @@ func TestAddAllMSKMetricsWithoutEOLMatch(t *testing.T) {
 	}
 
 	e := MSKExporter{
-		sessions:   []*session.Session{session.New(&aws.Config{Region: aws.String("foo")})},
+		configs:    []aws.Config{{Region: "foo"}},
 		cache:      *NewMetricsCache(10 * time.Second),
 		logger:     slog.New(slog.NewTextHandler(io.Discard, nil)),
 		thresholds: thresholds,
