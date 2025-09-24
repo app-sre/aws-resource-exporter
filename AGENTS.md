@@ -43,9 +43,9 @@ AWS Resource Exporter is a Prometheus exporter for AWS resources, built in Go. I
 - Service-specific configs extend BaseConfig (RDSConfig, VPCConfig, etc.)
 
 **AWS Client Layer (`pkg/awsclient/`)**
-- Centralized AWS SDK session management
-- Service-specific client wrappers
-- Mock interfaces for testing
+- Centralized AWS SDK v2 config-based client management
+- Service-specific client wrappers with paginator patterns
+- Mock interfaces for testing using golang/mock
 
 **Service Collectors (`pkg/`)**
 - Each AWS service has its own collector: `rds.go`, `vpc.go`, `ec2.go`, `route53.go`, `elasticache.go`, `iam.go`, `msk.go`
@@ -66,7 +66,7 @@ AWS Resource Exporter is a Prometheus exporter for AWS resources, built in Go. I
 
 **AWS Credentials**
 - Environment variables: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`
-- Standard AWS SDK credential chain support
+- Standard AWS SDK v2 credential chain support with aws.Config
 
 **Metrics Collection**
 - Each service runs on configurable intervals
@@ -75,8 +75,9 @@ AWS Resource Exporter is a Prometheus exporter for AWS resources, built in Go. I
 
 **Testing Strategy**
 - Unit tests for each service collector
-- Mock AWS clients using golang/mock
+- Mock AWS clients using golang/mock with AWS SDK v2 interfaces
 - Test files mirror source file structure (`pkg/*_test.go`)
+- Mock generation: `go generate ./pkg/awsclient/`
 
 ## Exported Metrics
 
@@ -133,3 +134,21 @@ AWS Resource Exporter is a Prometheus exporter for AWS resources, built in Go. I
 ### AWS Client Metrics
 - `aws_resources_exporter_awsclient_api_requests_total` - Total AWS API requests made
 - `aws_resources_exporter_awsclient_api_errors_total` - Total AWS API errors encountered
+
+## Key Implementation Notes
+
+### AWS SDK v2 Migration
+- Project migrated from AWS SDK for Go v1 to v2
+- Uses config-based initialization instead of session-based
+- Paginator patterns replace callback-based pagination
+- Error handling uses smithy errors instead of awserr
+- Type system changes: some fields changed from *int64 to *int32
+- Method signatures updated (removed WithContext suffixes)
+- Import paths use aws-sdk-go-v2 namespace
+
+### Important Patterns
+- All AWS API calls use context.Context for cancellation
+- Pagination handled via AWS SDK v2 paginators (NewListRolesPaginator, etc.)
+- Error metrics incremented at usage sites to avoid double counting
+- IAM metrics use GetAccountSummary API for efficiency instead of listing all roles
+- RDS AllocatedStorage metric handles int32 overflow by casting to int64 before multiplication
