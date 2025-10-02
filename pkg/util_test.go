@@ -1,8 +1,8 @@
 package pkg
 
 import (
+	"io"
 	"log/slog"
-	"os"
 	"reflect"
 	"testing"
 )
@@ -47,7 +47,7 @@ func TestWithKeyValue(t *testing.T) {
 }
 
 func TestCalculateTotalIPsFromCIDR(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 
 	tests := []struct {
 		name        string
