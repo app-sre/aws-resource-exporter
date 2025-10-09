@@ -373,7 +373,7 @@ func (e *VPCExporter) collectIPv4AddressesPerSubnetUsage(vpc ec2_types.Vpc, ec2S
 
 		// Calculate total IPs from CIDR block
 		cidrBlock := *subnet.CidrBlock
-		totalIPs, err := CalculateTotalIPsFromCIDR(cidrBlock, e.logger)
+		totalIPs, err := CalculateTotalIPsFromCIDR(cidrBlock)
 		if err != nil {
 			e.logger.Error("Could not calculate total IPs from CIDR", "region", region, "subnetId", *subnet.SubnetId, "cidr", cidrBlock, "err", err)
 			awsclient.AwsExporterMetrics.IncrementErrors()

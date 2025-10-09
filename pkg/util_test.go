@@ -1,8 +1,6 @@
 package pkg
 
 import (
-	"io"
-	"log/slog"
 	"reflect"
 	"testing"
 )
@@ -47,8 +45,6 @@ func TestWithKeyValue(t *testing.T) {
 }
 
 func TestCalculateTotalIPsFromCIDR(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-
 	tests := []struct {
 		name        string
 		cidrBlock   string
@@ -143,7 +139,7 @@ func TestCalculateTotalIPsFromCIDR(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result, err := CalculateTotalIPsFromCIDR(tt.cidrBlock, logger)
+			result, err := CalculateTotalIPsFromCIDR(tt.cidrBlock)
 
 			if tt.expectError {
 				if err == nil {

@@ -2,7 +2,6 @@ package pkg
 
 import (
 	"errors"
-	"log/slog"
 	"net"
 	"os"
 	"sort"
@@ -65,10 +64,9 @@ func GetEOLStatus(eol string, thresholds []Threshold) (string, error) {
 }
 
 // CalculateTotalIPsFromCIDR calculates the total number of IP addresses in a CIDR block using Go's net package
-func CalculateTotalIPsFromCIDR(cidrBlock string, logger *slog.Logger) (int64, error) {
+func CalculateTotalIPsFromCIDR(cidrBlock string) (int64, error) {
 	_, ipNet, err := net.ParseCIDR(cidrBlock)
 	if err != nil {
-		logger.Error("Invalid CIDR format", "cidr", cidrBlock, "err", err)
 		return 0, err
 	}
 
