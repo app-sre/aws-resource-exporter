@@ -77,7 +77,6 @@ func CalculateTotalIPsFromCIDR(cidrBlock string, logger *slog.Logger) (int64, er
 
 	// Validate reasonable prefix length for IPv4 subnets (AWS supports /16 to /28)
 	if prefixLength < 16 || prefixLength > 28 {
-		logger.Error("Invalid subnet prefix length for AWS", "cidr", cidrBlock, "prefix", prefixLength)
 		return 0, errors.New("invalid subnet prefix length for AWS (must be /16 to /28)")
 	}
 
