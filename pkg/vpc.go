@@ -331,19 +331,29 @@ func (e *VPCExporter) collectIPv4BlocksPerVpcUsage(vpc ec2_types.Vpc, ec2Svc *ec
 func (e *VPCExporter) collectIPv4AddressesPerSubnetUsage(vpc ec2_types.Vpc, ec2Svc *ec2.Client, region string) {
 	ctx, cancelFunc := context.WithTimeout(context.Background(), e.timeout)
 	defer cancelFunc()
-	describeSubnetsOutput, err := ec2Svc.DescribeSubnets(ctx, &ec2.DescribeSubnetsInput{
+
+	input := &ec2.DescribeSubnetsInput{
 		Filters: []ec2_types.Filter{{
 			Name:   aws.String("vpc-id"),
 			Values: []string{*vpc.VpcId},
 		}},
-	})
-	if err != nil {
-		e.logger.Error("Call to DescribeSubnets failed", "region", region, "err", err)
-		awsclient.AwsExporterMetrics.IncrementErrors()
-		return
 	}
 
-	for _, subnet := range describeSubnetsOutput.Subnets {
+	var subnets []ec2_types.Subnet
+	paginator := ec2.NewDescribeSubnetsPaginator(ec2Svc, input)
+
+	for paginator.HasMorePages() {
+		awsclient.AwsExporterMetrics.IncrementRequests()
+		result, err := paginator.NextPage(ctx)
+		if err != nil {
+			e.logger.Error("Call to DescribeSubnets failed", "region", region, "err", err)
+			awsclient.AwsExporterMetrics.IncrementErrors()
+			return
+		}
+		subnets = append(subnets, result.Subnets...)
+	}
+
+	for _, subnet := range subnets {
 		// Validate required fields
 		if subnet.SubnetId == nil {
 			e.logger.Error("Subnet has nil SubnetId", "region", region, "vpcId", *vpc.VpcId)
