@@ -41,7 +41,7 @@ type VPCExporter struct {
 	RouteTablesPerVpcUsage           *prometheus.Desc
 	IPv4BlocksPerVpcQuota            *prometheus.Desc
 	IPv4BlocksPerVpcUsage            *prometheus.Desc
-	IPv4AddressesPerSubnetQuota      *prometheus.Desc
+	IPv4AddressesPerSubnetCapacity   *prometheus.Desc
 	IPv4AddressesPerSubnetUsage      *prometheus.Desc
 
 	logger   *slog.Logger
@@ -76,7 +76,7 @@ func NewVPCExporter(configs []aws.Config, logger *slog.Logger, config VPCConfig,
 		RouteTablesPerVpcUsage:           prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_routetablespervpc_usage"), "The usage of route tables per vpc", []string{"aws_region", "vpcid"}, WithKeyValue(constLabels, QUOTA_CODE_KEY, QUOTA_ROUTE_TABLES_PER_VPC)),
 		IPv4BlocksPerVpcQuota:            prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_ipv4blockspervpc_quota"), "The quota of ipv4 blocks per vpc", []string{"aws_region"}, WithKeyValue(constLabels, QUOTA_CODE_KEY, QUOTA_IPV4_BLOCKS_PER_VPC)),
 		IPv4BlocksPerVpcUsage:            prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_ipv4blockspervpc_usage"), "The usage of ipv4 blocks per vpc", []string{"aws_region", "vpcid"}, WithKeyValue(constLabels, QUOTA_CODE_KEY, QUOTA_IPV4_BLOCKS_PER_VPC)),
-		IPv4AddressesPerSubnetQuota:      prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_ipv4addressespersubnet_quota"), "The quota of IPv4 addresses per subnet (based on CIDR)", []string{"aws_region", "vpcid", "subnetid"}, constLabels),
+		IPv4AddressesPerSubnetCapacity:   prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_ipv4addressespersubnet_capacity"), "The amount of usable IPv4 addresses per subnet (based on CIDR)", []string{"aws_region", "vpcid", "subnetid"}, constLabels),
 		IPv4AddressesPerSubnetUsage:      prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_ipv4addressespersubnet_usage"), "The usage of IPv4 addresses per subnet", []string{"aws_region", "vpcid", "subnetid"}, constLabels),
 		logger:                           logger,
 		timeout:                          *config.Timeout,
@@ -394,7 +394,7 @@ func (e *VPCExporter) collectIPv4AddressesPerSubnetUsage(vpc ec2_types.Vpc, ec2S
 		}
 
 		// Add both quota and usage metrics
-		e.cache.AddMetric(prometheus.MustNewConstMetric(e.IPv4AddressesPerSubnetQuota, prometheus.GaugeValue, float64(usableIPs), region, *vpc.VpcId, *subnet.SubnetId))
+		e.cache.AddMetric(prometheus.MustNewConstMetric(e.IPv4AddressesPerSubnetCapacity, prometheus.GaugeValue, float64(usableIPs), region, *vpc.VpcId, *subnet.SubnetId))
 		e.cache.AddMetric(prometheus.MustNewConstMetric(e.IPv4AddressesPerSubnetUsage, prometheus.GaugeValue, float64(usedIPs), region, *vpc.VpcId, *subnet.SubnetId))
 	}
 }
@@ -412,6 +412,6 @@ func (e *VPCExporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- e.InterfaceVpcEndpointsPerVpcUsage
 	ch <- e.RouteTablesPerVpcQuota
 	ch <- e.RoutesPerRouteTableUsage
-	ch <- e.IPv4AddressesPerSubnetQuota
+	ch <- e.IPv4AddressesPerSubnetCapacity
 	ch <- e.IPv4AddressesPerSubnetUsage
 }

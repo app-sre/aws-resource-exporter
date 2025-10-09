@@ -833,8 +833,8 @@ data:
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "aws_resources_exporter_vpc_ipv4addressespersubnet_quota",
-              "legendFormat": "{{subnetid}} quota",
+              "expr": "aws_resources_exporter_vpc_ipv4addressespersubnet_capacity",
+              "legendFormat": "{{subnetid}} capacity",
               "range": true,
               "refId": "A"
             },
@@ -930,7 +930,7 @@ data:
                 "uid": "${datasource}"
               },
               "editorMode": "code",
-              "expr": "(aws_resources_exporter_vpc_ipv4addressespersubnet_usage / aws_resources_exporter_vpc_ipv4addressespersubnet_quota) * 100",
+              "expr": "(aws_resources_exporter_vpc_ipv4addressespersubnet_usage / aws_resources_exporter_vpc_ipv4addressespersubnet_capacity) * 100",
               "format": "table",
               "legendFormat": "__auto",
               "range": true,

@@ -109,7 +109,7 @@ AWS Resource Exporter is a Prometheus exporter for AWS resources, built in Go. I
 - `aws_resources_exporter_vpc_routesperroutetable_usage` - Usage of routes per route table
 - `aws_resources_exporter_vpc_ipv4blockspervpc_quota` - Quota for IPv4 blocks per VPC
 - `aws_resources_exporter_vpc_ipv4blockspervpc_usage` - Usage of IPv4 blocks per VPC
-- `aws_resources_exporter_vpc_ipv4addressespersubnet_quota` - Quota of IPv4 addresses per subnet (based on CIDR block)
+- `aws_resources_exporter_vpc_ipv4addressespersubnet_capacity` - Amount of usable IPv4 addresses per subnet (based on CIDR block)
 - `aws_resources_exporter_vpc_ipv4addressespersubnet_usage` - Used IPv4 addresses per subnet
 
 ### EC2 Metrics
