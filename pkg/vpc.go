@@ -23,6 +23,7 @@ const (
 	QUOTA_ROUTE_TABLES_PER_VPC            string = "L-589F43AA"
 	QUOTA_IPV4_BLOCKS_PER_VPC             string = "L-83CA0A9D"
 	SERVICE_CODE_VPC                      string = "vpc"
+	AWS_RESERVED_IPS_PER_SUBNET           int64  = 5
 )
 
 type VPCExporter struct {
@@ -40,6 +41,8 @@ type VPCExporter struct {
 	RouteTablesPerVpcUsage           *prometheus.Desc
 	IPv4BlocksPerVpcQuota            *prometheus.Desc
 	IPv4BlocksPerVpcUsage            *prometheus.Desc
+	IPv4AddressesPerSubnetCapacity   *prometheus.Desc
+	IPv4AddressesPerSubnetUsage      *prometheus.Desc
 
 	logger   *slog.Logger
 	timeout  time.Duration
@@ -73,6 +76,8 @@ func NewVPCExporter(configs []aws.Config, logger *slog.Logger, config VPCConfig,
 		RouteTablesPerVpcUsage:           prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_routetablespervpc_usage"), "The usage of route tables per vpc", []string{"aws_region", "vpcid"}, WithKeyValue(constLabels, QUOTA_CODE_KEY, QUOTA_ROUTE_TABLES_PER_VPC)),
 		IPv4BlocksPerVpcQuota:            prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_ipv4blockspervpc_quota"), "The quota of ipv4 blocks per vpc", []string{"aws_region"}, WithKeyValue(constLabels, QUOTA_CODE_KEY, QUOTA_IPV4_BLOCKS_PER_VPC)),
 		IPv4BlocksPerVpcUsage:            prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_ipv4blockspervpc_usage"), "The usage of ipv4 blocks per vpc", []string{"aws_region", "vpcid"}, WithKeyValue(constLabels, QUOTA_CODE_KEY, QUOTA_IPV4_BLOCKS_PER_VPC)),
+		IPv4AddressesPerSubnetCapacity:   prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_ipv4addressespersubnet_capacity"), "The amount of usable IPv4 addresses per subnet (based on CIDR)", []string{"aws_region", "vpcid", "subnetid"}, constLabels),
+		IPv4AddressesPerSubnetUsage:      prometheus.NewDesc(prometheus.BuildFQName(namespace, "", "vpc_ipv4addressespersubnet_usage"), "The usage of IPv4 addresses per subnet", []string{"aws_region", "vpcid", "subnetid"}, constLabels),
 		logger:                           logger,
 		timeout:                          *config.Timeout,
 		cache:                            *NewMetricsCache(*config.CacheTTL),
@@ -103,6 +108,7 @@ func (e *VPCExporter) CollectInRegion(cfg aws.Config, region string, wg *sync.Wa
 			e.collectInterfaceVpcEndpointsPerVpcUsage(allVpcs.Vpcs[i], ec2Svc, region)
 			e.collectRoutesTablesPerVpcUsage(allVpcs.Vpcs[i], ec2Svc, region)
 			e.collectIPv4BlocksPerVpcUsage(allVpcs.Vpcs[i], ec2Svc, region)
+			e.collectIPv4AddressesPerSubnetUsage(allVpcs.Vpcs[i], ec2Svc, region)
 		}
 	}
 	e.collectRoutesPerRouteTableQuota(quotaSvc, region)
@@ -322,6 +328,77 @@ func (e *VPCExporter) collectIPv4BlocksPerVpcUsage(vpc ec2_types.Vpc, ec2Svc *ec
 	e.cache.AddMetric(prometheus.MustNewConstMetric(e.IPv4BlocksPerVpcUsage, prometheus.GaugeValue, float64(quota), region, *vpc.VpcId))
 }
 
+func (e *VPCExporter) collectIPv4AddressesPerSubnetUsage(vpc ec2_types.Vpc, ec2Svc *ec2.Client, region string) {
+	ctx, cancelFunc := context.WithTimeout(context.Background(), e.timeout)
+	defer cancelFunc()
+
+	input := &ec2.DescribeSubnetsInput{
+		Filters: []ec2_types.Filter{{
+			Name:   aws.String("vpc-id"),
+			Values: []string{*vpc.VpcId},
+		}},
+	}
+
+	var subnets []ec2_types.Subnet
+	paginator := ec2.NewDescribeSubnetsPaginator(ec2Svc, input)
+
+	for paginator.HasMorePages() {
+		awsclient.AwsExporterMetrics.IncrementRequests()
+		result, err := paginator.NextPage(ctx)
+		if err != nil {
+			e.logger.Error("Call to DescribeSubnets failed", "region", region, "err", err)
+			awsclient.AwsExporterMetrics.IncrementErrors()
+			return
+		}
+		subnets = append(subnets, result.Subnets...)
+	}
+
+	for _, subnet := range subnets {
+		// Validate required fields
+		if subnet.SubnetId == nil {
+			e.logger.Error("Subnet has nil SubnetId", "region", region, "vpcId", *vpc.VpcId)
+			awsclient.AwsExporterMetrics.IncrementErrors()
+			continue
+		}
+		if subnet.CidrBlock == nil {
+			e.logger.Error("Subnet has nil CidrBlock", "region", region, "subnetId", *subnet.SubnetId)
+			awsclient.AwsExporterMetrics.IncrementErrors()
+			continue
+		}
+		if subnet.AvailableIpAddressCount == nil {
+			e.logger.Error("Subnet has nil AvailableIpAddressCount", "region", region, "subnetId", *subnet.SubnetId)
+			awsclient.AwsExporterMetrics.IncrementErrors()
+			continue
+		}
+
+		// Calculate total IPs from CIDR block
+		cidrBlock := *subnet.CidrBlock
+		totalIPs, err := CalculateTotalIPsFromCIDR(cidrBlock)
+		if err != nil {
+			e.logger.Error("Could not calculate total IPs from CIDR", "region", region, "subnetId", *subnet.SubnetId, "cidr", cidrBlock, "err", err)
+			awsclient.AwsExporterMetrics.IncrementErrors()
+			continue
+		}
+
+		// AWS reserves 5 IPs per subnet, so usable IPs = total - 5
+		// https://docs.aws.amazon.com/vpc/latest/userguide/subnet-sizing.html
+		usableIPs := totalIPs - AWS_RESERVED_IPS_PER_SUBNET
+		availableIPs := int64(*subnet.AvailableIpAddressCount)
+		usedIPs := usableIPs - availableIPs
+
+		// Validate that used IPs is not negative (sanity check)
+		if usedIPs < 0 {
+			e.logger.Error("Calculated negative used IPs", "region", region, "subnetId", *subnet.SubnetId, "usableIPs", usableIPs, "availableIPs", availableIPs)
+			awsclient.AwsExporterMetrics.IncrementErrors()
+			continue
+		}
+
+		// Add both quota and usage metrics
+		e.cache.AddMetric(prometheus.MustNewConstMetric(e.IPv4AddressesPerSubnetCapacity, prometheus.GaugeValue, float64(usableIPs), region, *vpc.VpcId, *subnet.SubnetId))
+		e.cache.AddMetric(prometheus.MustNewConstMetric(e.IPv4AddressesPerSubnetUsage, prometheus.GaugeValue, float64(usedIPs), region, *vpc.VpcId, *subnet.SubnetId))
+	}
+}
+
 func (e *VPCExporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- e.VpcsPerRegionQuota
 	ch <- e.VpcsPerRegionUsage
@@ -335,4 +412,6 @@ func (e *VPCExporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- e.InterfaceVpcEndpointsPerVpcUsage
 	ch <- e.RouteTablesPerVpcQuota
 	ch <- e.RoutesPerRouteTableUsage
+	ch <- e.IPv4AddressesPerSubnetCapacity
+	ch <- e.IPv4AddressesPerSubnetUsage
 }

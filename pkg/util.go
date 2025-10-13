@@ -2,6 +2,7 @@ package pkg
 
 import (
 	"errors"
+	"net"
 	"os"
 	"sort"
 	"strconv"
@@ -60,4 +61,26 @@ func GetEOLStatus(eol string, thresholds []Threshold) (string, error) {
 		}
 	}
 	return thresholds[len(thresholds)-1].Name, nil
+}
+
+// CalculateTotalIPsFromCIDR calculates the total number of IP addresses in a CIDR block using Go's net package
+func CalculateTotalIPsFromCIDR(cidrBlock string) (int64, error) {
+	_, ipNet, err := net.ParseCIDR(cidrBlock)
+	if err != nil {
+		return 0, err
+	}
+
+	// Get the prefix length
+	prefixLength, _ := ipNet.Mask.Size()
+
+	// Validate reasonable prefix length for IPv4 subnets (AWS supports /16 to /28)
+	if prefixLength < 16 || prefixLength > 28 {
+		return 0, errors.New("invalid subnet prefix length for AWS (must be /16 to /28)")
+	}
+
+	// For IPv4, calculate 2^(32-prefix_length)
+	hostBits := 32 - prefixLength
+	totalIPs := int64(1 << hostBits)
+
+	return totalIPs, nil
 }
