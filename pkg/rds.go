@@ -261,6 +261,12 @@ var DBMaxConnections = map[string]map[string]int64{
 	//
 	// M8
 	//
+	"db.m8g.large": map[string]int64{
+		// Memory: 8 GiB
+		"default":          900,
+		"default.mysql5.7": 600,
+		"default.mysql8.0": 600,
+	},
 	"db.m8g.2xlarge": map[string]int64{
 		// Memory: 32 GiB
 		"default":          3600,
