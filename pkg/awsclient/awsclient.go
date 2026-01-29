@@ -8,6 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/ec2"
+	ec2_types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
 	"github.com/aws/aws-sdk-go-v2/service/elasticache"
 	elasticache_types "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
@@ -24,10 +25,21 @@ import (
 
 // Client is a wrapper object for actual AWS SDK clients to allow for easier testing.
 type Client interface {
-	//EC2
+	// EC2
 	GetTransitGatewaysCount(ctx context.Context, input *ec2.DescribeTransitGatewaysInput) (int, error)
 
-	//RDS
+	// VPC
+	DescribeVpcsAll(ctx context.Context) ([]ec2_types.Vpc, error)
+	DescribeVpcsCount(ctx context.Context) (int, error)
+	DescribeSubnetsForVpc(ctx context.Context, vpcId string) ([]ec2_types.Subnet, error)
+	DescribeSubnetsCountForVpc(ctx context.Context, vpcId string) (int, error)
+	DescribeVpcEndpointsCountForVpc(ctx context.Context, vpcId string) (int, error)
+	DescribeRouteTablesAll(ctx context.Context) ([]ec2_types.RouteTable, error)
+	DescribeRouteTablesCountForVpc(ctx context.Context, vpcId string) (int, error)
+	DescribeRouteTable(ctx context.Context, routeTableId string) (*ec2_types.RouteTable, error)
+	DescribeVpc(ctx context.Context, vpcId string) (*ec2_types.Vpc, error)
+
+	// RDS
 	DescribeDBLogFilesAll(ctx context.Context, instanceId string) ([]*rds.DescribeDBLogFilesOutput, error)
 	DescribePendingMaintenanceActionsAll(ctx context.Context) ([]rds_types.ResourcePendingMaintenanceActions, error)
 	DescribeDBInstancesAll(ctx context.Context) ([]rds_types.DBInstance, error)
@@ -72,6 +84,158 @@ func (c *awsClient) GetTransitGatewaysCount(ctx context.Context, input *ec2.Desc
 		count += len(result.TransitGateways)
 	}
 	return count, nil
+}
+
+// VPC Functions
+
+func (c *awsClient) DescribeVpcsAll(ctx context.Context) ([]ec2_types.Vpc, error) {
+	var vpcs []ec2_types.Vpc
+	paginator := ec2.NewDescribeVpcsPaginator(c.ec2Client, &ec2.DescribeVpcsInput{})
+	for paginator.HasMorePages() {
+		AwsExporterMetrics.IncrementRequests()
+		result, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+		vpcs = append(vpcs, result.Vpcs...)
+	}
+	return vpcs, nil
+}
+
+func (c *awsClient) DescribeVpcsCount(ctx context.Context) (int, error) {
+	count := 0
+	paginator := ec2.NewDescribeVpcsPaginator(c.ec2Client, &ec2.DescribeVpcsInput{})
+	for paginator.HasMorePages() {
+		AwsExporterMetrics.IncrementRequests()
+		result, err := paginator.NextPage(ctx)
+		if err != nil {
+			return 0, err
+		}
+		count += len(result.Vpcs)
+	}
+	return count, nil
+}
+
+func (c *awsClient) DescribeSubnetsForVpc(ctx context.Context, vpcId string) ([]ec2_types.Subnet, error) {
+	var subnets []ec2_types.Subnet
+	input := &ec2.DescribeSubnetsInput{
+		Filters: []ec2_types.Filter{{
+			Name:   aws.String("vpc-id"),
+			Values: []string{vpcId},
+		}},
+	}
+	paginator := ec2.NewDescribeSubnetsPaginator(c.ec2Client, input)
+	for paginator.HasMorePages() {
+		AwsExporterMetrics.IncrementRequests()
+		result, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+		subnets = append(subnets, result.Subnets...)
+	}
+	return subnets, nil
+}
+
+func (c *awsClient) DescribeSubnetsCountForVpc(ctx context.Context, vpcId string) (int, error) {
+	count := 0
+	input := &ec2.DescribeSubnetsInput{
+		Filters: []ec2_types.Filter{{
+			Name:   aws.String("vpc-id"),
+			Values: []string{vpcId},
+		}},
+	}
+	paginator := ec2.NewDescribeSubnetsPaginator(c.ec2Client, input)
+	for paginator.HasMorePages() {
+		AwsExporterMetrics.IncrementRequests()
+		result, err := paginator.NextPage(ctx)
+		if err != nil {
+			return 0, err
+		}
+		count += len(result.Subnets)
+	}
+	return count, nil
+}
+
+func (c *awsClient) DescribeVpcEndpointsCountForVpc(ctx context.Context, vpcId string) (int, error) {
+	count := 0
+	input := &ec2.DescribeVpcEndpointsInput{
+		Filters: []ec2_types.Filter{{
+			Name:   aws.String("vpc-id"),
+			Values: []string{vpcId},
+		}},
+	}
+	paginator := ec2.NewDescribeVpcEndpointsPaginator(c.ec2Client, input)
+	for paginator.HasMorePages() {
+		AwsExporterMetrics.IncrementRequests()
+		result, err := paginator.NextPage(ctx)
+		if err != nil {
+			return 0, err
+		}
+		count += len(result.VpcEndpoints)
+	}
+	return count, nil
+}
+
+func (c *awsClient) DescribeRouteTablesAll(ctx context.Context) ([]ec2_types.RouteTable, error) {
+	var routeTables []ec2_types.RouteTable
+	paginator := ec2.NewDescribeRouteTablesPaginator(c.ec2Client, &ec2.DescribeRouteTablesInput{})
+	for paginator.HasMorePages() {
+		AwsExporterMetrics.IncrementRequests()
+		result, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+		routeTables = append(routeTables, result.RouteTables...)
+	}
+	return routeTables, nil
+}
+
+func (c *awsClient) DescribeRouteTablesCountForVpc(ctx context.Context, vpcId string) (int, error) {
+	count := 0
+	input := &ec2.DescribeRouteTablesInput{
+		Filters: []ec2_types.Filter{{
+			Name:   aws.String("vpc-id"),
+			Values: []string{vpcId},
+		}},
+	}
+	paginator := ec2.NewDescribeRouteTablesPaginator(c.ec2Client, input)
+	for paginator.HasMorePages() {
+		AwsExporterMetrics.IncrementRequests()
+		result, err := paginator.NextPage(ctx)
+		if err != nil {
+			return 0, err
+		}
+		count += len(result.RouteTables)
+	}
+	return count, nil
+}
+
+func (c *awsClient) DescribeRouteTable(ctx context.Context, routeTableId string) (*ec2_types.RouteTable, error) {
+	AwsExporterMetrics.IncrementRequests()
+	result, err := c.ec2Client.DescribeRouteTables(ctx, &ec2.DescribeRouteTablesInput{
+		RouteTableIds: []string{routeTableId},
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(result.RouteTables) != 1 {
+		return nil, nil
+	}
+	return &result.RouteTables[0], nil
+}
+
+func (c *awsClient) DescribeVpc(ctx context.Context, vpcId string) (*ec2_types.Vpc, error) {
+	AwsExporterMetrics.IncrementRequests()
+	result, err := c.ec2Client.DescribeVpcs(ctx, &ec2.DescribeVpcsInput{
+		VpcIds: []string{vpcId},
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(result.Vpcs) != 1 {
+		return nil, nil
+	}
+	return &result.Vpcs[0], nil
 }
 
 func (c *awsClient) GetServiceQuota(ctx context.Context, input *servicequotas.GetServiceQuotaInput, optFns ...func(*servicequotas.Options)) (*servicequotas.GetServiceQuotaOutput, error) {
