@@ -9,13 +9,14 @@ import (
 	reflect "reflect"
 
 	ec2 "github.com/aws/aws-sdk-go-v2/service/ec2"
-	types "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
+	types "github.com/aws/aws-sdk-go-v2/service/ec2/types"
+	types0 "github.com/aws/aws-sdk-go-v2/service/elasticache/types"
 	iam "github.com/aws/aws-sdk-go-v2/service/iam"
-	types0 "github.com/aws/aws-sdk-go-v2/service/kafka/types"
+	types1 "github.com/aws/aws-sdk-go-v2/service/kafka/types"
 	rds "github.com/aws/aws-sdk-go-v2/service/rds"
-	types1 "github.com/aws/aws-sdk-go-v2/service/rds/types"
+	types2 "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	route53 "github.com/aws/aws-sdk-go-v2/service/route53"
-	types2 "github.com/aws/aws-sdk-go-v2/service/route53/types"
+	types3 "github.com/aws/aws-sdk-go-v2/service/route53/types"
 	servicequotas "github.com/aws/aws-sdk-go-v2/service/servicequotas"
 	gomock "github.com/golang/mock/gomock"
 )
@@ -44,10 +45,10 @@ func (m *MockClient) EXPECT() *MockClientMockRecorder {
 }
 
 // DescribeCacheClustersAll mocks base method.
-func (m *MockClient) DescribeCacheClustersAll(ctx context.Context) ([]types.CacheCluster, error) {
+func (m *MockClient) DescribeCacheClustersAll(ctx context.Context) ([]types0.CacheCluster, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DescribeCacheClustersAll", ctx)
-	ret0, _ := ret[0].([]types.CacheCluster)
+	ret0, _ := ret[0].([]types0.CacheCluster)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -59,10 +60,10 @@ func (mr *MockClientMockRecorder) DescribeCacheClustersAll(ctx interface{}) *gom
 }
 
 // DescribeDBInstancesAll mocks base method.
-func (m *MockClient) DescribeDBInstancesAll(ctx context.Context) ([]types1.DBInstance, error) {
+func (m *MockClient) DescribeDBInstancesAll(ctx context.Context) ([]types2.DBInstance, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DescribeDBInstancesAll", ctx)
-	ret0, _ := ret[0].([]types1.DBInstance)
+	ret0, _ := ret[0].([]types2.DBInstance)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -89,10 +90,10 @@ func (mr *MockClientMockRecorder) DescribeDBLogFilesAll(ctx, instanceId interfac
 }
 
 // DescribePendingMaintenanceActionsAll mocks base method.
-func (m *MockClient) DescribePendingMaintenanceActionsAll(ctx context.Context) ([]types1.ResourcePendingMaintenanceActions, error) {
+func (m *MockClient) DescribePendingMaintenanceActionsAll(ctx context.Context) ([]types2.ResourcePendingMaintenanceActions, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DescribePendingMaintenanceActionsAll", ctx)
-	ret0, _ := ret[0].([]types1.ResourcePendingMaintenanceActions)
+	ret0, _ := ret[0].([]types2.ResourcePendingMaintenanceActions)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -101,6 +102,141 @@ func (m *MockClient) DescribePendingMaintenanceActionsAll(ctx context.Context) (
 func (mr *MockClientMockRecorder) DescribePendingMaintenanceActionsAll(ctx interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribePendingMaintenanceActionsAll", reflect.TypeOf((*MockClient)(nil).DescribePendingMaintenanceActionsAll), ctx)
+}
+
+// DescribeRouteTable mocks base method.
+func (m *MockClient) DescribeRouteTable(ctx context.Context, routeTableId string) (*types.RouteTable, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DescribeRouteTable", ctx, routeTableId)
+	ret0, _ := ret[0].(*types.RouteTable)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DescribeRouteTable indicates an expected call of DescribeRouteTable.
+func (mr *MockClientMockRecorder) DescribeRouteTable(ctx, routeTableId interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeRouteTable", reflect.TypeOf((*MockClient)(nil).DescribeRouteTable), ctx, routeTableId)
+}
+
+// DescribeRouteTablesAll mocks base method.
+func (m *MockClient) DescribeRouteTablesAll(ctx context.Context) ([]types.RouteTable, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DescribeRouteTablesAll", ctx)
+	ret0, _ := ret[0].([]types.RouteTable)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DescribeRouteTablesAll indicates an expected call of DescribeRouteTablesAll.
+func (mr *MockClientMockRecorder) DescribeRouteTablesAll(ctx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeRouteTablesAll", reflect.TypeOf((*MockClient)(nil).DescribeRouteTablesAll), ctx)
+}
+
+// DescribeRouteTablesCountForVpc mocks base method.
+func (m *MockClient) DescribeRouteTablesCountForVpc(ctx context.Context, vpcId string) (int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DescribeRouteTablesCountForVpc", ctx, vpcId)
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DescribeRouteTablesCountForVpc indicates an expected call of DescribeRouteTablesCountForVpc.
+func (mr *MockClientMockRecorder) DescribeRouteTablesCountForVpc(ctx, vpcId interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeRouteTablesCountForVpc", reflect.TypeOf((*MockClient)(nil).DescribeRouteTablesCountForVpc), ctx, vpcId)
+}
+
+// DescribeSubnetsCountForVpc mocks base method.
+func (m *MockClient) DescribeSubnetsCountForVpc(ctx context.Context, vpcId string) (int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DescribeSubnetsCountForVpc", ctx, vpcId)
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DescribeSubnetsCountForVpc indicates an expected call of DescribeSubnetsCountForVpc.
+func (mr *MockClientMockRecorder) DescribeSubnetsCountForVpc(ctx, vpcId interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeSubnetsCountForVpc", reflect.TypeOf((*MockClient)(nil).DescribeSubnetsCountForVpc), ctx, vpcId)
+}
+
+// DescribeSubnetsForVpc mocks base method.
+func (m *MockClient) DescribeSubnetsForVpc(ctx context.Context, vpcId string) ([]types.Subnet, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DescribeSubnetsForVpc", ctx, vpcId)
+	ret0, _ := ret[0].([]types.Subnet)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DescribeSubnetsForVpc indicates an expected call of DescribeSubnetsForVpc.
+func (mr *MockClientMockRecorder) DescribeSubnetsForVpc(ctx, vpcId interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeSubnetsForVpc", reflect.TypeOf((*MockClient)(nil).DescribeSubnetsForVpc), ctx, vpcId)
+}
+
+// DescribeVpc mocks base method.
+func (m *MockClient) DescribeVpc(ctx context.Context, vpcId string) (*types.Vpc, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DescribeVpc", ctx, vpcId)
+	ret0, _ := ret[0].(*types.Vpc)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DescribeVpc indicates an expected call of DescribeVpc.
+func (mr *MockClientMockRecorder) DescribeVpc(ctx, vpcId interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeVpc", reflect.TypeOf((*MockClient)(nil).DescribeVpc), ctx, vpcId)
+}
+
+// DescribeVpcEndpointsCountForVpc mocks base method.
+func (m *MockClient) DescribeVpcEndpointsCountForVpc(ctx context.Context, vpcId string) (int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DescribeVpcEndpointsCountForVpc", ctx, vpcId)
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DescribeVpcEndpointsCountForVpc indicates an expected call of DescribeVpcEndpointsCountForVpc.
+func (mr *MockClientMockRecorder) DescribeVpcEndpointsCountForVpc(ctx, vpcId interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeVpcEndpointsCountForVpc", reflect.TypeOf((*MockClient)(nil).DescribeVpcEndpointsCountForVpc), ctx, vpcId)
+}
+
+// DescribeVpcsAll mocks base method.
+func (m *MockClient) DescribeVpcsAll(ctx context.Context) ([]types.Vpc, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DescribeVpcsAll", ctx)
+	ret0, _ := ret[0].([]types.Vpc)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DescribeVpcsAll indicates an expected call of DescribeVpcsAll.
+func (mr *MockClientMockRecorder) DescribeVpcsAll(ctx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeVpcsAll", reflect.TypeOf((*MockClient)(nil).DescribeVpcsAll), ctx)
+}
+
+// DescribeVpcsCount mocks base method.
+func (m *MockClient) DescribeVpcsCount(ctx context.Context) (int, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DescribeVpcsCount", ctx)
+	ret0, _ := ret[0].(int)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DescribeVpcsCount indicates an expected call of DescribeVpcsCount.
+func (mr *MockClientMockRecorder) DescribeVpcsCount(ctx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeVpcsCount", reflect.TypeOf((*MockClient)(nil).DescribeVpcsCount), ctx)
 }
 
 // GetAccountSummary mocks base method.
@@ -179,10 +315,10 @@ func (mr *MockClientMockRecorder) GetTransitGatewaysCount(ctx, input interface{}
 }
 
 // ListClustersAll mocks base method.
-func (m *MockClient) ListClustersAll(ctx context.Context) ([]types0.ClusterInfo, error) {
+func (m *MockClient) ListClustersAll(ctx context.Context) ([]types1.ClusterInfo, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListClustersAll", ctx)
-	ret0, _ := ret[0].([]types0.ClusterInfo)
+	ret0, _ := ret[0].([]types1.ClusterInfo)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -194,10 +330,10 @@ func (mr *MockClientMockRecorder) ListClustersAll(ctx interface{}) *gomock.Call 
 }
 
 // ListHostedZonesAll mocks base method.
-func (m *MockClient) ListHostedZonesAll(ctx context.Context) ([]types2.HostedZone, error) {
+func (m *MockClient) ListHostedZonesAll(ctx context.Context) ([]types3.HostedZone, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ListHostedZonesAll", ctx)
-	ret0, _ := ret[0].([]types2.HostedZone)
+	ret0, _ := ret[0].([]types3.HostedZone)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
