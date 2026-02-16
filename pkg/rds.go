@@ -43,7 +43,7 @@ var metricsProxy = NewMetricProxy()
 
 // Non Aurora: https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_Limits.html#RDS_Limits.MaxConnections
 // DBInstanceClassMemory in bytes: Memory (in GiB) * 1024 * 1024 * 1024
-// Attention: DBInstanceClassMemory is the real memory available for the DB procoess and not all the instance memory!
+// Attention: DBInstanceClassMemory is the real memory available for the DB process and not all the instance memory!
 // * postgres: LEAST({DBInstanceClassMemory_in_Bytes / 9531392},5000)
 // * mysql: {DBInstanceClassMemory/12582880} - 50 and round down to the nearest hundreds.
 
@@ -267,11 +267,53 @@ var DBMaxConnections = map[string]map[string]int64{
 		"default.mysql5.7": 600,
 		"default.mysql8.0": 600,
 	},
+	"db.m8g.xlarge": map[string]int64{
+		// Memory: 16 GiB
+		"default":          1800,
+		"default.mysql5.7": 1300,
+		"default.mysql8.0": 1300,
+	},
 	"db.m8g.2xlarge": map[string]int64{
 		// Memory: 32 GiB
 		"default":          3600,
 		"default.mysql5.7": 2600,
 		"default.mysql8.0": 2600,
+	},
+	"db.m8g.4xlarge": map[string]int64{
+		// Memory: 64 GiB
+		"default":          5000,
+		"default.mysql5.7": 5300,
+		"default.mysql8.0": 5300,
+	},
+	"db.m8g.8xlarge": map[string]int64{
+		// Memory: 128 GiB
+		"default":          5000,
+		"default.mysql5.7": 10700,
+		"default.mysql8.0": 10700,
+	},
+	"db.m8g.12xlarge": map[string]int64{
+		// Memory: 256 GiB
+		"default":          5000,
+		"default.mysql5.7": 21600,
+		"default.mysql8.0": 21600,
+	},
+	"db.m8g.16xlarge": map[string]int64{
+		// Memory: 384 GiB
+		"default":          5000,
+		"default.mysql5.7": 32700,
+		"default.mysql8.0": 32700,
+	},
+	"db.m8g.24xlarge": map[string]int64{
+		// Memory: 512 GiB
+		"default":          5000,
+		"default.mysql5.7": 43400,
+		"default.mysql8.0": 43400,
+	},
+	"db.m8g.48xlarge": map[string]int64{
+		// Memory: 768 GiB
+		"default":          5000,
+		"default.mysql5.7": 65400,
+		"default.mysql8.0": 65400,
 	},
 
 	//
@@ -335,8 +377,8 @@ var DBMaxConnections = map[string]map[string]int64{
 	"db.r6g.12xlarge": map[string]int64{
 		// Memory: 384 GiB
 		"default":          5000,
-		"default.mysql5.7": 32768,
-		"default.mysql8.0": 32768,
+		"default.mysql5.7": 32700,
+		"default.mysql8.0": 32700,
 	},
 	"db.r6i.large": map[string]int64{
 		// Memory: 16 GiB
