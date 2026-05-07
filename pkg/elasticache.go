@@ -3,6 +3,8 @@ package pkg
 import (
 	"context"
 	"log/slog"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/app-sre/aws-resource-exporter/pkg/awsclient"
@@ -53,6 +55,33 @@ func (e *ElastiCacheExporter) getRegion(configIndex int) string {
 	return e.configs[configIndex].Region
 }
 
+// resolveElastiCacheEngine normalizes the engine label for ElastiCache metrics.
+// AWS ElastiCache Valkey starts at version 7.2. Clusters that were migrated
+// in-place from Redis to Valkey may still report Engine="redis" in the AWS API
+// while actually running Valkey. This function uses the version as the
+// definitive signal: major >= 7 and minor >= 2 means Valkey.
+func resolveElastiCacheEngine(reportedEngine, engineVersion string) string {
+	if reportedEngine == "valkey" {
+		return "valkey"
+	}
+	parts := strings.SplitN(engineVersion, ".", 3)
+	if len(parts) < 2 {
+		return reportedEngine
+	}
+	major, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return reportedEngine
+	}
+	minor, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return reportedEngine
+	}
+	if major > 7 || (major == 7 && minor >= 2) {
+		return "valkey"
+	}
+	return reportedEngine
+}
+
 // Adds ElastiCache info to metrics cache
 func (e *ElastiCacheExporter) addMetricFromElastiCacheInfo(configIndex int, clusters []elasticache_types.CacheCluster) {
 	region := e.getRegion(configIndex)
@@ -70,6 +99,8 @@ func (e *ElastiCacheExporter) addMetricFromElastiCacheInfo(configIndex int, clus
 		if cluster.EngineVersion != nil {
 			engineVersion = *cluster.EngineVersion
 		}
+
+		engine = resolveElastiCacheEngine(engine, engineVersion)
 
 		e.cache.AddMetric(prometheus.MustNewConstMetric(RedisVersion, prometheus.GaugeValue, 1, region, replicationGroupId, engine, engineVersion, e.awsAccountId))
 	}
