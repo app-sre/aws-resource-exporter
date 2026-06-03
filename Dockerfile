@@ -1,4 +1,4 @@
-FROM registry.access.redhat.com/ubi9/go-toolset:1.26.3-1780373831@sha256:49f5929f6674d75377902ddcc2f46baf7a5cfcaada2497ee43f66e090943afd6 as builder
+FROM registry.access.redhat.com/ubi9/go-toolset:1.26.3-1780434037@sha256:355b23fe885cf565c9313a7e98db742df0aec21456244e808942c56489594251 as builder
 COPY LICENSE /licenses/LICENSE
 WORKDIR /build
 RUN git config --global --add safe.directory /build
