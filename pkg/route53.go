@@ -36,10 +36,11 @@ type Route53Exporter struct {
 	LastUpdateTime             *prometheus.Desc
 	Cancel                     context.CancelFunc
 
-	cache    MetricsCache
-	logger   *slog.Logger
-	interval time.Duration
-	timeout  time.Duration
+	cache         MetricsCache
+	logger        *slog.Logger
+	interval      time.Duration
+	timeout       time.Duration
+	skipZoneLimit bool
 }
 
 func NewRoute53Exporter(cfg aws.Config, logger *slog.Logger, config Route53Config, awsAccountId string) *Route53Exporter {
@@ -58,6 +59,7 @@ func NewRoute53Exporter(cfg aws.Config, logger *slog.Logger, config Route53Confi
 		logger:                     logger,
 		interval:                   *config.Interval,
 		timeout:                    *config.Timeout,
+		skipZoneLimit:              config.SkipZoneLimit,
 	}
 	return exporter
 }
@@ -136,10 +138,14 @@ func (e *Route53Exporter) CollectLoop() {
 			awsclient.AwsExporterMetrics.IncrementErrors()
 		}
 
-		errs := e.getRecordsPerHostedZoneMetrics(client, hostedZones, ctx)
-		for _, err = range errs {
-			e.logger.Error("Could not get limits for hosted zone", "error", err.Error())
-			awsclient.AwsExporterMetrics.IncrementErrors()
+		if e.skipZoneLimit {
+			e.logger.Info("Skipping per-zone limit metrics (skip_zone_limit is enabled)")
+		} else {
+			errs := e.getRecordsPerHostedZoneMetrics(client, hostedZones, ctx)
+			for _, err = range errs {
+				e.logger.Error("Could not get limits for hosted zone", "error", err.Error())
+				awsclient.AwsExporterMetrics.IncrementErrors()
+			}
 		}
 
 		e.logger.Info("Route53 metrics Updated")

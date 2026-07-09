@@ -44,8 +44,9 @@ type VPCConfig struct {
 }
 
 type Route53Config struct {
-	BaseConfig `yaml:"base,inline"`
-	Region     string `yaml:"region"` // Use only a single Region for now, as the current metric is global
+	BaseConfig    `yaml:"base,inline"`
+	Region        string `yaml:"region"` // Use only a single Region for now, as the current metric is global
+	SkipZoneLimit bool   `yaml:"skip_zone_limit"`
 }
 
 type EC2Config struct {
