@@ -317,6 +317,17 @@ var DBMaxConnections = map[string]map[string]int64{
 	},
 
 	//
+	// M9g
+	//
+	"db.m9g.large": map[string]int64{
+		// Memory: 8 GiB (pattern-derived from m5/m6g/m7g/m8g .large, all 8 GiB;
+		// not yet confirmed against a live instance via pg_settings/SHOW VARIABLES)
+		"default":          900,
+		"default.mysql5.7": 600,
+		"default.mysql8.0": 600,
+	},
+
+	//
 	// R5
 	//
 	"db.r5.large": map[string]int64{
