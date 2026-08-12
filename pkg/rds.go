@@ -326,6 +326,13 @@ var DBMaxConnections = map[string]map[string]int64{
 		"default.mysql5.7": 600,
 		"default.mysql8.0": 600,
 	},
+	"db.m9g.2xlarge": map[string]int64{
+		// Memory: 32 GiB (8 vCPU / 32 GiB per https://instances.vantage.sh/aws/ec2/m9g.2xlarge,
+		// consistent with every prior M-family .2xlarge generation in this table)
+		"default":          3600,
+		"default.mysql5.7": 2600,
+		"default.mysql8.0": 2600,
+	},
 
 	//
 	// R5
