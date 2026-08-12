@@ -326,6 +326,54 @@ var DBMaxConnections = map[string]map[string]int64{
 		"default.mysql5.7": 600,
 		"default.mysql8.0": 600,
 	},
+	"db.m9g.xlarge": map[string]int64{
+		// Memory: 16 GiB
+		"default":          1800,
+		"default.mysql5.7": 1300,
+		"default.mysql8.0": 1300,
+	},
+	"db.m9g.2xlarge": map[string]int64{
+		// Memory: 32 GiB
+		"default":          3600,
+		"default.mysql5.7": 2600,
+		"default.mysql8.0": 2600,
+	},
+	"db.m9g.4xlarge": map[string]int64{
+		// Memory: 64 GiB
+		"default":          5000,
+		"default.mysql5.7": 5300,
+		"default.mysql8.0": 5300,
+	},
+	"db.m9g.8xlarge": map[string]int64{
+		// Memory: 128 GiB
+		"default":          5000,
+		"default.mysql5.7": 10700,
+		"default.mysql8.0": 10700,
+	},
+	"db.m9g.12xlarge": map[string]int64{
+		// Memory: 192 GiB
+		"default":          5000,
+		"default.mysql5.7": 16200,
+		"default.mysql8.0": 16200,
+	},
+	"db.m9g.16xlarge": map[string]int64{
+		// Memory: 256 GiB
+		"default":          5000,
+		"default.mysql5.7": 21600,
+		"default.mysql8.0": 21600,
+	},
+	"db.m9g.24xlarge": map[string]int64{
+		// Memory: 384 GiB
+		"default":          5000,
+		"default.mysql5.7": 32700,
+		"default.mysql8.0": 32700,
+	},
+	"db.m9g.48xlarge": map[string]int64{
+		// Memory: 768 GiB
+		"default":          5000,
+		"default.mysql5.7": 65400,
+		"default.mysql8.0": 65400,
+	},
 
 	//
 	// R5
