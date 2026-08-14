@@ -739,6 +739,7 @@ func (e *RDSExporter) addAllInstanceMetrics(configIndex int, instances []rds_typ
 			e.logger.Info("RDS EOL not found for engine version",
 				slog.String("engine", *instance.Engine),
 				slog.String("version", *instance.EngineVersion))
+			e.cache.AddMetric(prometheus.MustNewConstMetric(EOLInfos, prometheus.GaugeValue, 1, e.getRegion(configIndex), *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion, "no-eol-date", "red"))
 		}
 
 		var public = 0.0

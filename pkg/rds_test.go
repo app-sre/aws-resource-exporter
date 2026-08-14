@@ -96,7 +96,38 @@ func TestAddAllInstanceMetrics(t *testing.T) {
 	assert.Len(t, x.cache.GetAllMetrics(), 0)
 
 	x.addAllInstanceMetrics(0, createTestDBInstances(), eolInfos)
-	assert.Len(t, x.cache.GetAllMetrics(), 9)
+	assert.Len(t, x.cache.GetAllMetrics(), 10)
+}
+
+func TestAddAllInstanceMetricsWithEOLMiss(t *testing.T) {
+	x := RDSExporter{
+		configs: []aws.Config{{Region: "foo"}},
+		cache:   *NewMetricsCache(10 * time.Second),
+		logger:  slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	// eolInfos has no entry matching the test instance's engine/version
+	eolInfos := []EOLInfo{
+		{Engine: "engine", Version: "123", EOL: "2023-12-01"},
+	}
+
+	x.addAllInstanceMetrics(0, createTestDBInstances(), eolInfos)
+
+	labels, err := getMetricLabels(&x, EOLInfos, "eol_date", "eol_status")
+	if err != nil {
+		t.Errorf("Error retrieving EOL labels: %v", err)
+	}
+
+	expectedEOLDate := "no-eol-date"
+	expectedEOLStatus := "red"
+
+	if eolDate, ok := labels["eol_date"]; !ok || eolDate != expectedEOLDate {
+		t.Errorf("EOLDate metric has an unexpected value. Expected: %s, Actual: %s", expectedEOLDate, eolDate)
+	}
+
+	if eolStatus, ok := labels["eol_status"]; !ok || eolStatus != expectedEOLStatus {
+		t.Errorf("EOLStatus metric has an unexpected value. Expected: %s, Actual: %s", expectedEOLStatus, eolStatus)
+	}
 }
 
 func TestAddAllInstanceMetricsWithEOLMatch(t *testing.T) {
