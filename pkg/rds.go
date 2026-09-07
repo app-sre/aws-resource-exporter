@@ -40,6 +40,7 @@ var metricsProxy = NewMetricProxy()
 // This is a dump workaround created because by default the DB Parameter Group `max_connections` is a function
 // that is hard to parse and process in code and it contains a variable whose value is unknown to us (DBInstanceClassMemory)
 // AWS has no means to return the actual `max_connections` value.
+// The values below are expected defaults; custom parameter-group overrides are not resolved here.
 
 // Non Aurora: https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/CHAP_Limits.html#RDS_Limits.MaxConnections
 // DBInstanceClassMemory in bytes: Memory (in GiB) * 1024 * 1024 * 1024
@@ -431,15 +432,9 @@ var DBMaxConnections = map[string]map[string]int64{
 	},
 
 	//
-	// R6
+	// R6g
 	//
-	"db.r6g.12xlarge": map[string]int64{
-		// Memory: 384 GiB
-		"default":          5000,
-		"default.mysql5.7": 32700,
-		"default.mysql8.0": 32700,
-	},
-	"db.r6i.large": map[string]int64{
+	"db.r6g.large": map[string]int64{
 		// Memory: 16 GiB
 		"default":          1800,
 		"default.mysql5.7": 1300,
@@ -447,7 +442,79 @@ var DBMaxConnections = map[string]map[string]int64{
 	},
 	"db.r6g.xlarge": map[string]int64{
 		// Memory: 32 GiB
-		"default": 3484,
+		"default":          3600,
+		"default.mysql5.7": 2600,
+		"default.mysql8.0": 2600,
+	},
+	"db.r6g.2xlarge": map[string]int64{
+		// Memory: 64 GiB
+		"default":          5000,
+		"default.mysql5.7": 5300,
+		"default.mysql8.0": 5300,
+	},
+	"db.r6g.4xlarge": map[string]int64{
+		// Memory: 128 GiB
+		"default":          5000,
+		"default.mysql5.7": 10700,
+		"default.mysql8.0": 10700,
+	},
+	"db.r6g.8xlarge": map[string]int64{
+		// Memory: 256 GiB
+		"default":          5000,
+		"default.mysql5.7": 21600,
+		"default.mysql8.0": 21600,
+	},
+	"db.r6g.12xlarge": map[string]int64{
+		// Memory: 384 GiB
+		"default":          5000,
+		"default.mysql5.7": 32700,
+		"default.mysql8.0": 32700,
+	},
+	"db.r6g.16xlarge": map[string]int64{
+		// Memory: 512 GiB
+		"default":          5000,
+		"default.mysql5.7": 43400,
+		"default.mysql8.0": 43400,
+	},
+
+	//
+	// R6i
+	//
+	"db.r6i.large": map[string]int64{
+		// Memory: 16 GiB
+		"default":          1800,
+		"default.mysql5.7": 1300,
+		"default.mysql8.0": 1300,
+	},
+	"db.r6i.xlarge": map[string]int64{
+		// Memory: 32 GiB
+		"default":          3600,
+		"default.mysql5.7": 2600,
+		"default.mysql8.0": 2600,
+	},
+	"db.r6i.2xlarge": map[string]int64{
+		// Memory: 64 GiB
+		"default":          5000,
+		"default.mysql5.7": 5300,
+		"default.mysql8.0": 5300,
+	},
+	"db.r6i.4xlarge": map[string]int64{
+		// Memory: 128 GiB
+		"default":          5000,
+		"default.mysql5.7": 10700,
+		"default.mysql8.0": 10700,
+	},
+	"db.r6i.8xlarge": map[string]int64{
+		// Memory: 256 GiB
+		"default":          5000,
+		"default.mysql5.7": 21600,
+		"default.mysql8.0": 21600,
+	},
+	"db.r6i.12xlarge": map[string]int64{
+		// Memory: 384 GiB
+		"default":          5000,
+		"default.mysql5.7": 32700,
+		"default.mysql8.0": 32700,
 	},
 	"db.r6i.16xlarge": map[string]int64{
 		// Memory: 512 GiB
@@ -457,13 +524,15 @@ var DBMaxConnections = map[string]map[string]int64{
 	},
 	"db.r6i.24xlarge": map[string]int64{
 		// Memory: 768 GiB
-		"default": 5000,
-	},
-	"db.r6g.8xlarge": map[string]int64{
-		// Memory: 256 GiB
 		"default":          5000,
-		"default.mysql5.7": 21600,
-		"default.mysql8.0": 21600,
+		"default.mysql5.7": 65400,
+		"default.mysql8.0": 65400,
+	},
+	"db.r6i.32xlarge": map[string]int64{
+		// Memory: 1024 GiB
+		"default":          5000,
+		"default.mysql5.7": 87300,
+		"default.mysql8.0": 87300,
 	},
 
 	//
