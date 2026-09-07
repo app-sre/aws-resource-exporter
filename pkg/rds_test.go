@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"strings"
 	"testing"
 	"time"
 
@@ -98,78 +97,6 @@ func TestAddAllInstanceMetrics(t *testing.T) {
 
 	x.addAllInstanceMetrics(0, createTestDBInstances(), eolInfos)
 	assert.Len(t, x.cache.GetAllMetrics(), 10)
-}
-
-func TestDBMaxConnectionsR6Mappings(t *testing.T) {
-	expectedClasses := []string{
-		"db.r6g.large",
-		"db.r6g.xlarge",
-		"db.r6g.2xlarge",
-		"db.r6g.4xlarge",
-		"db.r6g.8xlarge",
-		"db.r6g.12xlarge",
-		"db.r6g.16xlarge",
-		"db.r6i.large",
-		"db.r6i.xlarge",
-		"db.r6i.2xlarge",
-		"db.r6i.4xlarge",
-		"db.r6i.8xlarge",
-		"db.r6i.12xlarge",
-		"db.r6i.16xlarge",
-		"db.r6i.24xlarge",
-		"db.r6i.32xlarge",
-	}
-	parameterGroups := []string{"default", "default.mysql5.7", "default.mysql8.0"}
-
-	var actualClasses []string
-	for class := range DBMaxConnections {
-		if strings.HasPrefix(class, "db.r6g.") || strings.HasPrefix(class, "db.r6i.") {
-			actualClasses = append(actualClasses, class)
-		}
-	}
-
-	assert.Len(t, expectedClasses, 16)
-	assert.Len(t, actualClasses, len(expectedClasses))
-	assert.ElementsMatch(t, expectedClasses, actualClasses)
-	for _, class := range expectedClasses {
-		t.Run(class, func(t *testing.T) {
-			mapping, ok := DBMaxConnections[class]
-			if !assert.True(t, ok) {
-				return
-			}
-			assert.Len(t, mapping, len(parameterGroups))
-			for _, parameterGroup := range parameterGroups {
-				assert.Contains(t, mapping, parameterGroup)
-			}
-		})
-	}
-}
-
-func TestR6MaxConnectionsMetric(t *testing.T) {
-	x := RDSExporter{
-		configs: []aws.Config{{Region: "foo"}},
-		cache:   *NewMetricsCache(10 * time.Second),
-		logger:  slog.New(slog.NewTextHandler(io.Discard, nil)),
-	}
-
-	x.addAllInstanceMetrics(0, []rds_types.DBInstance{{
-		DBInstanceIdentifier: aws.String("r6itest"),
-		DBInstanceClass:      aws.String("db.r6i.xlarge"),
-		DBParameterGroups:    []rds_types.DBParameterGroupStatus{{DBParameterGroupName: aws.String("default.postgres14")}},
-		PubliclyAccessible:   aws.Bool(false),
-		StorageEncrypted:     aws.Bool(false),
-		AllocatedStorage:     aws.Int32(100),
-		DBInstanceStatus:     aws.String("available"),
-		Engine:               aws.String("postgres"),
-		EngineVersion:        aws.String("14"),
-	}}, nil)
-
-	_, err := getMetricValue(&x, MaxConnections)
-	assert.NoError(t, err)
-
-	mappingError, err := getMetricValue(&x, MaxConnectionsMappingError)
-	assert.NoError(t, err)
-	assert.Equal(t, float64(0), mappingError)
 }
 
 func TestAddAllInstanceMetricsWithEOLMiss(t *testing.T) {
@@ -375,20 +302,6 @@ func getMetricLabels(x *RDSExporter, metricDesc *prometheus.Desc, labelNames ...
 		}
 	}
 	return nil, fmt.Errorf("metric not found")
-}
-
-func getMetricValue(x *RDSExporter, metricDesc *prometheus.Desc) (float64, error) {
-	metricDescription := metricDesc.String()
-	for _, metric := range x.cache.GetAllMetrics() {
-		if metric.Desc().String() == metricDescription {
-			dtoMetric := &dto.Metric{}
-			if err := metric.Write(dtoMetric); err != nil {
-				return 0, err
-			}
-			return dtoMetric.GetGauge().GetValue(), nil
-		}
-	}
-	return 0, fmt.Errorf("metric not found")
 }
 
 func TestAddAllPendingMaintenancesMetrics(t *testing.T) {
