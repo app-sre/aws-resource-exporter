@@ -167,6 +167,51 @@ func TestAddAllInstanceMetricsWithEOLMatch(t *testing.T) {
 	}
 }
 
+func TestAddAllInstanceMetricsWithEngineLifecycleSupport(t *testing.T) {
+	x := RDSExporter{
+		configs: []aws.Config{{Region: "foo"}},
+		cache:   *NewMetricsCache(10 * time.Second),
+		logger:  slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	instances := createTestDBInstances()
+	instances[0].EngineLifecycleSupport = aws.String("open-source-rds-extended-support")
+
+	x.addAllInstanceMetrics(0, instances, []EOLInfo{})
+
+	labels, err := getMetricLabels(&x, EOLInfos, "engine_lifecycle_support")
+	if err != nil {
+		t.Errorf("Error retrieving EOL labels: %v", err)
+	}
+
+	expectedEngineLifecycleSupport := "open-source-rds-extended-support"
+	if val, ok := labels["engine_lifecycle_support"]; !ok || val != expectedEngineLifecycleSupport {
+		t.Errorf("EngineLifecycleSupport label has an unexpected value. Expected: %s, Actual: %s", expectedEngineLifecycleSupport, val)
+	}
+}
+
+func TestAddAllInstanceMetricsWithEngineLifecycleSupportNil(t *testing.T) {
+	x := RDSExporter{
+		configs: []aws.Config{{Region: "foo"}},
+		cache:   *NewMetricsCache(10 * time.Second),
+		logger:  slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	// createTestDBInstances leaves EngineLifecycleSupport nil (e.g. Aurora, or
+	// engines Extended Support doesn't apply to) — must not panic and should
+	// default to an empty label value.
+	x.addAllInstanceMetrics(0, createTestDBInstances(), []EOLInfo{})
+
+	labels, err := getMetricLabels(&x, EOLInfos, "engine_lifecycle_support")
+	if err != nil {
+		t.Errorf("Error retrieving EOL labels: %v", err)
+	}
+
+	if val, ok := labels["engine_lifecycle_support"]; !ok || val != "" {
+		t.Errorf("EngineLifecycleSupport label has an unexpected value. Expected empty string, Actual: %s", val)
+	}
+}
+
 func TestAddAllInstanceMetricsWithGetEOLStatusError(t *testing.T) {
 	x := RDSExporter{
 		configs: []aws.Config{{Region: "foo"}},

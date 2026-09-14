@@ -621,7 +621,7 @@ var LogsAmount *prometheus.Desc = prometheus.NewDesc(
 var EOLInfos *prometheus.Desc = prometheus.NewDesc(
 	prometheus.BuildFQName(namespace, "", "rds_eol_info"),
 	"The EOL date and status for the DB engine type and version.",
-	[]string{"aws_region", "dbinstance_identifier", "engine", "engine_version", "eol_date", "eol_status"},
+	[]string{"aws_region", "dbinstance_identifier", "engine", "engine_version", "eol_date", "eol_status", "engine_lifecycle_support"},
 	nil,
 )
 
@@ -792,6 +792,11 @@ func (e *RDSExporter) addAllInstanceMetrics(configIndex int, instances []rds_typ
 			e.cache.AddMetric(prometheus.MustNewConstMetric(MaxConnectionsMappingError, prometheus.GaugeValue, 1, e.getRegion(configIndex), *instance.DBInstanceIdentifier, *instance.DBInstanceClass))
 		}
 
+		// EngineLifecycleSupport reflects live enrollment in AWS RDS Extended Support
+		// (e.g. "open-source-rds-extended-support"). It's nil for engines/instances
+		// Extended Support doesn't apply to.
+		engineLifecycleSupport := aws.ToString(instance.EngineLifecycleSupport)
+
 		//Gets EOL for engine and version
 		if eolInfo, ok := eolMap[EOLKey{Engine: *instance.Engine, Version: *instance.EngineVersion}]; ok {
 			eolStatus, err := GetEOLStatus(eolInfo.EOL, e.thresholds)
@@ -802,13 +807,13 @@ func (e *RDSExporter) addAllInstanceMetrics(configIndex int, instances []rds_typ
 					slog.Any("error", err))
 
 			} else {
-				e.cache.AddMetric(prometheus.MustNewConstMetric(EOLInfos, prometheus.GaugeValue, 1, e.getRegion(configIndex), *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion, eolInfo.EOL, eolStatus))
+				e.cache.AddMetric(prometheus.MustNewConstMetric(EOLInfos, prometheus.GaugeValue, 1, e.getRegion(configIndex), *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion, eolInfo.EOL, eolStatus, engineLifecycleSupport))
 			}
 		} else {
 			e.logger.Info("RDS EOL not found for engine version",
 				slog.String("engine", *instance.Engine),
 				slog.String("version", *instance.EngineVersion))
-			e.cache.AddMetric(prometheus.MustNewConstMetric(EOLInfos, prometheus.GaugeValue, 1, e.getRegion(configIndex), *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion, "no-eol-date", "red"))
+			e.cache.AddMetric(prometheus.MustNewConstMetric(EOLInfos, prometheus.GaugeValue, 1, e.getRegion(configIndex), *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion, "no-eol-date", "red", engineLifecycleSupport))
 		}
 
 		var public = 0.0
