@@ -23,6 +23,7 @@ This was made as a complement to [CloudWatch Exporter](https://github.com/promet
 | VPC     | ipv4blockspervpc            | Quota and usage of ipv4 blocks per VPC              |
 | VPC     | ipv4addressespersubnet      | Capacity and usage of IPv4 addresses per subnet        |
 | EC2     | transitgatewaysperregion    | Quota and usage of transitgateways per region       |
+| EC2     | instance_bandwidth_limit_gbps | Network bandwidth limit in Gbps per EC2 instance  |
 | Route53 | recordsperhostedzone        | Quota and usage of resource records per Hosted Zone |
 
 
@@ -78,6 +79,7 @@ vpc:
   cache_ttl: 500s
 ec2:
   enabled: true
+  bandwidth_metrics: true
   regions:
     - "us-east-1"
     - "eu-central-1"
@@ -91,6 +93,24 @@ route53:
 ```
 
 Some exporters might expose different configuration values, see the example files for possible keys.
+
+### EC2 Bandwidth Metrics
+
+The EC2 collector can optionally report the network bandwidth limit (in Gbps) for each running instance. This is disabled by default and must be explicitly enabled:
+
+```yaml
+ec2:
+  enabled: true
+  bandwidth_metrics: true
+  regions:
+    - "eu-central-1"
+```
+
+When enabled, it uses `DescribeInstances` and `DescribeInstanceTypes` APIs to resolve the baseline bandwidth for each instance type. The metric exposed is:
+
+```
+aws_resources_exporter_ec2_instance_bandwidth_limit_gbps{aws_account_id="...", aws_region="...", instance_id="i-xxx", instance_type="m5.xlarge"} 10
+```
 
 The config file location can be specified using the environment variable `AWS_RESOURCE_EXPORTER_CONFIG_FILE`.
 

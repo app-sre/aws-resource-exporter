@@ -50,8 +50,9 @@ type Route53Config struct {
 }
 
 type EC2Config struct {
-	BaseConfig `yaml:"base,inline"`
-	Regions    []string `yaml:"regions"`
+	BaseConfig             `yaml:"base,inline"`
+	Regions                []string `yaml:"regions"`
+	BandwidthMetrics       bool     `yaml:"bandwidth_metrics"`
 }
 
 type ElastiCacheConfig struct {
