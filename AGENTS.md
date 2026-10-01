@@ -129,6 +129,7 @@ AWS Resource Exporter is a Prometheus exporter for AWS resources, built in Go. I
 
 ### ElastiCache Metrics
 - `aws_resources_exporter_elasticache_redis_version` - Redis version information
+- `aws_resources_exporter_elasticache_eol_info` - End of life information for ElastiCache engines
 
 ### MSK Metrics
 - `aws_resources_exporter_msk_info` - MSK cluster information
