@@ -56,7 +56,9 @@ type EC2Config struct {
 
 type ElastiCacheConfig struct {
 	BaseConfig `yaml:"base,inline"`
-	Regions    []string `yaml:"regions"`
+	Regions    []string    `yaml:"regions"`
+	EOLInfos   []EOLInfo   `yaml:"eol_info"`
+	Thresholds []Threshold `yaml:"thresholds"`
 }
 type MSKConfig struct {
 	BaseConfig `yaml:"base,inline"`
@@ -163,6 +165,13 @@ func LoadExporterConfiguration(logger *slog.Logger, configFile string) (*Config,
 	// Setting defaults when threshold is not defined to ease the transition from hardcoded thresholds
 	if len(config.RdsConfig.Thresholds) == 0 {
 		config.RdsConfig.Thresholds = []Threshold{
+			{Name: "red", Days: 90},
+			{Name: "yellow", Days: 180},
+			{Name: "green", Days: 365},
+		}
+	}
+	if len(config.ElastiCacheConfig.Thresholds) == 0 {
+		config.ElastiCacheConfig.Thresholds = []Threshold{
 			{Name: "red", Days: 90},
 			{Name: "yellow", Days: 180},
 			{Name: "green", Days: 365},
