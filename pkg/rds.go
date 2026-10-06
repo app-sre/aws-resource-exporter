@@ -629,7 +629,6 @@ var EOLInfos *prometheus.Desc = prometheus.NewDesc(
 type RDSExporter struct {
 	configs      []aws.Config
 	svcs         []awsclient.Client
-	eolInfos     []EOLInfo
 	thresholds   []Threshold
 	awsAccountId string
 
@@ -675,7 +674,6 @@ func NewRDSExporter(configs []aws.Config, logger *slog.Logger, config RDSConfig,
 		cache:          *NewMetricsCache(*config.CacheTTL),
 		interval:       *config.Interval,
 		timeout:        *config.Timeout,
-		eolInfos:       config.EOLInfos,
 		thresholds:     config.Thresholds,
 		awsAccountId:   awsAccountId,
 	}
@@ -752,14 +750,63 @@ func (e *RDSExporter) addAllLogMetrics(ctx context.Context, configIndex int, ins
 	wg.Wait()
 }
 
-func (e *RDSExporter) addAllInstanceMetrics(configIndex int, instances []rds_types.DBInstance, eolInfos []EOLInfo) {
-	var eolMap = make(map[EOLKey]EOLInfo)
+// rdsEOLCacheTTLSeconds controls how long a resolved (or unresolved) engine/version
+// EOL date is cached. AWS's lifecycle data for a given engine version doesn't change,
+// so this is just about avoiding redundant API calls across scrape intervals.
+const rdsEOLCacheTTLSeconds = 86400
 
-	// Fill eolMap with EOLInfo indexed by engine and version
-	for _, eolinfo := range eolInfos {
-		eolMap[EOLKey{Engine: eolinfo.Engine, Version: eolinfo.Version}] = eolinfo
+func rdsEOLCacheKey(engine string, engineVersion string) string {
+	return "rds-eol-" + engine + "-" + engineVersion
+}
+
+// getRDSEOLDate resolves the AWS-reported standard-support end date for an engine/version
+// pair via DescribeDBEngineVersions (to resolve the major version) followed by
+// DescribeDBMajorEngineVersions (to get the lifecycle dates), caching the result. AWS only
+// returns lifecycle data for MariaDB, MySQL, PostgreSQL, Aurora MySQL and Aurora PostgreSQL;
+// for anything else (or on API error) the second return value is false.
+func (e *RDSExporter) getRDSEOLDate(ctx context.Context, configIndex int, engine string, engineVersion string) (string, bool) {
+	cacheKey := rdsEOLCacheKey(engine, engineVersion)
+	if cached, err := metricsProxy.GetMetricById(cacheKey); err == nil {
+		eolDate := cached.value.(string)
+		return eolDate, eolDate != ""
 	}
 
+	engineDetails, err := e.svcs[configIndex].DescribeDBEngineVersion(ctx, engine, engineVersion)
+	if err != nil || engineDetails.MajorEngineVersion == nil {
+		e.logger.Info("Could not resolve major engine version for engine version",
+			slog.String("engine", engine),
+			slog.String("version", engineVersion),
+			slog.Any("error", err))
+		metricsProxy.StoreMetricById(cacheKey, "", rdsEOLCacheTTLSeconds)
+		return "", false
+	}
+
+	majorVersion, err := e.svcs[configIndex].DescribeDBMajorEngineVersion(ctx, engine, *engineDetails.MajorEngineVersion)
+	if err != nil {
+		e.logger.Info("RDS EOL not found for engine version",
+			slog.String("engine", engine),
+			slog.String("version", engineVersion),
+			slog.Any("error", err))
+		metricsProxy.StoreMetricById(cacheKey, "", rdsEOLCacheTTLSeconds)
+		return "", false
+	}
+
+	for _, lifecycle := range majorVersion.SupportedEngineLifecycles {
+		if lifecycle.LifecycleSupportName == rds_types.LifecycleSupportNameOpenSourceRdsStandardSupport && lifecycle.LifecycleSupportEndDate != nil {
+			eolDate := lifecycle.LifecycleSupportEndDate.Format("2006-01-02")
+			metricsProxy.StoreMetricById(cacheKey, eolDate, rdsEOLCacheTTLSeconds)
+			return eolDate, true
+		}
+	}
+
+	e.logger.Info("RDS EOL not found for engine version",
+		slog.String("engine", engine),
+		slog.String("version", engineVersion))
+	metricsProxy.StoreMetricById(cacheKey, "", rdsEOLCacheTTLSeconds)
+	return "", false
+}
+
+func (e *RDSExporter) addAllInstanceMetrics(ctx context.Context, configIndex int, instances []rds_types.DBInstance) {
 	for _, instance := range instances {
 		var maxConnections int64
 		if valmap, ok := DBMaxConnections[*instance.DBInstanceClass]; ok {
@@ -792,9 +839,9 @@ func (e *RDSExporter) addAllInstanceMetrics(configIndex int, instances []rds_typ
 			e.cache.AddMetric(prometheus.MustNewConstMetric(MaxConnectionsMappingError, prometheus.GaugeValue, 1, e.getRegion(configIndex), *instance.DBInstanceIdentifier, *instance.DBInstanceClass))
 		}
 
-		//Gets EOL for engine and version
-		if eolInfo, ok := eolMap[EOLKey{Engine: *instance.Engine, Version: *instance.EngineVersion}]; ok {
-			eolStatus, err := GetEOLStatus(eolInfo.EOL, e.thresholds)
+		//Gets EOL for engine and version from live AWS lifecycle data
+		if eolDate, ok := e.getRDSEOLDate(ctx, configIndex, *instance.Engine, *instance.EngineVersion); ok {
+			eolStatus, err := GetEOLStatus(eolDate, e.thresholds)
 			if err != nil {
 				e.logger.Error("Could not get days to RDS EOL for engine version",
 					slog.String("engine", *instance.Engine),
@@ -802,12 +849,9 @@ func (e *RDSExporter) addAllInstanceMetrics(configIndex int, instances []rds_typ
 					slog.Any("error", err))
 
 			} else {
-				e.cache.AddMetric(prometheus.MustNewConstMetric(EOLInfos, prometheus.GaugeValue, 1, e.getRegion(configIndex), *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion, eolInfo.EOL, eolStatus))
+				e.cache.AddMetric(prometheus.MustNewConstMetric(EOLInfos, prometheus.GaugeValue, 1, e.getRegion(configIndex), *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion, eolDate, eolStatus))
 			}
 		} else {
-			e.logger.Info("RDS EOL not found for engine version",
-				slog.String("engine", *instance.Engine),
-				slog.String("version", *instance.EngineVersion))
 			e.cache.AddMetric(prometheus.MustNewConstMetric(EOLInfos, prometheus.GaugeValue, 1, e.getRegion(configIndex), *instance.DBInstanceIdentifier, *instance.Engine, *instance.EngineVersion, "no-eol-date", "red"))
 		}
 
@@ -916,7 +960,7 @@ func (e *RDSExporter) CollectLoop() {
 			wg.Add(3)
 
 			go func() {
-				e.addAllInstanceMetrics(i, instances, e.eolInfos)
+				e.addAllInstanceMetrics(ctx, i, instances)
 				wg.Done()
 			}()
 			go func() {

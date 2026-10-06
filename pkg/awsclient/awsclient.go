@@ -4,6 +4,7 @@ package awsclient
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -43,6 +44,8 @@ type Client interface {
 	DescribeDBLogFilesAll(ctx context.Context, instanceId string) ([]*rds.DescribeDBLogFilesOutput, error)
 	DescribePendingMaintenanceActionsAll(ctx context.Context) ([]rds_types.ResourcePendingMaintenanceActions, error)
 	DescribeDBInstancesAll(ctx context.Context) ([]rds_types.DBInstance, error)
+	DescribeDBEngineVersion(ctx context.Context, engine string, engineVersion string) (*rds_types.DBEngineVersion, error)
+	DescribeDBMajorEngineVersion(ctx context.Context, engine string, majorEngineVersion string) (*rds_types.DBMajorEngineVersion, error)
 
 	// Service Quota
 	GetServiceQuota(ctx context.Context, input *servicequotas.GetServiceQuotaInput, optFns ...func(*servicequotas.Options)) (*servicequotas.GetServiceQuotaOutput, error)
@@ -296,6 +299,36 @@ func (c *awsClient) DescribeDBInstancesAll(ctx context.Context) ([]rds_types.DBI
 	}
 
 	return instances, nil
+}
+
+func (c *awsClient) DescribeDBEngineVersion(ctx context.Context, engine string, engineVersion string) (*rds_types.DBEngineVersion, error) {
+	AwsExporterMetrics.IncrementRequests()
+	output, err := c.rdsClient.DescribeDBEngineVersions(ctx, &rds.DescribeDBEngineVersionsInput{
+		Engine:        &engine,
+		EngineVersion: &engineVersion,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(output.DBEngineVersions) == 0 {
+		return nil, fmt.Errorf("no DB engine version found for engine %q version %q", engine, engineVersion)
+	}
+	return &output.DBEngineVersions[0], nil
+}
+
+func (c *awsClient) DescribeDBMajorEngineVersion(ctx context.Context, engine string, majorEngineVersion string) (*rds_types.DBMajorEngineVersion, error) {
+	AwsExporterMetrics.IncrementRequests()
+	output, err := c.rdsClient.DescribeDBMajorEngineVersions(ctx, &rds.DescribeDBMajorEngineVersionsInput{
+		Engine:             &engine,
+		MajorEngineVersion: &majorEngineVersion,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if len(output.DBMajorEngineVersions) == 0 {
+		return nil, fmt.Errorf("no DB major engine version found for engine %q major version %q", engine, majorEngineVersion)
+	}
+	return &output.DBMajorEngineVersions[0], nil
 }
 
 func (c *awsClient) ListHostedZonesAll(ctx context.Context) ([]route53_types.HostedZone, error) {

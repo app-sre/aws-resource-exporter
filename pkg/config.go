@@ -19,7 +19,6 @@ type BaseConfig struct {
 type RDSConfig struct {
 	BaseConfig `yaml:"base,inline"`
 	Regions    []string    `yaml:"regions"`
-	EOLInfos   []EOLInfo   `yaml:"eol_info"`
 	Thresholds []Threshold `yaml:"thresholds"`
 }
 type Threshold struct {
