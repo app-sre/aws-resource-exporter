@@ -296,15 +296,17 @@ func TestResolveRDSEOLDatesCachesResult(t *testing.T) {
 	assert.Equal(t, "2000-12-01", eolDate)
 }
 
-func TestResolveRDSEOLDatesDoesNotCacheAPIErrors(t *testing.T) {
+func TestResolveRDSEOLDatesCachesAPIErrorsWithShortTTL(t *testing.T) {
 	resetRDSEOLCache()
 	ctx := context.TODO()
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockClient := mock.NewMockClient(ctrl)
-	// A failed AWS call must not be cached, so it's retried on every scrape until it succeeds
-	mockClient.EXPECT().DescribeDBEngineVersion(ctx, "SQL", "1000").Return(nil, fmt.Errorf("throttled")).Times(2)
+	// A failed AWS call (e.g. missing IAM permissions) must still be cached, just with a much
+	// shorter TTL than a confirmed answer -- otherwise, with a scrape interval as short as 15s
+	// by default, a persistent failure would retry on every single scrape forever.
+	mockClient.EXPECT().DescribeDBEngineVersion(ctx, "SQL", "1000").Return(nil, fmt.Errorf("throttled")).Times(1)
 
 	x := RDSExporter{
 		svcs:    []awsclient.Client{mockClient},
@@ -317,11 +319,16 @@ func TestResolveRDSEOLDatesDoesNotCacheAPIErrors(t *testing.T) {
 
 	x.resolveRDSEOLDates(ctx, 0, instances)
 	_, cached := rdsEOLCacheLookup("SQL", "1000")
-	assert.False(t, cached)
+	assert.True(t, cached)
 
+	// Resolving again immediately must be served from the error cache, not retried against AWS
 	x.resolveRDSEOLDates(ctx, 0, instances)
 	_, cached = rdsEOLCacheLookup("SQL", "1000")
-	assert.False(t, cached)
+	assert.True(t, cached)
+
+	item, err := metricsProxy.GetMetricById(rdsEOLCacheKey("SQL", "1000"))
+	assert.NoError(t, err)
+	assert.Equal(t, rdsEOLErrorCacheTTLSeconds, item.ttl)
 }
 
 func TestResolveRDSEOLDateCachesPendingLifecycleEntryWithShortTTL(t *testing.T) {

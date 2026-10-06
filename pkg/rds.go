@@ -753,15 +753,22 @@ func (e *RDSExporter) addAllLogMetrics(ctx context.Context, configIndex int, ins
 // rdsEOLCacheTTLSeconds controls how long a *confirmed* engine/version EOL answer is cached,
 // whether that's a resolved date or a genuine "this engine has no standard-support lifecycle
 // data" answer. AWS's lifecycle data for a given engine version doesn't change, so a long TTL
-// is safe for those. A failed API call is a different thing entirely and is never cached here,
-// so a transient error (throttling, timeout, network blip) gets retried on the next scrape
-// instead of being stuck showing no-eol-date for a full day.
+// is safe for those.
 const rdsEOLCacheTTLSeconds = 86400
 
 // rdsEOLPendingCacheTTLSeconds is used instead of rdsEOLCacheTTLSeconds when a
 // standard-support lifecycle entry exists but AWS hasn't published its end date yet. Unlike a
 // confirmed negative, this is expected to resolve itself, so it's retried much sooner.
 const rdsEOLPendingCacheTTLSeconds = 3600
+
+// rdsEOLErrorCacheTTLSeconds bounds how often a failed AWS call for the same engine/version is
+// retried. The default scrape interval is as short as 15s, so leaving failures uncached would
+// mean a persistent problem (e.g. the exporter's role missing IAM permissions for
+// DescribeDBEngineVersions/DescribeDBMajorEngineVersions) retries on every single scrape
+// forever -- spamming error logs and burning API calls indefinitely. This is still short enough
+// that a transient error (throttling, a brief network blip) or a permissions fix recovers
+// quickly, unlike the long rdsEOLCacheTTLSeconds used for confirmed answers.
+const rdsEOLErrorCacheTTLSeconds = 300
 
 func rdsEOLCacheKey(engine string, engineVersion string) string {
 	return "rds-eol-" + engine + "-" + engineVersion
@@ -781,7 +788,8 @@ func rdsEOLCacheLookup(engine string, engineVersion string) (eolDate string, cac
 // engine/version pair via DescribeDBEngineVersions (to get the major version) followed by
 // DescribeDBMajorEngineVersions (to get the lifecycle dates). AWS only returns lifecycle data
 // for MariaDB, MySQL, PostgreSQL, Aurora MySQL and Aurora PostgreSQL; anything else is cached as
-// a confirmed negative. API errors are logged, counted and left uncached so they're retried.
+// a confirmed negative. API errors are logged, counted, and cached briefly (rdsEOLErrorCacheTTLSeconds)
+// so a persistent failure doesn't retry on every single scrape forever.
 func (e *RDSExporter) resolveRDSEOLDate(ctx context.Context, configIndex int, engine string, engineVersion string) {
 	cacheKey := rdsEOLCacheKey(engine, engineVersion)
 
@@ -792,6 +800,7 @@ func (e *RDSExporter) resolveRDSEOLDate(ctx context.Context, configIndex int, en
 			slog.String("version", engineVersion),
 			slog.Any("err", err))
 		awsclient.AwsExporterMetrics.IncrementErrors()
+		metricsProxy.StoreMetricById(cacheKey, "", rdsEOLErrorCacheTTLSeconds)
 		return
 	}
 	if engineDetails.MajorEngineVersion == nil {
@@ -809,6 +818,7 @@ func (e *RDSExporter) resolveRDSEOLDate(ctx context.Context, configIndex int, en
 			slog.String("version", engineVersion),
 			slog.Any("err", err))
 		awsclient.AwsExporterMetrics.IncrementErrors()
+		metricsProxy.StoreMetricById(cacheKey, "", rdsEOLErrorCacheTTLSeconds)
 		return
 	}
 
