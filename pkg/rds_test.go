@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"os"
 	"testing"
 	"time"
 
@@ -18,6 +19,14 @@ import (
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 )
+
+// TestMain initializes awsclient.AwsExporterMetrics, which production code only sets up in
+// main.go. Several error paths under test (e.g. resolveRDSEOLDate) call
+// awsclient.AwsExporterMetrics.IncrementErrors() and would otherwise nil-panic.
+func TestMain(m *testing.M) {
+	awsclient.AwsExporterMetrics = awsclient.NewExporterMetrics("test")
+	os.Exit(m.Run())
+}
 
 func createTestDBInstances() []rds_types.DBInstance {
 	return []rds_types.DBInstance{
@@ -78,7 +87,7 @@ func TestAddRDSLogMetrics(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-// resetRDSEOLCache clears the package-level metricsProxy cache used by getRDSEOLDate.
+// resetRDSEOLCache clears the package-level metricsProxy cache used by resolveRDSEOLDate(s).
 // It must be called at the start of any test that exercises the live EOL lookup, since
 // the cache is a process-global shared across tests.
 func resetRDSEOLCache() {
@@ -201,7 +210,7 @@ func TestAddAllInstanceMetricsWithEOLMatch(t *testing.T) {
 	}
 }
 
-func TestGetRDSEOLDateCachesResult(t *testing.T) {
+func TestResolveRDSEOLDatesCachesResult(t *testing.T) {
 	resetRDSEOLCache()
 	ctx := context.TODO()
 	ctrl := gomock.NewController(t)
@@ -211,7 +220,7 @@ func TestGetRDSEOLDateCachesResult(t *testing.T) {
 	assert.NoError(t, err)
 
 	mockClient := mock.NewMockClient(ctrl)
-	// Expect exactly one call each despite calling getRDSEOLDate twice below
+	// Expect exactly one call each despite resolving the same instance's engine/version twice below
 	mockClient.EXPECT().DescribeDBEngineVersion(ctx, "SQL", "1000").Return(&rds_types.DBEngineVersion{
 		MajorEngineVersion: aws.String("1000"),
 	}, nil).Times(1)
@@ -227,16 +236,50 @@ func TestGetRDSEOLDateCachesResult(t *testing.T) {
 	x := RDSExporter{
 		svcs:    []awsclient.Client{mockClient},
 		configs: []aws.Config{{Region: "foo"}},
+		logger:  slog.New(slog.NewTextHandler(io.Discard, nil)),
+		workers: 5,
 	}
 
-	eolDate, ok := x.getRDSEOLDate(ctx, 0, "SQL", "1000")
+	instances := createTestDBInstances()
+
+	x.resolveRDSEOLDates(ctx, 0, instances)
+	eolDate, ok := rdsEOLCacheLookup("SQL", "1000")
 	assert.True(t, ok)
 	assert.Equal(t, "2000-12-01", eolDate)
 
-	// Second call for the same engine/version must be served from cache, not AWS
-	eolDate, ok = x.getRDSEOLDate(ctx, 0, "SQL", "1000")
+	// Resolving the same engine/version again must be served from cache, not AWS
+	x.resolveRDSEOLDates(ctx, 0, instances)
+	eolDate, ok = rdsEOLCacheLookup("SQL", "1000")
 	assert.True(t, ok)
 	assert.Equal(t, "2000-12-01", eolDate)
+}
+
+func TestResolveRDSEOLDatesDoesNotCacheAPIErrors(t *testing.T) {
+	resetRDSEOLCache()
+	ctx := context.TODO()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient := mock.NewMockClient(ctrl)
+	// A failed AWS call must not be cached, so it's retried on every scrape until it succeeds
+	mockClient.EXPECT().DescribeDBEngineVersion(ctx, "SQL", "1000").Return(nil, fmt.Errorf("throttled")).Times(2)
+
+	x := RDSExporter{
+		svcs:    []awsclient.Client{mockClient},
+		configs: []aws.Config{{Region: "foo"}},
+		logger:  slog.New(slog.NewTextHandler(io.Discard, nil)),
+		workers: 5,
+	}
+
+	instances := createTestDBInstances()
+
+	x.resolveRDSEOLDates(ctx, 0, instances)
+	_, cached := rdsEOLCacheLookup("SQL", "1000")
+	assert.False(t, cached)
+
+	x.resolveRDSEOLDates(ctx, 0, instances)
+	_, cached = rdsEOLCacheLookup("SQL", "1000")
+	assert.False(t, cached)
 }
 
 func TestGetEOLStatus(t *testing.T) {
