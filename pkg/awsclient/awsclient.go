@@ -306,6 +306,11 @@ func (c *awsClient) DescribeDBEngineVersion(ctx context.Context, engine string, 
 	output, err := c.rdsClient.DescribeDBEngineVersions(ctx, &rds.DescribeDBEngineVersionsInput{
 		Engine:        &engine,
 		EngineVersion: &engineVersion,
+		// Without this, AWS only returns "available" versions, silently omitting any
+		// version that's since been deprecated -- which is exactly the versions we most
+		// need EOL data for, since a running instance on a deprecated version is the one
+		// closest to (or past) its standard-support end date.
+		IncludeAll: aws.Bool(true),
 	})
 	if err != nil {
 		return nil, err

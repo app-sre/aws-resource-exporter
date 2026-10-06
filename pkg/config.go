@@ -20,6 +20,11 @@ type RDSConfig struct {
 	BaseConfig `yaml:"base,inline"`
 	Regions    []string    `yaml:"regions"`
 	Thresholds []Threshold `yaml:"thresholds"`
+	// DeprecatedEOLInfos only exists so LoadExporterConfiguration can detect and warn about a
+	// stale eol_info block left over in config -- RDS EOL data is now resolved live from AWS
+	// and no longer reads this. yaml.Unmarshal silently ignores unknown keys, so without this
+	// field a leftover eol_info block in app-interface's configmap would go unnoticed.
+	DeprecatedEOLInfos []EOLInfo `yaml:"eol_info"`
 }
 type Threshold struct {
 	Name string `yaml:"name"`
@@ -94,6 +99,10 @@ func LoadExporterConfiguration(logger *slog.Logger, configFile string) (*Config,
 		return nil, errors.New("Could not load configuration file: " + configFile)
 	}
 	yaml.Unmarshal(file, &config)
+
+	if len(config.RdsConfig.DeprecatedEOLInfos) > 0 {
+		logger.Warn("rds.eol_info is set but no longer used -- RDS EOL data is now resolved live from AWS. Remove this block from the config.")
+	}
 
 	if config.RdsConfig.CacheTTL == nil {
 		config.RdsConfig.CacheTTL = durationPtr(35 * time.Second)
