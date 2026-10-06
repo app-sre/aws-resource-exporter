@@ -210,6 +210,48 @@ func TestAddAllInstanceMetricsWithEOLMatch(t *testing.T) {
 	}
 }
 
+// A misconfigured exporter (no thresholds) successfully resolves an EOL date but can't turn it
+// into a status. addAllInstanceMetrics silently drops the EOLInfos metric for that instance in
+// this case rather than falling back to no-eol-date/red -- this test documents and locks in
+// that (perhaps surprising) behavior.
+func TestAddAllInstanceMetricsSilentlyDropsMetricOnGetEOLStatusError(t *testing.T) {
+	resetRDSEOLCache()
+	eolDateTime, err := time.Parse("2006-01-02", "2000-12-01")
+	assert.NoError(t, err)
+
+	ctx := context.TODO()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient := mock.NewMockClient(ctrl)
+	mockClient.EXPECT().DescribeDBEngineVersion(ctx, "SQL", "1000").Return(&rds_types.DBEngineVersion{
+		MajorEngineVersion: aws.String("1000"),
+	}, nil)
+	mockClient.EXPECT().DescribeDBMajorEngineVersion(ctx, "SQL", "1000").Return(&rds_types.DBMajorEngineVersion{
+		SupportedEngineLifecycles: []rds_types.SupportedEngineLifecycle{
+			{
+				LifecycleSupportName:    rds_types.LifecycleSupportNameOpenSourceRdsStandardSupport,
+				LifecycleSupportEndDate: aws.Time(eolDateTime),
+			},
+		},
+	}, nil)
+
+	x := RDSExporter{
+		svcs:       []awsclient.Client{mockClient},
+		configs:    []aws.Config{{Region: "foo"}},
+		cache:      *NewMetricsCache(10 * time.Second),
+		logger:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+		thresholds: []Threshold{}, // empty thresholds makes GetEOLStatus return an error
+	}
+
+	x.addAllInstanceMetrics(ctx, 0, createTestDBInstances())
+
+	_, err = getMetricLabels(&x, EOLInfos, "eol_date", "eol_status")
+	if err == nil {
+		t.Errorf("Expected the EOLInfos metric to be dropped when GetEOLStatus errors, but it was found")
+	}
+}
+
 func TestResolveRDSEOLDatesCachesResult(t *testing.T) {
 	resetRDSEOLCache()
 	ctx := context.TODO()
@@ -280,6 +322,44 @@ func TestResolveRDSEOLDatesDoesNotCacheAPIErrors(t *testing.T) {
 	x.resolveRDSEOLDates(ctx, 0, instances)
 	_, cached = rdsEOLCacheLookup("SQL", "1000")
 	assert.False(t, cached)
+}
+
+func TestResolveRDSEOLDateCachesPendingLifecycleEntryWithShortTTL(t *testing.T) {
+	resetRDSEOLCache()
+	ctx := context.TODO()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockClient := mock.NewMockClient(ctrl)
+	mockClient.EXPECT().DescribeDBEngineVersion(ctx, "postgres", "18.0").Return(&rds_types.DBEngineVersion{
+		MajorEngineVersion: aws.String("18"),
+	}, nil)
+	// Standard-support entry exists, but AWS hasn't published an end date yet (e.g. a
+	// just-released minor version)
+	mockClient.EXPECT().DescribeDBMajorEngineVersion(ctx, "postgres", "18").Return(&rds_types.DBMajorEngineVersion{
+		SupportedEngineLifecycles: []rds_types.SupportedEngineLifecycle{
+			{
+				LifecycleSupportName:    rds_types.LifecycleSupportNameOpenSourceRdsStandardSupport,
+				LifecycleSupportEndDate: nil,
+			},
+		},
+	}, nil)
+
+	x := RDSExporter{
+		svcs:    []awsclient.Client{mockClient},
+		configs: []aws.Config{{Region: "foo"}},
+		logger:  slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	x.resolveRDSEOLDate(ctx, 0, "postgres", "18.0")
+
+	eolDate, cached := rdsEOLCacheLookup("postgres", "18.0")
+	assert.True(t, cached)
+	assert.Equal(t, "", eolDate)
+
+	item, err := metricsProxy.GetMetricById(rdsEOLCacheKey("postgres", "18.0"))
+	assert.NoError(t, err)
+	assert.Equal(t, rdsEOLPendingCacheTTLSeconds, item.ttl)
 }
 
 func TestGetEOLStatus(t *testing.T) {

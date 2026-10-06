@@ -758,6 +758,11 @@ func (e *RDSExporter) addAllLogMetrics(ctx context.Context, configIndex int, ins
 // instead of being stuck showing no-eol-date for a full day.
 const rdsEOLCacheTTLSeconds = 86400
 
+// rdsEOLPendingCacheTTLSeconds is used instead of rdsEOLCacheTTLSeconds when a
+// standard-support lifecycle entry exists but AWS hasn't published its end date yet. Unlike a
+// confirmed negative, this is expected to resolve itself, so it's retried much sooner.
+const rdsEOLPendingCacheTTLSeconds = 3600
+
 func rdsEOLCacheKey(engine string, engineVersion string) string {
 	return "rds-eol-" + engine + "-" + engineVersion
 }
@@ -808,10 +813,21 @@ func (e *RDSExporter) resolveRDSEOLDate(ctx context.Context, configIndex int, en
 	}
 
 	for _, lifecycle := range majorVersion.SupportedEngineLifecycles {
-		if lifecycle.LifecycleSupportName == rds_types.LifecycleSupportNameOpenSourceRdsStandardSupport && lifecycle.LifecycleSupportEndDate != nil {
-			metricsProxy.StoreMetricById(cacheKey, lifecycle.LifecycleSupportEndDate.Format("2006-01-02"), rdsEOLCacheTTLSeconds)
+		if lifecycle.LifecycleSupportName != rds_types.LifecycleSupportNameOpenSourceRdsStandardSupport {
+			continue
+		}
+		if lifecycle.LifecycleSupportEndDate == nil {
+			// The engine is covered by standard support, but AWS hasn't published an end
+			// date yet -- common right after a new minor version is released. Retry soon
+			// instead of sitting on no-eol-date/red for a full day once AWS publishes it.
+			e.logger.Info("RDS EOL not yet published for engine version: standard-support entry has no end date yet",
+				slog.String("engine", engine),
+				slog.String("version", engineVersion))
+			metricsProxy.StoreMetricById(cacheKey, "", rdsEOLPendingCacheTTLSeconds)
 			return
 		}
+		metricsProxy.StoreMetricById(cacheKey, lifecycle.LifecycleSupportEndDate.Format("2006-01-02"), rdsEOLCacheTTLSeconds)
+		return
 	}
 
 	e.logger.Info("RDS EOL not found for engine version: no open-source-rds-standard-support lifecycle entry",
@@ -1000,8 +1016,12 @@ func (e *RDSExporter) Describe(ch chan<- *prometheus.Desc) {
 
 func (e *RDSExporter) CollectLoop() {
 	for {
-		ctx, cancel := context.WithTimeout(context.Background(), e.timeout)
-		for i, _ := range e.configs {
+		for i := range e.configs {
+			// Each region gets its own timeout budget rather than sharing one across every
+			// region in the sweep -- otherwise a region with a lot of cold-cache EOL
+			// resolution work to do could eat into, or blow, the budget for every other
+			// region processed afterwards in the same scrape.
+			ctx, cancel := context.WithTimeout(context.Background(), e.timeout)
 
 			instances, err := e.svcs[i].DescribeDBInstancesAll(ctx)
 			if err != nil {
@@ -1027,11 +1047,11 @@ func (e *RDSExporter) CollectLoop() {
 				wg.Done()
 			}()
 			wg.Wait()
+			cancel()
 		}
 
 		e.logger.Info("RDS metrics Updated")
 
-		cancel()
 		time.Sleep(e.interval)
 	}
 }
