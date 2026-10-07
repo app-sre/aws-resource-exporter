@@ -89,6 +89,36 @@ func (mr *MockClientMockRecorder) DescribeDBLogFilesAll(ctx, instanceId interfac
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeDBLogFilesAll", reflect.TypeOf((*MockClient)(nil).DescribeDBLogFilesAll), ctx, instanceId)
 }
 
+// DescribeInstanceTypes mocks base method.
+func (m *MockClient) DescribeInstanceTypes(ctx context.Context, instanceTypes []types.InstanceType) ([]types.InstanceTypeInfo, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DescribeInstanceTypes", ctx, instanceTypes)
+	ret0, _ := ret[0].([]types.InstanceTypeInfo)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DescribeInstanceTypes indicates an expected call of DescribeInstanceTypes.
+func (mr *MockClientMockRecorder) DescribeInstanceTypes(ctx, instanceTypes interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeInstanceTypes", reflect.TypeOf((*MockClient)(nil).DescribeInstanceTypes), ctx, instanceTypes)
+}
+
+// DescribeInstancesAll mocks base method.
+func (m *MockClient) DescribeInstancesAll(ctx context.Context) ([]types.Instance, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DescribeInstancesAll", ctx)
+	ret0, _ := ret[0].([]types.Instance)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DescribeInstancesAll indicates an expected call of DescribeInstancesAll.
+func (mr *MockClientMockRecorder) DescribeInstancesAll(ctx interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DescribeInstancesAll", reflect.TypeOf((*MockClient)(nil).DescribeInstancesAll), ctx)
+}
+
 // DescribePendingMaintenanceActionsAll mocks base method.
 func (m *MockClient) DescribePendingMaintenanceActionsAll(ctx context.Context) ([]types2.ResourcePendingMaintenanceActions, error) {
 	m.ctrl.T.Helper()
