@@ -318,17 +318,65 @@ func TestResolveRDSEOLDatesCachesAPIErrorsWithShortTTL(t *testing.T) {
 	instances := createTestDBInstances()
 
 	x.resolveRDSEOLDates(ctx, 0, instances)
+	// A failure is never a confirmed answer, so the shared engine/version cache stays empty...
 	_, cached := rdsEOLCacheLookup("SQL", "1000")
-	assert.True(t, cached)
+	assert.False(t, cached)
+	// ...but it is recorded in this region's error cache so it isn't retried immediately
+	assert.True(t, rdsEOLRecentlyFailed("foo", "SQL", "1000"))
 
 	// Resolving again immediately must be served from the error cache, not retried against AWS
 	x.resolveRDSEOLDates(ctx, 0, instances)
-	_, cached = rdsEOLCacheLookup("SQL", "1000")
-	assert.True(t, cached)
+	assert.True(t, rdsEOLRecentlyFailed("foo", "SQL", "1000"))
 
-	item, err := metricsProxy.GetMetricById(rdsEOLCacheKey("SQL", "1000"))
+	item, err := metricsProxy.GetMetricById(rdsEOLErrorCacheKey("foo", "SQL", "1000"))
 	assert.NoError(t, err)
 	assert.Equal(t, rdsEOLErrorCacheTTLSeconds, item.ttl)
+}
+
+func TestResolveRDSEOLDatesFailureIsScopedToRegion(t *testing.T) {
+	resetRDSEOLCache()
+	ctx := context.TODO()
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	eolDateTime, err := time.Parse("2006-01-02", "2000-12-01")
+	assert.NoError(t, err)
+
+	// Region A's AWS call fails...
+	mockClientA := mock.NewMockClient(ctrl)
+	mockClientA.EXPECT().DescribeDBEngineVersion(ctx, "SQL", "1000").Return(nil, fmt.Errorf("throttled"))
+
+	// ...but region B, same engine/version, must still make its own attempt and succeed
+	mockClientB := mock.NewMockClient(ctrl)
+	mockClientB.EXPECT().DescribeDBEngineVersion(ctx, "SQL", "1000").Return(&rds_types.DBEngineVersion{
+		MajorEngineVersion: aws.String("1000"),
+	}, nil)
+	mockClientB.EXPECT().DescribeDBMajorEngineVersion(ctx, "SQL", "1000").Return(&rds_types.DBMajorEngineVersion{
+		SupportedEngineLifecycles: []rds_types.SupportedEngineLifecycle{
+			{
+				LifecycleSupportName:    rds_types.LifecycleSupportNameOpenSourceRdsStandardSupport,
+				LifecycleSupportEndDate: aws.Time(eolDateTime),
+			},
+		},
+	}, nil)
+
+	x := RDSExporter{
+		svcs:    []awsclient.Client{mockClientA, mockClientB},
+		configs: []aws.Config{{Region: "region-a"}, {Region: "region-b"}},
+		logger:  slog.New(slog.NewTextHandler(io.Discard, nil)),
+		workers: 5,
+	}
+
+	instances := createTestDBInstances()
+
+	x.resolveRDSEOLDates(ctx, 0, instances)
+	_, cached := rdsEOLCacheLookup("SQL", "1000")
+	assert.False(t, cached, "a failed lookup in one region must not be cached as a confirmed answer")
+
+	x.resolveRDSEOLDates(ctx, 1, instances)
+	eolDate, cached := rdsEOLCacheLookup("SQL", "1000")
+	assert.True(t, cached, "region B must still attempt and resolve its own lookup despite region A's failure")
+	assert.Equal(t, "2000-12-01", eolDate)
 }
 
 func TestResolveRDSEOLDateCachesPendingLifecycleEntryWithShortTTL(t *testing.T) {

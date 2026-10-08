@@ -770,18 +770,36 @@ const rdsEOLPendingCacheTTLSeconds = 3600
 // quickly, unlike the long rdsEOLCacheTTLSeconds used for confirmed answers.
 const rdsEOLErrorCacheTTLSeconds = 300
 
+// rdsEOLCacheKey is intentionally not region-scoped: AWS's engine lifecycle data (a standard-
+// support end date, or the lack of one) is the same regardless of which region reports it, so a
+// confirmed answer for an engine/version learned via one region is valid and reusable for every
+// other region running the same engine/version.
 func rdsEOLCacheKey(engine string, engineVersion string) string {
 	return "rds-eol-" + engine + "-" + engineVersion
 }
 
 // rdsEOLCacheLookup returns the cached EOL date for an engine/version pair and whether an
-// entry exists at all (an empty string with cached=true means a confirmed negative).
+// entry exists at all (an empty string with cached=true means a confirmed negative). This only
+// ever reflects a confirmed AWS answer -- a failed API call is cached separately per-region via
+// rdsEOLErrorCacheKey, since a failure is specific to the region whose endpoint was called and
+// must not suppress another region's (potentially healthy) lookup for the same engine/version.
 func rdsEOLCacheLookup(engine string, engineVersion string) (eolDate string, cached bool) {
 	item, err := metricsProxy.GetMetricById(rdsEOLCacheKey(engine, engineVersion))
 	if err != nil {
 		return "", false
 	}
 	return item.value.(string), true
+}
+
+func rdsEOLErrorCacheKey(region string, engine string, engineVersion string) string {
+	return "rds-eol-error-" + region + "-" + engine + "-" + engineVersion
+}
+
+// rdsEOLRecentlyFailed reports whether a lookup for this engine/version in this specific region
+// failed recently enough that it's still within its cooldown (rdsEOLErrorCacheTTLSeconds).
+func rdsEOLRecentlyFailed(region string, engine string, engineVersion string) bool {
+	_, err := metricsProxy.GetMetricById(rdsEOLErrorCacheKey(region, engine, engineVersion))
+	return err == nil
 }
 
 // resolveRDSEOLDate resolves and caches the AWS-reported standard-support end date for a single
@@ -792,15 +810,17 @@ func rdsEOLCacheLookup(engine string, engineVersion string) (eolDate string, cac
 // so a persistent failure doesn't retry on every single scrape forever.
 func (e *RDSExporter) resolveRDSEOLDate(ctx context.Context, configIndex int, engine string, engineVersion string) {
 	cacheKey := rdsEOLCacheKey(engine, engineVersion)
+	region := e.getRegion(configIndex)
 
 	engineDetails, err := e.svcs[configIndex].DescribeDBEngineVersion(ctx, engine, engineVersion)
 	if err != nil {
 		e.logger.Error("Call to DescribeDBEngineVersions failed",
+			slog.String("region", region),
 			slog.String("engine", engine),
 			slog.String("version", engineVersion),
 			slog.Any("err", err))
 		awsclient.AwsExporterMetrics.IncrementErrors()
-		metricsProxy.StoreMetricById(cacheKey, "", rdsEOLErrorCacheTTLSeconds)
+		metricsProxy.StoreMetricById(rdsEOLErrorCacheKey(region, engine, engineVersion), true, rdsEOLErrorCacheTTLSeconds)
 		return
 	}
 	if engineDetails.MajorEngineVersion == nil {
@@ -814,11 +834,12 @@ func (e *RDSExporter) resolveRDSEOLDate(ctx context.Context, configIndex int, en
 	majorVersion, err := e.svcs[configIndex].DescribeDBMajorEngineVersion(ctx, engine, *engineDetails.MajorEngineVersion)
 	if err != nil {
 		e.logger.Error("Call to DescribeDBMajorEngineVersions failed",
+			slog.String("region", region),
 			slog.String("engine", engine),
 			slog.String("version", engineVersion),
 			slog.Any("err", err))
 		awsclient.AwsExporterMetrics.IncrementErrors()
-		metricsProxy.StoreMetricById(cacheKey, "", rdsEOLErrorCacheTTLSeconds)
+		metricsProxy.StoreMetricById(rdsEOLErrorCacheKey(region, engine, engineVersion), true, rdsEOLErrorCacheTTLSeconds)
 		return
 	}
 
@@ -852,6 +873,7 @@ func (e *RDSExporter) resolveRDSEOLDate(ctx context.Context, configIndex int, en
 func (e *RDSExporter) resolveRDSEOLDates(ctx context.Context, configIndex int, instances []rds_types.DBInstance) {
 	type engineVersion struct{ engine, version string }
 	seen := make(map[engineVersion]bool)
+	region := e.getRegion(configIndex)
 
 	workers := e.workers
 	if workers < 1 {
@@ -869,6 +891,9 @@ func (e *RDSExporter) resolveRDSEOLDates(ctx context.Context, configIndex int, i
 		}
 		seen[ev] = true
 		if _, cached := rdsEOLCacheLookup(ev.engine, ev.version); cached {
+			continue
+		}
+		if rdsEOLRecentlyFailed(region, ev.engine, ev.version) {
 			continue
 		}
 
