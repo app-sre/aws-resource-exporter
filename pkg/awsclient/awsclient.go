@@ -27,6 +27,8 @@ import (
 type Client interface {
 	// EC2
 	GetTransitGatewaysCount(ctx context.Context, input *ec2.DescribeTransitGatewaysInput) (int, error)
+	DescribeInstancesAll(ctx context.Context) ([]ec2_types.Instance, error)
+	DescribeInstanceTypes(ctx context.Context, instanceTypes []ec2_types.InstanceType) ([]ec2_types.InstanceTypeInfo, error)
 
 	// VPC
 	DescribeVpcsAll(ctx context.Context) ([]ec2_types.Vpc, error)
@@ -84,6 +86,45 @@ func (c *awsClient) GetTransitGatewaysCount(ctx context.Context, input *ec2.Desc
 		count += len(result.TransitGateways)
 	}
 	return count, nil
+}
+
+func (c *awsClient) DescribeInstancesAll(ctx context.Context) ([]ec2_types.Instance, error) {
+	var instances []ec2_types.Instance
+	input := &ec2.DescribeInstancesInput{
+		Filters: []ec2_types.Filter{{
+			Name:   aws.String("instance-state-name"),
+			Values: []string{"running"},
+		}},
+	}
+	paginator := ec2.NewDescribeInstancesPaginator(c.ec2Client, input)
+	for paginator.HasMorePages() {
+		AwsExporterMetrics.IncrementRequests()
+		result, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, reservation := range result.Reservations {
+			instances = append(instances, reservation.Instances...)
+		}
+	}
+	return instances, nil
+}
+
+func (c *awsClient) DescribeInstanceTypes(ctx context.Context, instanceTypes []ec2_types.InstanceType) ([]ec2_types.InstanceTypeInfo, error) {
+	var typeInfos []ec2_types.InstanceTypeInfo
+	input := &ec2.DescribeInstanceTypesInput{
+		InstanceTypes: instanceTypes,
+	}
+	paginator := ec2.NewDescribeInstanceTypesPaginator(c.ec2Client, input)
+	for paginator.HasMorePages() {
+		AwsExporterMetrics.IncrementRequests()
+		result, err := paginator.NextPage(ctx)
+		if err != nil {
+			return nil, err
+		}
+		typeInfos = append(typeInfos, result.InstanceTypes...)
+	}
+	return typeInfos, nil
 }
 
 // VPC Functions
