@@ -8,7 +8,7 @@ RUN make build
 FROM builder as test
 RUN make test
 
-FROM registry.access.redhat.com/ubi9-minimal@sha256:5ed244b62bbf4095080144d9d35eb8fcd3d39a9801f94aadd63b9d10978a01ae
+FROM registry.access.redhat.com/ubi9-minimal@sha256:a21d19f72557aa893a0f6ca1177bb1ffd91df6015e60470a116c50a6a05efcd9
 COPY --from=builder /build/aws-resource-exporter  /bin/aws-resource-exporter
 
 EXPOSE      9115
