@@ -19,6 +19,13 @@ var RedisVersion *prometheus.Desc = prometheus.NewDesc(
 	nil,
 )
 
+var CacheNodeType *prometheus.Desc = prometheus.NewDesc(
+	prometheus.BuildFQName(namespace, "", "elasticache_cachenodetype"),
+	"The ElastiCache node type.",
+	[]string{"aws_region", "replication_group_id", "cache_node_type", "aws_account_id"},
+	nil,
+)
+
 var ElastiCacheEOLInfos *prometheus.Desc = prometheus.NewDesc(
 	prometheus.BuildFQName(namespace, "", "elasticache_eol_info"),
 	"The ElastiCache eol date and status for the engine type and version.",
@@ -99,8 +106,13 @@ func (e *ElastiCacheExporter) addMetricFromElastiCacheInfo(configIndex int, clus
 		if cluster.EngineVersion != nil {
 			engineVersion = *cluster.EngineVersion
 		}
+		cacheNodeType := ""
+		if cluster.CacheNodeType != nil {
+			cacheNodeType = *cluster.CacheNodeType
+		}
 
 		e.cache.AddMetric(prometheus.MustNewConstMetric(RedisVersion, prometheus.GaugeValue, 1, region, replicationGroupId, engine, engineVersion, e.awsAccountId))
+		e.cache.AddMetric(prometheus.MustNewConstMetric(CacheNodeType, prometheus.GaugeValue, 1, region, replicationGroupId, cacheNodeType, e.awsAccountId))
 
 		// Gets EOL for engine and major version
 		if eolInfo, ok := eolMap[EOLKey{Engine: engine, Version: majorEngineVersion(engineVersion)}]; ok {
@@ -133,6 +145,7 @@ func (e *ElastiCacheExporter) addMetricFromElastiCacheInfo(configIndex int, clus
 
 func (e *ElastiCacheExporter) Describe(ch chan<- *prometheus.Desc) {
 	ch <- RedisVersion
+	ch <- CacheNodeType
 	ch <- ElastiCacheEOLInfos
 }
 
