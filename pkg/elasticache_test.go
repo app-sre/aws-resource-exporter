@@ -22,6 +22,7 @@ func createTestCacheClusters() []elasticache_types.CacheCluster {
 			CacheClusterId: aws.String("test-cluster"),
 			Engine:         aws.String("redis"),
 			EngineVersion:  aws.String("123"),
+			CacheNodeType:  aws.String("cache.t2.micro"),
 		},
 	}
 }
@@ -63,9 +64,9 @@ func TestAddMetricFromElastiCacheInfo(t *testing.T) {
 	x.addMetricFromElastiCacheInfo(0, clusters, nil)
 	assert.Len(t, x.cache.GetAllMetrics(), 0)
 
-	// one version metric and one EOL metric per cluster
+	// one version metric, one cache node type metric, and one EOL metric per cluster
 	x.addMetricFromElastiCacheInfo(0, createTestCacheClusters(), nil)
-	assert.Len(t, x.cache.GetAllMetrics(), 2)
+	assert.Len(t, x.cache.GetAllMetrics(), 3)
 }
 
 func TestAddElastiCacheMetricsWithEOLMatch(t *testing.T) {
