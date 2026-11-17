@@ -24,6 +24,8 @@ This was made as a complement to [CloudWatch Exporter](https://github.com/promet
 | VPC     | ipv4addressespersubnet      | Capacity and usage of IPv4 addresses per subnet        |
 | EC2     | transitgatewaysperregion    | Quota and usage of transitgateways per region       |
 | Route53 | recordsperhostedzone        | Quota and usage of resource records per Hosted Zone |
+| IAM     | roles_quota                 | Quota of IAM roles per account                      |
+| IAM     | roles_used                  | Number of IAM roles used per account                |
 
 
 ## Running this software
